@@ -1,0 +1,138 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id          String       @id @default(uuid())
+  email       String       @unique
+  password    String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  programs    Program[]
+  workoutLogs WorkoutLog[]
+
+  @@map("users")
+}
+
+model Program {
+  id                  String        @id @default(uuid())
+  userId              String
+  name                String
+  description         String?
+  startDate           DateTime
+  endDate             DateTime
+  durationDays        Int
+  daysPerWeek         Int
+  preferredDays       String[]
+  focusArea           String[]
+  sessionMinutes      Int
+  generationStatus    String        @default("pending")
+  generationStep      String?
+  generationStepIndex Int?
+  generationMessage   String?
+  generationError     String?
+  totalSessions       Int           @default(0)
+  generatedSessions   Int           @default(0)
+  generatedAt         DateTime?
+  isActive            Boolean       @default(true)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  weeks               ProgramWeek[]
+  user                User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, startDate, endDate])
+  @@map("programs")
+}
+
+model ProgramWeek {
+  id         String       @id @default(uuid())
+  programId  String
+  weekNumber Int
+  days       ProgramDay[]
+  program    Program      @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@map("program_weeks")
+}
+
+model ProgramDay {
+  id        String            @id @default(uuid())
+  weekId    String
+  dayNumber Int
+  dayName   String
+  date      DateTime
+  focus     String
+  isRestDay Boolean
+  week      ProgramWeek       @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  exercises ProgramExercise[]
+
+  @@map("program_days")
+}
+
+model ProgramExercise {
+  id           String     @id @default(uuid())
+  dayId        String
+  exerciseName String
+  muscleGroup  String
+  sets         Int
+  reps         Int
+  restSeconds  Int
+  notes        String?
+  order        Int
+  isCompleted  Boolean    @default(false)
+  day          ProgramDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
+
+  @@map("program_exercises")
+}
+
+model WorkoutLog {
+  id        String        @id @default(uuid())
+  userId    String
+  loggedAt  DateTime
+  notes     String?
+  createdAt DateTime      @default(now())
+  exercises ExerciseLog[]
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("workout_logs")
+}
+
+model ExerciseLog {
+  id           String        @id @default(uuid())
+  workoutLogId String
+  exerciseName String
+  muscleGroup  String?
+  createdAt    DateTime      @default(now())
+  workoutLog   WorkoutLog    @relation(fields: [workoutLogId], references: [id], onDelete: Cascade)
+  sets         ExerciseSet[]
+
+  @@map("exercise_logs")
+}
+
+model ExerciseSet {
+  id            String      @id @default(uuid())
+  exerciseLogId String
+  setNumber     Int
+  weight        Float?
+  reps          Int?
+  durationSecs  Int?
+  notes         String?
+  exerciseLog   ExerciseLog @relation(fields: [exerciseLogId], references: [id], onDelete: Cascade)
+
+  @@map("exercise_sets")
+}
+
+model Exercise {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  muscleGroup String
+  equipment   String
+  createdAt   DateTime @default(now())
+  isCompound  Boolean  @default(false)
+
+  @@map("exercises")
+}
