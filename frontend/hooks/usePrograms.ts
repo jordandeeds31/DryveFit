@@ -3,6 +3,7 @@ import {
   getPrograms,
   createProgram,
   getProgramById,
+  getProgramSchedules,
 } from "@/lib/api/programs.api";
 
 export const usePrograms = () => {
@@ -32,5 +33,12 @@ export const useProgramGenerationStatus = (programId: string | null) => {
       const status = query.state.data?.generationStatus;
       return status === "completed" || status === "failed" ? false : 2000;
     },
+  });
+};
+
+export const useSchedule = () => {
+  return useQuery({
+    queryKey: ["schedule"],
+    queryFn: getProgramSchedules,
   });
 };
