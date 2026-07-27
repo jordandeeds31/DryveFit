@@ -37,6 +37,9 @@ export const BODY_PARTS = [
 ] as const;
 export type BodyPart = (typeof BODY_PARTS)[number];
 
+export const FITNESS_LEVELS = ["beginner", "intermediate", "advanced"] as const;
+export type FitnessLevel = (typeof FITNESS_LEVELS)[number];
+
 export interface CreateProgramPayload {
   description?: string;
   startDate: string;
@@ -44,6 +47,7 @@ export interface CreateProgramPayload {
   preferredDays: string[];
   focusArea: BodyPart[];
   sessionMinutes: number;
+  fitnessLevel: FitnessLevel;
 }
 
 export interface Program {
@@ -58,6 +62,7 @@ export interface Program {
   preferredDays: string[];
   focusArea: string[];
   sessionMinutes: number;
+  fitnessLevel: string;
   generationStatus: string;
   generationStep: string | null;
   generationStepIndex: number | null;
@@ -71,6 +76,18 @@ export interface Program {
   updatedAt: string;
 }
 
+export interface ProgramExerciseLogSet {
+  id: string;
+  setNumber: number;
+  weight: number | null;
+  reps: number | null;
+}
+
+export interface ProgramExerciseLog {
+  id: string;
+  sets: ProgramExerciseLogSet[];
+}
+
 export interface ProgramExercise {
   id: string;
   exerciseName: string;
@@ -81,6 +98,7 @@ export interface ProgramExercise {
   notes?: string | null;
   order: number;
   isCompleted: boolean;
+  exerciseLogs: ProgramExerciseLog[];
 }
 
 export interface ProgramDay {

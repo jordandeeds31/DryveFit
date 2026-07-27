@@ -7,6 +7,8 @@ import {
   deactivateProgramHandler,
   getScheduleHandler,
   getProgramDayHandler,
+  logExercisePerformanceHandler,
+  deleteExercisePerformanceHandler,
 } from "./programs.controller";
 
 const router = Router();
@@ -18,6 +20,9 @@ router.get("/", listProgramsHandler);
 router.get("/schedules", getScheduleHandler);
 router.get("/:id/day", getProgramDayHandler);
 router.get("/:id", getProgramHandler);
+
+router.post("/exercises/:exerciseId/log", logExercisePerformanceHandler);
+router.delete("/exercises/:exerciseId/log", deleteExercisePerformanceHandler);
 router.patch("/:id/deactivate", deactivateProgramHandler);
 
 export default router;

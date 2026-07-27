@@ -38,6 +38,18 @@ export const BODY_PARTS = [
 ] as const;
 export type BodyPart = (typeof BODY_PARTS)[number];
 
+export const FITNESS_LEVELS = ["beginner", "intermediate", "advanced"] as const;
+export type FitnessLevel = (typeof FITNESS_LEVELS)[number];
+
+const FITNESS_LEVEL_GUIDANCE: Record<FitnessLevel, string> = {
+  beginner:
+    "This person is a beginner. Prioritize fundamental compound movements, machines and dumbbells over complex barbell lifts where appropriate, moderate volume (2-3 sets per exercise), longer rest periods (90-120s), and clear form cues in every note. Avoid advanced techniques like drop sets, supersets, or failure training.",
+  intermediate:
+    "This person is intermediate — comfortable with standard free-weight compound lifts. Use a mix of compound and isolation exercises, moderate-to-higher volume (3-4 sets), and standard rest periods (60-90s). Some intensity techniques (supersets, occasional drop sets) are fine.",
+  advanced:
+    "This person is advanced and trains hard. Include heavier compound lifts, higher volume and/or intensity (4-5 sets, lower rep ranges on strength days), advanced techniques where appropriate (drop sets, supersets, rest-pause, tempo work), and push closer to failure on isolation work. Assume strong technique and higher work capacity.",
+};
+
 export const normalizeDay = (day: string): string => {
   const key = day.trim().toLowerCase();
   return DAY_ALIASES[key] ?? day.toUpperCase();
@@ -98,38 +110,85 @@ export const getWeeksPlan = (
   return plan;
 };
 
+export type DayFocusAssignment = Record<string, string[]>;
+
+export const assignFocusAreasToDays = (
+  trainingDayNames: string[],
+  focusAreas: string[],
+): DayFocusAssignment => {
+  const numDays = trainingDayNames.length;
+  const assignment: DayFocusAssignment = {};
+
+  if (numDays === 0 || focusAreas.length === 0) return assignment;
+
+  trainingDayNames.forEach((day) => {
+    assignment[day] = [];
+  });
+
+  if (focusAreas.length <= numDays) {
+    trainingDayNames.forEach((day, i) => {
+      assignment[day] = [focusAreas[i % focusAreas.length]];
+    });
+    return assignment;
+  }
+
+  const baseSize = Math.floor(focusAreas.length / numDays);
+  const remainder = focusAreas.length % numDays;
+  let cursor = 0;
+
+  trainingDayNames.forEach((day, i) => {
+    const chunkSize = baseSize + (i < remainder ? 1 : 0);
+    assignment[day] = focusAreas.slice(cursor, cursor + chunkSize);
+    cursor += chunkSize;
+  });
+
+  return assignment;
+};
+
 interface WeekPromptInput {
   weekNumber: number;
   totalWeeks: number;
   days: PlannedDay[];
-  focusAreas: string[];
+  focusAreaAssignment: DayFocusAssignment;
   sessionMinutes: number;
+  fitnessLevel: FitnessLevel;
+  allowedExercises: string[];
 }
 
 export const buildWeekPrompt = (input: WeekPromptInput): string => {
-  const focusLabel =
-    input.focusAreas.length > 0 ? input.focusAreas.join(", ") : "full body";
   const dayNames = input.days.map((d) => d.dayName);
-  const trainingDayNames = input.days
-    .filter((d) => d.isTrainingDay)
-    .map((d) => d.dayName);
+
+  const dayPlanLines = input.days
+    .map((d) => {
+      if (!d.isTrainingDay) {
+        return `- ${d.dayName}: Rest day`;
+      }
+      const focus = input.focusAreaAssignment[d.dayName] ?? [];
+      return `- ${d.dayName}: Train ${focus.join(" & ")} ONLY — do not include exercises for any other body part on this day`;
+    })
+    .join("\n");
+
+  const allowedExercisesText = input.allowedExercises.join(", ");
 
   return `You are an elite strength and conditioning coach. Generate week ${input.weekNumber} of ${input.totalWeeks} of a periodized workout program.
 
 WEEK CONTEXT:
 - This is week ${input.weekNumber} of ${input.totalWeeks} total weeks — apply progressive overload appropriate for this point in the program (early weeks: foundational volume and technique; later weeks: increased intensity and/or volume).
-- Focus Areas: ${focusLabel}
 - Session Length: ${input.sessionMinutes} minutes
-- Days to include in this week's output: ${dayNames.join(", ")}
-- Training days (assign real exercises): ${trainingDayNames.length > 0 ? trainingDayNames.join(", ") : "none — this is an all-rest week"}
-- All other listed days are rest days (isRestDay: true, empty exercises array)
+- Fitness Level: ${input.fitnessLevel.toUpperCase()} — ${FITNESS_LEVEL_GUIDANCE[input.fitnessLevel]}
+
+ALLOWED EXERCISES (you MUST only select exercises from this exact list — do not invent, rename, or modify any exercise name):
+${allowedExercisesText}
+
+DAY-BY-DAY PLAN (follow exactly — each day trains only its assigned body part(s)):
+${dayPlanLines}
 
 Respond ONLY with valid JSON — no markdown, no explanation, no code blocks. Structure:
 {
   "days": [
     {
       "dayName": "MON",
-      "focus": "Chest & Triceps",
+      "focus": "Chest",
       "isRestDay": false,
       "exercises": [
         {
@@ -147,35 +206,15 @@ Respond ONLY with valid JSON — no markdown, no explanation, no code blocks. St
 }
 
 IMPORTANT RULES:
-- "reps" must be a single whole number (e.g. 8, 10, 12) — NEVER a range like "6-8" or "8-10", and never a string. Pick the single most appropriate rep count for that exercise, set, and week.
-- "focus" must always be a non-empty string, even for rest days. Use "Rest" or "Active Recovery" as the focus value for any day where isRestDay is true — never an empty string.
+- "exerciseName" MUST be copied EXACTLY, character-for-character, from the ALLOWED EXERCISES list above. Do not combine, rename, merge, abbreviate, or paraphrase any exercise name — even if it seems like a reasonable variation. For example, if the list contains "Barbell Bent Over Row" and "One-Arm Dumbbell Row" as two separate items, do NOT invent a new name like "Dumbbell Bent Over Row" by blending them — pick one of the two exact names as listed, unmodified.
+- Before finalizing your response, double-check every "exerciseName" value against the ALLOWED EXERCISES list — if any name does not appear verbatim in that list, replace it with the closest exact match from the list instead.
+- "reps" must be a single whole number (e.g. 8, 10, 12) — NEVER a range like "6-8" or "8-10", and never a string.
+- "focus" must always be a non-empty string. For training days, it should name the assigned body part(s) exactly (e.g. "Chest", "Back & Biceps"). For rest days, use "Rest" or "Active Recovery".
+- Each training day's exercises must ONLY target that day's assigned body part(s) — do not mix in unrelated muscle groups.
+- Exercise selection, volume, and intensity must match the stated fitness level.
 - For timed exercises (planks, holds), use "reps" as the number of seconds instead, still as a single whole number.
 
 Include exactly one entry in "days" for each of: ${dayNames.join(", ")} — in that order. Be thorough and specific with exercise selection, sets, reps, and coaching notes.`;
-};
-
-interface ProgramNameInput {
-  durationDays: number;
-  preferredDays: string[];
-  focusAreas: string[];
-  sessionMinutes: number;
-}
-
-export const buildProgramNamePrompt = (input: ProgramNameInput): string => {
-  const focusLabel =
-    input.focusAreas.length > 0 ? input.focusAreas.join(", ") : "full body";
-
-  return `Generate a short, professional name for a workout program with these attributes:
-- Duration: ${input.durationDays} days
-- Training days per week: ${input.preferredDays.length}
-- Focus areas: ${focusLabel}
-- Session length: ${input.sessionMinutes} minutes
-
-Requirements:
-- 2-5 words, title case
-- Sounds professional, like something a real training program would be called (e.g. "12-Week Strength Foundation", "Upper Body Power Builder", "Full Body Conditioning Program")
-- No quotes, no punctuation at the end, no generic filler like "My Program"
-- Respond with ONLY the name — no explanation, no markdown, nothing else`;
 };
 
 export const GENERATION_MESSAGES = [

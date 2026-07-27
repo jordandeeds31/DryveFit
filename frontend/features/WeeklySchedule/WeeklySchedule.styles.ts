@@ -10,6 +10,7 @@ const styles = StyleSheet.create({
     borderColor: colors.borderGray,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.sm,
+    marginBottom: spacing.md,
   },
   header: {
     flexDirection: "row",
@@ -39,13 +40,35 @@ const styles = StyleSheet.create({
     borderRadius: 23,
   },
   dayLabel: {
-    fontWeight: fontWeights.semibold,
+    fontWeight: fontWeights.bold,
+    fontSize: fontSizes.xs,
   },
   date: {
     fontWeight: fontWeights.semibold,
+    fontSize: fontSizes.sm,
   },
   dateSelected: {
     color: colors.primaryBlue,
+    fontWeight: fontWeights.extrabold,
+    fontSize: fontSizes.xl,
+  },
+  indicatorContainer: {
+    height: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 4,
+  },
+  workoutDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.primaryBlue,
+    marginTop: 2,
+  },
+  noWorkoutDash: {
+    fontSize: fontSizes.sm,
+    color: colors.textSecondary,
+    marginTop: 2,
   },
 });
 

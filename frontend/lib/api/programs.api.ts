@@ -24,3 +24,28 @@ export const getProgramSchedules = async (): Promise<ScheduleEntry[]> => {
   const { data } = await apiClient.get("/api/programs/schedules");
   return data.result.schedule;
 };
+
+export const getProgramDay = async (programId: string, date: string) => {
+  const { data } = await apiClient.get(
+    `/api/programs/${programId}/day?date=${date}`,
+  );
+  return data.result.day;
+};
+
+export const logExercisePerformance = async (
+  programExerciseId: string,
+  sets: Array<{ weight: number; reps: number }>,
+) => {
+  const { data } = await apiClient.post(
+    `/api/programs/exercises/${programExerciseId}/log`,
+    { sets },
+  );
+  return data.result.workoutLog;
+};
+
+export const deleteExercisePerformance = async (programExerciseId: string) => {
+  const { data } = await apiClient.delete(
+    `/api/programs/exercises/${programExerciseId}/log`,
+  );
+  return data;
+};

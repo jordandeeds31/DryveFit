@@ -1,0 +1,92 @@
+import prisma from "../../lib/prisma";
+import AppError from "../../utils/AppError";
+
+export const logStandaloneWorkout = async (
+  userId: string,
+  exercises: Array<{
+    exerciseName: string;
+    muscleGroup: string;
+    sets: Array<{ weight: number; reps: number }>;
+  }>,
+  dateStr: string,
+) => {
+  if (exercises.length === 0) {
+    throw new AppError(400, "At least one exercise is required");
+  }
+
+  for (const exercise of exercises) {
+    if (exercise.sets.length === 0) {
+      throw new AppError(
+        400,
+        `${exercise.exerciseName} needs at least one set`,
+      );
+    }
+  }
+
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const startOfDay = new Date(year, month - 1, day, 0, 0, 0, 0);
+  const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
+  const loggedAt = new Date(year, month - 1, day);
+
+  // Remove any existing standalone logs for this date — this call fully
+  // replaces them with whatever's currently in the form.
+  await prisma.workoutLog.deleteMany({
+    where: {
+      userId,
+      loggedAt: { gte: startOfDay, lte: endOfDay },
+      exercises: {
+        every: { programExerciseId: null },
+      },
+    },
+  });
+
+  const workoutLog = await prisma.workoutLog.create({
+    data: {
+      userId,
+      loggedAt,
+      exercises: {
+        create: exercises.map((exercise) => ({
+          exerciseName: exercise.exerciseName,
+          muscleGroup: exercise.muscleGroup,
+          sets: {
+            create: exercise.sets.map((set, index) => ({
+              setNumber: index + 1,
+              weight: set.weight,
+              reps: set.reps,
+            })),
+          },
+        })),
+      },
+    },
+    include: {
+      exercises: { include: { sets: true } },
+    },
+  });
+
+  return workoutLog;
+};
+
+export const getWorkoutLogsForDate = async (
+  userId: string,
+  dateStr: string,
+) => {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const startOfDay = new Date(year, month - 1, day, 0, 0, 0, 0);
+  const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
+
+  const workoutLogs = await prisma.workoutLog.findMany({
+    where: {
+      userId,
+      loggedAt: { gte: startOfDay, lte: endOfDay },
+      exercises: {
+        every: { programExerciseId: null },
+      },
+    },
+    include: {
+      exercises: { include: { sets: true } },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
+  return workoutLogs;
+};

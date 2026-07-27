@@ -28,6 +28,7 @@ model Program {
   endDate             DateTime
   durationDays        Int
   daysPerWeek         Int
+  fitnessLevel        String        @default("beginner")
   preferredDays       String[]
   focusArea           String[]
   sessionMinutes      Int
@@ -74,7 +75,7 @@ model ProgramDay {
 }
 
 model ProgramExercise {
-  id           String     @id @default(uuid())
+  id           String        @id @default(uuid())
   dayId        String
   exerciseName String
   muscleGroup  String
@@ -83,8 +84,9 @@ model ProgramExercise {
   restSeconds  Int
   notes        String?
   order        Int
-  isCompleted  Boolean    @default(false)
-  day          ProgramDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  isCompleted  Boolean       @default(false)
+  day          ProgramDay    @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  exerciseLogs ExerciseLog[]
 
   @@map("program_exercises")
 }
@@ -102,13 +104,15 @@ model WorkoutLog {
 }
 
 model ExerciseLog {
-  id           String        @id @default(uuid())
-  workoutLogId String
-  exerciseName String
-  muscleGroup  String?
-  createdAt    DateTime      @default(now())
-  workoutLog   WorkoutLog    @relation(fields: [workoutLogId], references: [id], onDelete: Cascade)
-  sets         ExerciseSet[]
+  id                String           @id @default(uuid())
+  workoutLogId      String
+  programExerciseId String?          @unique
+  exerciseName      String
+  muscleGroup       String?
+  createdAt         DateTime         @default(now())
+  workoutLog        WorkoutLog       @relation(fields: [workoutLogId], references: [id], onDelete: Cascade)
+  programExercise   ProgramExercise? @relation(fields: [programExerciseId], references: [id], onDelete: SetNull)
+  sets              ExerciseSet[]
 
   @@map("exercise_logs")
 }

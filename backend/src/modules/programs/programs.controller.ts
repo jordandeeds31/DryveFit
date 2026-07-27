@@ -10,35 +10,46 @@ import {
   deactivateProgram,
   getScheduleForUser,
   getProgramDayByDate,
+  logExercisePerformance,
+  deleteExercisePerformance,
 } from "./programs.service";
-import { BodyPart } from "./programs.prompts";
+import { BodyPart, FitnessLevel } from "./programs.prompts";
 
 const getParam = (value: string | string[]): string => {
   return Array.isArray(value) ? value[0] : value;
 };
 
+// Strips the time-of-day component so startDate always represents a
+// clean local calendar date, regardless of what time-of-day the
+// client's timestamp happened to carry.
+const normalizeToLocalMidnight = (date: Date): Date => {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+};
+
 export const createProgramHandler = catchAsync(
   async (req: AuthRequest, res: Response) => {
     const {
-      name,
       description,
       startDate,
       durationDays,
       preferredDays,
       focusArea,
       sessionMinutes,
+      fitnessLevel,
     } = req.body;
+
+    const parsedStartDate = normalizeToLocalMidnight(new Date(startDate));
 
     const program = await createProgram({
       userId: req.userId!,
-      name,
       description,
-      startDate: new Date(startDate),
+      startDate: parsedStartDate,
       durationDays,
       daysPerWeek: preferredDays.length,
       preferredDays,
       focusArea: focusArea as BodyPart[],
       sessionMinutes,
+      fitnessLevel: fitnessLevel as FitnessLevel,
     });
 
     sendSuccess(res, 201, "PROGRAM_CREATED", { program });
@@ -77,6 +88,33 @@ export const getProgramHandler = catchAsync(
   async (req: AuthRequest, res: Response) => {
     const program = await getProgramById(req.userId!, getParam(req.params.id));
     sendSuccess(res, 200, "PROGRAM_FETCHED", { program });
+  },
+);
+
+export const logExercisePerformanceHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const programExerciseId = getParam(req.params.exerciseId);
+    const { sets } = req.body;
+
+    if (!Array.isArray(sets)) {
+      throw new AppError(400, "sets must be an array");
+    }
+
+    const workoutLog = await logExercisePerformance(
+      req.userId!,
+      programExerciseId,
+      sets,
+    );
+
+    sendSuccess(res, 201, "EXERCISE_LOGGED", { workoutLog });
+  },
+);
+
+export const deleteExercisePerformanceHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const programExerciseId = getParam(req.params.exerciseId);
+    await deleteExercisePerformance(req.userId!, programExerciseId);
+    sendSuccess(res, 200, "EXERCISE_LOG_DELETED", {});
   },
 );
 

@@ -1,8 +1,13 @@
 import { View, Text, TouchableOpacity } from "react-native";
 import Feather from "@expo/vector-icons/Feather";
 import styles from "./WeeklySchedule.styles";
-import { WeeklyScheduleProps } from "./WeeklySchedule.props";
-import { DAY_LABELS, isSameDay, formatWeekRange } from "@/lib/utils/date.utils";
+import { WeeklyScheduleProps } from "./WeeklySchedule.types";
+import {
+  DAY_LABELS,
+  isSameDay,
+  formatWeekRange,
+  toDateKey,
+} from "@/lib/utils/date.utils";
 
 const WeeklySchedule = ({
   weekDates,
@@ -10,6 +15,7 @@ const WeeklySchedule = ({
   setSelectedDate,
   onNextWeek,
   onPreviousWeek,
+  scheduleMap,
 }: WeeklyScheduleProps) => {
   return (
     <View style={styles.datesContainer}>
@@ -28,6 +34,9 @@ const WeeklySchedule = ({
       <View style={styles.datesRow}>
         {weekDates.map((date, index) => {
           const isSelected = isSameDay(date, selectedDate);
+          const scheduleEntry = scheduleMap[toDateKey(date)];
+          const hasWorkout = !!scheduleEntry;
+
           return (
             <TouchableOpacity
               style={[
@@ -41,6 +50,13 @@ const WeeklySchedule = ({
               <Text style={[styles.date, isSelected && styles.dateSelected]}>
                 {date.getDate()}
               </Text>
+              <View style={styles.indicatorContainer}>
+                {hasWorkout ? (
+                  <View style={styles.workoutDot} />
+                ) : (
+                  <Text style={styles.noWorkoutDash}>–</Text>
+                )}
+              </View>
             </TouchableOpacity>
           );
         })}

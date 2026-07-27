@@ -6,8 +6,12 @@ import {
   ProgramDurationDays,
   BODY_PARTS,
   BodyPart,
+  FITNESS_LEVELS,
+  FitnessLevel,
   getWeeksPlan,
   buildWeekPrompt,
+  assignFocusAreasToDays,
+  normalizeDay,
 } from "./programs.prompts";
 import { weekResponseSchema } from "./programs.schema";
 import { CreateProgramInput } from "./programs.types";
@@ -25,6 +29,15 @@ const validateFocusArea = (focusArea: BodyPart[]) => {
     throw new AppError(
       400,
       `Invalid focus area(s): ${invalid.join(", ")}. Must be one of: ${BODY_PARTS.join(", ")}`,
+    );
+  }
+};
+
+const validateFitnessLevel = (fitnessLevel: string) => {
+  if (!FITNESS_LEVELS.includes(fitnessLevel as FitnessLevel)) {
+    throw new AppError(
+      400,
+      `Invalid fitness level. Must be one of: ${FITNESS_LEVELS.join(", ")}`,
     );
   }
 };
@@ -70,8 +83,6 @@ const validateProgramDates = async (input: {
   return endDate;
 };
 
-// Placeholder naming — no AI call for now. Easy to swap for an
-// AI-generated name later without touching any callers.
 const buildDefaultProgramName = (input: {
   durationDays: number;
   focusArea: string[];
@@ -86,8 +97,22 @@ const buildDefaultProgramName = (input: {
   return `${input.durationDays}-Day ${focusLabel} Program`;
 };
 
+const getAllowedExerciseNames = async (
+  focusArea: string[],
+): Promise<string[]> => {
+  const exercises = await prisma.exercise.findMany({
+    where: {
+      muscleGroup: { in: focusArea },
+    },
+    select: { name: true },
+  });
+
+  return exercises.map((e) => e.name);
+};
+
 export const createProgram = async (input: CreateProgramInput) => {
   validateFocusArea(input.focusArea);
+  validateFitnessLevel(input.fitnessLevel);
 
   const endDate = await validateProgramDates({
     userId: input.userId,
@@ -113,6 +138,7 @@ export const createProgram = async (input: CreateProgramInput) => {
       preferredDays: input.preferredDays,
       focusArea: input.focusArea,
       sessionMinutes: input.sessionMinutes,
+      fitnessLevel: input.fitnessLevel,
       generationStatus: "pending",
     },
   });
@@ -123,6 +149,7 @@ export const createProgram = async (input: CreateProgramInput) => {
     preferredDays: input.preferredDays,
     focusArea: input.focusArea,
     sessionMinutes: input.sessionMinutes,
+    fitnessLevel: input.fitnessLevel,
   }).catch((err) => {
     console.error(`Program generation failed for ${program.id}:`, err);
   });
@@ -199,6 +226,8 @@ export const getScheduleForUser = async (userId: string) => {
   for (const program of programs) {
     for (const week of program.weeks) {
       for (const day of week.days) {
+        if (day.isRestDay) continue;
+
         const dateKey = day.date.toISOString().split("T")[0];
 
         const isCompleted =
@@ -240,7 +269,9 @@ export const getProgramDayByDate = async (
     throw new AppError(404, "Program not found");
   }
 
-  const targetDate = new Date(dateStr);
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const targetDate = new Date(year, month - 1, day);
+
   if (isNaN(targetDate.getTime())) {
     throw new AppError(400, "Invalid date format. Use YYYY-MM-DD");
   }
@@ -250,22 +281,146 @@ export const getProgramDayByDate = async (
   const endOfDay = new Date(targetDate);
   endOfDay.setHours(23, 59, 59, 999);
 
-  const day = await prisma.programDay.findFirst({
+  const programDay = await prisma.programDay.findFirst({
     where: {
       date: { gte: startOfDay, lte: endOfDay },
       week: { programId },
     },
     include: {
-      exercises: { orderBy: { order: "asc" } },
+      exercises: {
+        orderBy: { order: "asc" },
+        include: {
+          exerciseLogs: {
+            include: { sets: true },
+          },
+        },
+      },
       week: { select: { weekNumber: true } },
     },
   });
 
-  if (!day) {
+  if (!programDay) {
     throw new AppError(404, "No workout day found for that date");
   }
 
-  return day;
+  return programDay;
+};
+
+export const logExercisePerformance = async (
+  userId: string,
+  programExerciseId: string,
+  sets: Array<{ weight: number; reps: number }>,
+) => {
+  const programExercise = await prisma.programExercise.findFirst({
+    where: {
+      id: programExerciseId,
+      day: { week: { program: { userId } } },
+    },
+  });
+
+  if (!programExercise) {
+    throw new AppError(404, "Exercise not found");
+  }
+
+  if (sets.length === 0) {
+    throw new AppError(400, "At least one set is required");
+  }
+
+  const existingLog = await prisma.exerciseLog.findUnique({
+    where: { programExerciseId },
+  });
+
+  let exerciseLog;
+
+  if (existingLog) {
+    await prisma.exerciseSet.deleteMany({
+      where: { exerciseLogId: existingLog.id },
+    });
+
+    exerciseLog = await prisma.exerciseLog.update({
+      where: { id: existingLog.id },
+      data: {
+        sets: {
+          create: sets.map((set, index) => ({
+            setNumber: index + 1,
+            weight: set.weight,
+            reps: set.reps,
+          })),
+        },
+      },
+      include: { sets: true },
+    });
+  } else {
+    const workoutLog = await prisma.workoutLog.create({
+      data: {
+        userId,
+        loggedAt: new Date(),
+      },
+    });
+
+    exerciseLog = await prisma.exerciseLog.create({
+      data: {
+        workoutLogId: workoutLog.id,
+        programExerciseId: programExercise.id,
+        exerciseName: programExercise.exerciseName,
+        muscleGroup: programExercise.muscleGroup,
+        sets: {
+          create: sets.map((set, index) => ({
+            setNumber: index + 1,
+            weight: set.weight,
+            reps: set.reps,
+          })),
+        },
+      },
+      include: { sets: true },
+    });
+  }
+
+  await prisma.programExercise.update({
+    where: { id: programExercise.id },
+    data: { isCompleted: true },
+  });
+
+  return exerciseLog;
+};
+
+export const deleteExercisePerformance = async (
+  userId: string,
+  programExerciseId: string,
+) => {
+  const programExercise = await prisma.programExercise.findFirst({
+    where: {
+      id: programExerciseId,
+      day: { week: { program: { userId } } },
+    },
+  });
+
+  if (!programExercise) {
+    throw new AppError(404, "Exercise not found");
+  }
+
+  const existingLog = await prisma.exerciseLog.findFirst({
+    where: { programExerciseId },
+    include: { workoutLog: { include: { exercises: true } } },
+  });
+
+  if (!existingLog) {
+    throw new AppError(404, "No logged performance found for this exercise");
+  }
+
+  await prisma.exerciseLog.delete({ where: { id: existingLog.id } });
+
+  const remainingExercises = existingLog.workoutLog.exercises.length - 1;
+  if (remainingExercises === 0) {
+    await prisma.workoutLog.delete({
+      where: { id: existingLog.workoutLog.id },
+    });
+  }
+
+  await prisma.programExercise.update({
+    where: { id: programExercise.id },
+    data: { isCompleted: false },
+  });
 };
 
 const stripCodeFences = (text: string): string => {
@@ -283,6 +438,7 @@ const generateProgramWeeks = async (
     preferredDays: string[];
     focusArea: string[];
     sessionMinutes: number;
+    fitnessLevel: FitnessLevel;
   },
 ) => {
   const plan = getWeeksPlan(
@@ -295,6 +451,17 @@ const generateProgramWeeks = async (
     (sum, week) => sum + week.trainingDays.length,
     0,
   );
+
+  const normalizedTrainingDays = [
+    ...new Set(input.preferredDays.map(normalizeDay)),
+  ];
+  const focusAreaAssignment = assignFocusAreasToDays(
+    normalizedTrainingDays,
+    input.focusArea,
+  );
+
+  const allowedExercises = await getAllowedExerciseNames(input.focusArea);
+  const allowedExerciseSet = new Set(allowedExercises);
 
   await prisma.program.update({
     where: { id: programId },
@@ -323,8 +490,10 @@ const generateProgramWeeks = async (
         weekNumber: week.weekNumber,
         totalWeeks,
         days: week.days,
-        focusAreas: input.focusArea,
+        focusAreaAssignment,
         sessionMinutes: input.sessionMinutes,
+        fitnessLevel: input.fitnessLevel,
+        allowedExercises,
       });
 
       const completion = await openai.chat.completions.create({
@@ -342,6 +511,16 @@ const generateProgramWeeks = async (
 
       const parsed = JSON.parse(stripCodeFences(rawContent));
       const validated = weekResponseSchema.parse(parsed);
+
+      for (const day of validated.days) {
+        for (const exercise of day.exercises) {
+          if (!allowedExerciseSet.has(exercise.exerciseName)) {
+            throw new Error(
+              `AI returned an exercise not in the allowed list: "${exercise.exerciseName}"`,
+            );
+          }
+        }
+      }
 
       await prisma.programWeek.create({
         data: {
