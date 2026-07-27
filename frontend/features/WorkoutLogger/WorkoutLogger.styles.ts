@@ -4,9 +4,7 @@ import { spacing } from "@/constants/spacing";
 import { fontSizes, fontWeights } from "@/constants/typography";
 
 const styles = StyleSheet.create({
-  container: {
-    padding: spacing.md,
-  },
+  container: {},
   headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
