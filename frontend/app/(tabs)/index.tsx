@@ -57,7 +57,11 @@ const HomeScreen = () => {
 
   const hasPrograms = !!programs && programs.length > 0;
 
-  // Close logger when selecting a different date
+  // Combined flag — true while EITHER query is refetching for the newly
+  // selected date, so we show exactly one spinner instead of two, and
+  // never briefly render the "no workout" empty state before data settles.
+  const isSwitchingDay = isDayDetailLoading || isWorkoutLogsLoading;
+
   useEffect(() => {
     setIsWorkoutLoggerOpen(false);
   }, [selectedDateKey]);
@@ -100,38 +104,37 @@ const HomeScreen = () => {
           scheduleMap={scheduleMap}
         />
 
-        {!hasPrograms && !isWorkoutLoggerOpen && (
+        {!hasPrograms && (
           <View style={styles.noProgramsContainer}>
             <NoPrograms />
           </View>
         )}
 
-        {isWorkoutLogsLoading ? (
-          <ActivityIndicator />
+        {isSwitchingDay ? (
+          <ActivityIndicator style={{ marginVertical: spacing.md }} />
         ) : isWorkoutLoggerOpen && !dayDetail ? (
           <WorkoutLogger
             setClose={setIsWorkoutLoggerOpen}
             date={selectedDateKey}
             initialWorkoutLogs={workoutLogs ?? []}
           />
+        ) : dayDetail ? (
+          <WorkoutDetail dayDetail={dayDetail} isLoading={false} />
         ) : (
-          !dayDetail && (
-            <View>
-              {hasPrograms && (
-                <Text style={{ marginBottom: 12 }}>
-                  No workout scheduled for today. You can still log a workout if
-                  you decide to train by clicking the button below.
-                </Text>
-              )}
+          <View>
+            {hasPrograms && (
+              <Text style={{ marginBottom: spacing.sm }}>
+                No workout scheduled for today. You can still log a workout if
+                you decide to train by clicking the button below.
+              </Text>
+            )}
 
-              <Button
-                title="Log Workout"
-                onPress={() => setIsWorkoutLoggerOpen(true)}
-              />
-            </View>
-          )
+            <Button
+              title="Log Workout"
+              onPress={() => setIsWorkoutLoggerOpen(true)}
+            />
+          </View>
         )}
-        <WorkoutDetail dayDetail={dayDetail} isLoading={isDayDetailLoading} />
       </ScrollView>
     </SafeAreaView>
   );
