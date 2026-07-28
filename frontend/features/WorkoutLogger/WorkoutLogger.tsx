@@ -179,10 +179,9 @@ const WorkoutLogger = ({
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
-        <Text>Workout Logger</Text>
-
+        <Text>Workout Log</Text>
         <TouchableOpacity onPress={() => setClose(false)}>
-          <AntDesign name="close" size={24} color="black" />
+          <AntDesign name="close" size={20} color="black" />
         </TouchableOpacity>
       </View>
 
@@ -249,23 +248,25 @@ const WorkoutLogger = ({
           )}
         </View>
       ))}
+      <View style={styles.addExerciseSaveRow}>
+        <TouchableOpacity
+          style={styles.addExerciseButton}
+          onPress={handleAddExercise}
+        >
+          <Text style={styles.addExerciseText}>+ ADD EXERCISE</Text>
+        </TouchableOpacity>
 
-      <TouchableOpacity
-        style={styles.addExerciseButton}
-        onPress={handleAddExercise}
-      >
-        <Text style={styles.addExerciseText}>+ ADD EXERCISE</Text>
-      </TouchableOpacity>
-
-      <Button
-        title={isPending ? "SAVING..." : "SAVE"}
-        style={{
-          height: 40,
-          marginTop: 12,
-        }}
-        onPress={handleSave}
-        disabled={isPending}
-      />
+        <Button
+          title={isPending ? "SAVING..." : "SAVE"}
+          style={{
+            height: 40,
+            marginTop: 16,
+            flex: 1,
+          }}
+          onPress={handleSave}
+          disabled={isPending}
+        />
+      </View>
     </View>
   );
 };

@@ -128,7 +128,6 @@ const HomeScreen = () => {
                 you decide to train by clicking the button below.
               </Text>
             )}
-
             <Button
               title="Log Workout"
               onPress={() => setIsWorkoutLoggerOpen(true)}

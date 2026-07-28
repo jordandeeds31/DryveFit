@@ -9,13 +9,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: spacing.md,
+    // marginBottom: spacing.md,
   },
   exerciseBlock: {
     marginTop: spacing.md,
-    paddingBottom: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderGray,
+    // paddingBottom: spacing.md,
+    // borderBottomWidth: 1,
+    // borderBottomColor: colors.borderGray,
   },
   exerciseBlockHeader: {
     flexDirection: "row",
@@ -71,10 +71,16 @@ const styles = StyleSheet.create({
     borderColor: colors.primaryBlue,
     borderRadius: 8,
     borderStyle: "dashed",
+    flex: 1,
   },
   addExerciseText: {
     color: colors.primaryBlue,
     fontWeight: fontWeights.semibold,
+  },
+  addExerciseSaveRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
   },
 });
 
