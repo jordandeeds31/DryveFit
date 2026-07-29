@@ -23,6 +23,7 @@ export const useLogStandaloneWorkout = () => {
       queryClient.invalidateQueries({
         queryKey: ["workoutLogs", variables.date],
       });
+      queryClient.invalidateQueries({ queryKey: ["1rmHistory"] });
     },
   });
 };

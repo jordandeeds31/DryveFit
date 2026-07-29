@@ -68,9 +68,10 @@ export const useLogExercisePerformance = () => {
       programExerciseId: string;
       sets: Array<{ weight: number; reps: number }>;
     }) => logExercisePerformance(programExerciseId, sets),
-    onSuccess: (_data, variables) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
       queryClient.invalidateQueries({ queryKey: ["programDay"] });
+      queryClient.invalidateQueries({ queryKey: ["1rmHistory"] });
     },
   });
 };

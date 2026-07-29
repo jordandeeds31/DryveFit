@@ -316,6 +316,7 @@ export const logExercisePerformance = async (
       id: programExerciseId,
       day: { week: { program: { userId } } },
     },
+    include: { day: true }, // NEW — need the day's actual date
   });
 
   if (!programExercise) {
@@ -354,7 +355,7 @@ export const logExercisePerformance = async (
     const workoutLog = await prisma.workoutLog.create({
       data: {
         userId,
-        loggedAt: new Date(),
+        loggedAt: programExercise.day.date, // FIXED — use the actual program day's date
       },
     });
 

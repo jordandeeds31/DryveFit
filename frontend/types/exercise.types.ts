@@ -6,3 +6,14 @@ export interface Exercise {
   isCompound: boolean;
   createdAt: string;
 }
+
+export interface OneRepMaxEntry {
+  date: string;
+  estimated1RM: number;
+  sets: Array<{
+    id: string;
+    setNumber: number;
+    weight: number | null;
+    reps: number | null;
+  }>;
+}
