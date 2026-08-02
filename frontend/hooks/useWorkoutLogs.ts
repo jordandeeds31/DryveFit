@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   logStandaloneWorkout,
   getWorkoutLogsForDate,
+  deleteWorkoutLogSet,
 } from "@/lib/api/workoutLogs.api";
 
 export const useLogStandaloneWorkout = () => {
@@ -24,6 +25,7 @@ export const useLogStandaloneWorkout = () => {
         queryKey: ["workoutLogs", variables.date],
       });
       queryClient.invalidateQueries({ queryKey: ["1rmHistory"] });
+      queryClient.invalidateQueries({ queryKey: ["schedule"] });
     },
   });
 };
@@ -32,5 +34,24 @@ export const useWorkoutLogsForDate = (date: string) => {
   return useQuery({
     queryKey: ["workoutLogs", date],
     queryFn: () => getWorkoutLogsForDate(date),
+  });
+};
+
+export const useDeleteWorkoutLogSet = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      exerciseLogId,
+      setId,
+    }: {
+      exerciseLogId: string;
+      setId: string;
+    }) => deleteWorkoutLogSet(exerciseLogId, setId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["workoutLogs"] });
+      queryClient.invalidateQueries({ queryKey: ["1rmHistory"] });
+      queryClient.invalidateQueries({ queryKey: ["schedule"] });
+    },
   });
 };

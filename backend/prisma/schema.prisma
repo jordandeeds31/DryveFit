@@ -31,8 +31,10 @@ model Program {
   daysPerWeek         Int
   fitnessLevel        String        @default("beginner")
   preferredDays       String[]
-  focusArea           String[]
+  trainingSplit       String        @default("full body")
   sessionMinutes      Int
+  equipmentAccess     String        @default("full gym")
+  trainingGoal        String        @default("general fitness")
   generationStatus    String        @default("pending")
   generationStep      String?
   generationStepIndex Int?
@@ -76,18 +78,19 @@ model ProgramDay {
 }
 
 model ProgramExercise {
-  id           String        @id @default(uuid())
-  dayId        String
-  exerciseName String
-  muscleGroup  String
-  sets         Int
-  reps         Int
-  restSeconds  Int
-  notes        String?
-  order        Int
-  isCompleted  Boolean       @default(false)
-  day          ProgramDay    @relation(fields: [dayId], references: [id], onDelete: Cascade)
-  exerciseLogs ExerciseLog[]
+  id                String        @id @default(uuid())
+  dayId             String
+  exerciseName      String
+  muscleGroup       String
+  sets              Int
+  reps              Int
+  restSeconds       Int
+  notes             String?
+  order             Int
+  isCompleted       Boolean       @default(false)
+  recommendedWeight Float?
+  day               ProgramDay    @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  exerciseLogs      ExerciseLog[]
 
   @@map("program_exercises")
 }
@@ -136,6 +139,7 @@ model Exercise {
   name        String   @unique
   muscleGroup String
   equipment   String
+  description String?
   createdAt   DateTime @default(now())
   isCompound  Boolean  @default(false)
 

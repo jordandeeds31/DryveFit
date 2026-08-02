@@ -6,7 +6,12 @@ import AppError from "../../utils/AppError";
 import {
   logStandaloneWorkout,
   getWorkoutLogsForDate,
+  deleteWorkoutLogSet,
 } from "./workoutLogs.service";
+
+const getParam = (value: string | string[]): string => {
+  return Array.isArray(value) ? value[0] : value;
+};
 
 export const logStandaloneWorkoutHandler = catchAsync(
   async (req: AuthRequest, res: Response) => {
@@ -35,5 +40,15 @@ export const getWorkoutLogsHandler = catchAsync(
 
     const workoutLogs = await getWorkoutLogsForDate(req.userId!, date);
     sendSuccess(res, 200, "WORKOUT_LOGS_FETCHED", { workoutLogs });
+  },
+);
+
+export const deleteWorkoutLogSetHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const exerciseLogId = getParam(req.params.exerciseLogId);
+    const setId = getParam(req.params.setId);
+
+    await deleteWorkoutLogSet(req.userId!, exerciseLogId, setId);
+    sendSuccess(res, 200, "WORKOUT_LOG_SET_DELETED", {});
   },
 );

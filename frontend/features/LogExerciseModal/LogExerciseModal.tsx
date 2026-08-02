@@ -85,6 +85,11 @@ const LogExerciseModal = ({
           {exercise?.exerciseName} ({exercise?.sets} sets x {exercise?.reps}{" "}
           reps)
         </Text>
+        {exercise?.recommendedWeight != null && (
+          <Text style={styles.recommendedWeight}>
+            Weight: {exercise.recommendedWeight} lbs
+          </Text>
+        )}
         {sets.map((set, index) => (
           <View key={set.id} style={styles.setRow}>
             <Text style={styles.setLabel}>Set {index + 1}</Text>

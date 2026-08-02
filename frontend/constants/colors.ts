@@ -21,4 +21,7 @@ export const colors = {
   purple: "#7C3AED",
   purpleLight: "#F5F3FF",
   purpleBorder: "#EDE9FE",
+
+  dangerRed: "#DC2626",
+  pendingAmber: "#D97706",
 };

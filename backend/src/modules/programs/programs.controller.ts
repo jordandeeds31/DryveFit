@@ -8,12 +8,18 @@ import {
   getProgramsForUser,
   getProgramById,
   deactivateProgram,
+  deleteProgram,
   getScheduleForUser,
   getProgramDayByDate,
   logExercisePerformance,
   deleteExercisePerformance,
 } from "./programs.service";
-import { BodyPart, FitnessLevel } from "./programs.prompts";
+import {
+  TrainingSplit,
+  FitnessLevel,
+  EquipmentAccess,
+  TrainingGoal,
+} from "./programs.prompts";
 
 const getParam = (value: string | string[]): string => {
   return Array.isArray(value) ? value[0] : value;
@@ -33,9 +39,11 @@ export const createProgramHandler = catchAsync(
       startDate,
       durationDays,
       preferredDays,
-      focusArea,
+      trainingSplit,
       sessionMinutes,
       fitnessLevel,
+      equipmentAccess,
+      trainingGoal,
     } = req.body;
 
     const parsedStartDate = normalizeToLocalMidnight(new Date(startDate));
@@ -47,9 +55,11 @@ export const createProgramHandler = catchAsync(
       durationDays,
       daysPerWeek: preferredDays.length,
       preferredDays,
-      focusArea: focusArea as BodyPart[],
+      trainingSplit: trainingSplit as TrainingSplit,
       sessionMinutes,
       fitnessLevel: fitnessLevel as FitnessLevel,
+      equipmentAccess: equipmentAccess as EquipmentAccess,
+      trainingGoal: trainingGoal as TrainingGoal,
     });
 
     sendSuccess(res, 201, "PROGRAM_CREATED", { program });
@@ -125,5 +135,12 @@ export const deactivateProgramHandler = catchAsync(
       getParam(req.params.id),
     );
     sendSuccess(res, 200, "PROGRAM_DEACTIVATED", { program });
+  },
+);
+
+export const deleteProgramHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    await deleteProgram(req.userId!, getParam(req.params.id));
+    sendSuccess(res, 200, "PROGRAM_DELETED", {});
   },
 );

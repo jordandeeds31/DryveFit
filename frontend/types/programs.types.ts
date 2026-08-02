@@ -13,41 +13,44 @@ export const DAYS_OF_WEEK = [
   "sat",
 ] as const;
 
-export const BODY_PARTS = [
-  "chest",
-  "back",
-  "lats",
-  "traps",
-  "shoulders",
-  "biceps",
-  "triceps",
-  "forearms",
-  "abs",
-  "obliques",
-  "lower back",
-  "glutes",
-  "quads",
-  "hamstrings",
-  "calves",
-  "hip flexors",
-  "adductors",
-  "abductors",
+export const TRAINING_SPLITS = [
   "full body",
-  "cardio",
+  "upper / lower",
+  "push / pull / legs",
+  "bro split",
 ] as const;
-export type BodyPart = (typeof BODY_PARTS)[number];
+export type TrainingSplit = (typeof TRAINING_SPLITS)[number];
 
 export const FITNESS_LEVELS = ["beginner", "intermediate", "advanced"] as const;
 export type FitnessLevel = (typeof FITNESS_LEVELS)[number];
+
+export const EQUIPMENT_ACCESS = [
+  "full gym",
+  "home gym (dumbbells + barbell)",
+  "dumbbells only",
+  "bodyweight only",
+] as const;
+export type EquipmentAccess = (typeof EQUIPMENT_ACCESS)[number];
+
+export const TRAINING_GOALS = [
+  "strength",
+  "hypertrophy",
+  "fat loss",
+  "endurance",
+  "general fitness",
+] as const;
+export type TrainingGoal = (typeof TRAINING_GOALS)[number];
 
 export interface CreateProgramPayload {
   description?: string;
   startDate: string;
   durationDays: ProgramDurationDays;
   preferredDays: string[];
-  focusArea: BodyPart[];
+  trainingSplit: TrainingSplit;
   sessionMinutes: number;
   fitnessLevel: FitnessLevel;
+  equipmentAccess: EquipmentAccess;
+  trainingGoal: TrainingGoal;
 }
 
 export interface Program {
@@ -60,9 +63,11 @@ export interface Program {
   durationDays: number;
   daysPerWeek: number;
   preferredDays: string[];
-  focusArea: string[];
+  trainingSplit: string;
   sessionMinutes: number;
   fitnessLevel: string;
+  equipmentAccess: string;
+  trainingGoal: string;
   generationStatus: string;
   generationStep: string | null;
   generationStepIndex: number | null;
@@ -98,6 +103,7 @@ export interface ProgramExercise {
   notes?: string | null;
   order: number;
   isCompleted: boolean;
+  recommendedWeight: number | null;
   exerciseLogs: ProgramExerciseLog[];
 }
 
@@ -127,12 +133,14 @@ export interface ScheduleDay {
   programName: string;
   dayNumber: number;
   title: string;
-  isCompleted: boolean;
+  completedCount: number;
+  totalCount: number;
 }
 
 export interface ScheduleEntry {
   date: string;
   programDays: ScheduleDay[];
+  hasStandaloneLog: boolean;
 }
 
 export interface ApiEnvelope<T> {

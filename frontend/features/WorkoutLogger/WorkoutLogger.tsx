@@ -6,7 +6,10 @@ import AntDesign from "@expo/vector-icons/AntDesign";
 import DropdownExerciseSelect from "@/components/shared/DropdownExerciseSelect/DropdownExerciseSelect";
 import Button from "@/components/shared/Button/Button";
 import { Exercise } from "@/types/exercise.types";
-import { useLogStandaloneWorkout } from "@/hooks/useWorkoutLogs";
+import {
+  useLogStandaloneWorkout,
+  useDeleteWorkoutLogSet,
+} from "@/hooks/useWorkoutLogs";
 
 interface SetEntry {
   id: string;
@@ -59,6 +62,17 @@ const WorkoutLogger = ({
   );
 
   const { mutate: logWorkout, isPending } = useLogStandaloneWorkout();
+  const { mutate: deleteWorkoutLogSet } = useDeleteWorkoutLogSet();
+
+  // Set IDs already persisted to the database (loaded from initialWorkoutLogs) —
+  // deleting one of these needs an immediate API call, not just local state removal.
+  const persistedSetIds = new Set(
+    initialWorkoutLogs.flatMap((workout) =>
+      workout.exercises.flatMap((exercise) =>
+        exercise.sets.map((set) => set.id),
+      ),
+    ),
+  );
 
   useEffect(() => {
     const mappedEntries = mapWorkoutLogsToEntries(initialWorkoutLogs);
@@ -115,6 +129,10 @@ const WorkoutLogger = ({
           : entry,
       ),
     );
+
+    if (persistedSetIds.has(setId)) {
+      deleteWorkoutLogSet({ exerciseLogId: entryId, setId });
+    }
   };
 
   const handleUpdateSet = (
@@ -163,17 +181,10 @@ const WorkoutLogger = ({
 
     if (payload.length === 0) return;
 
-    logWorkout(
-      {
-        exercises: payload,
-        date,
-      },
-      {
-        onSuccess: () => {
-          setClose(false);
-        },
-      },
-    );
+    logWorkout({
+      exercises: payload,
+      date,
+    });
   };
 
   return (

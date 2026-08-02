@@ -5,48 +5,51 @@ import { fontSizes, fontWeights } from "@/constants/typography";
 
 const styles = StyleSheet.create({
   container: {
-    marginTop: spacing.md,
     gap: spacing.sm,
   },
-  focus: {
+  emptyContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: spacing.xl,
+  },
+  emptyText: {
+    color: colors.textSecondary,
+    fontSize: fontSizes.md,
+  },
+  card: {
+    borderWidth: 1,
+    borderColor: colors.borderGray,
+    borderRadius: 8,
+    padding: spacing.sm,
+    gap: spacing.xs,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  name: {
     fontSize: fontSizes.md,
     fontWeight: fontWeights.bold,
   },
-  exerciseRow: {
-    borderWidth: 1,
-    borderColor: "black",
-    paddingHorizontal: spacing.sm,
-    borderRadius: 8,
-    paddingVertical: spacing.sm,
-    gap: spacing.xs,
-  },
-  exerciseNameRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-  },
-  exerciseName: {
-    fontWeight: fontWeights.semibold,
-  },
-  exerciseMeta: {
-    fontSize: fontSizes.sm,
-    color: "gray",
-    marginBottom: spacing.xs,
-  },
-  recommendedWeight: {
-    fontSize: fontSizes.sm,
+  activeBadge: {
+    fontSize: fontSizes.xs,
     fontWeight: fontWeights.semibold,
     color: colors.completedGreen,
-    marginBottom: spacing.xs,
   },
-  descriptionModalTitle: {
-    fontSize: fontSizes.md,
-    fontWeight: fontWeights.bold,
-    marginBottom: spacing.sm,
+  inactiveBadge: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.semibold,
+    color: colors.textMuted,
   },
-  descriptionModalBody: {
+  meta: {
     fontSize: fontSizes.sm,
     color: colors.textSecondary,
+  },
+  deleteButton: {
+    alignSelf: "flex-start",
+    marginTop: spacing.xs,
   },
 });
 

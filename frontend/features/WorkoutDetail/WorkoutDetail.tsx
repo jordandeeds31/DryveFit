@@ -1,11 +1,31 @@
 import { useEffect, useState } from "react";
 import styles from "./WorkoutDetail.styles";
-import { View, Text, ActivityIndicator } from "react-native";
+import { View, Text, ActivityIndicator, TouchableOpacity } from "react-native";
+import Feather from "@expo/vector-icons/Feather";
 import { WorkoutDetailProps } from "./WorkoutDetail.types";
 import Button from "@/components/shared/Button/Button";
+import Modal from "@/components/shared/Modal/Modal";
 import LogExerciseModal from "../LogExerciseModal/LogExerciseModal";
 import { SetEntry } from "../LogExerciseModal/LogExercise.types";
 import { ProgramExercise } from "@/types/programs.types";
+import { useExercises } from "@/hooks/useExercises";
+import { colors } from "@/constants/colors";
+
+const getLogButtonState = (
+  exercise: ProgramExercise,
+): { title: string; backgroundColor: string } => {
+  const hasLoggedSets = exercise.exerciseLogs.length > 0;
+
+  if (!hasLoggedSets) {
+    return { title: "LOG", backgroundColor: colors.primaryBlue };
+  }
+
+  if (!exercise.isCompleted) {
+    return { title: "IN PROGRESS", backgroundColor: colors.pendingAmber };
+  }
+
+  return { title: "LOGGED", backgroundColor: colors.completedGreen };
+};
 
 const buildInitialSetsByExercise = (
   exercises: ProgramExercise[] | undefined,
@@ -22,6 +42,16 @@ const buildInitialSetsByExercise = (
         weight: set.weight?.toString() ?? "",
         reps: set.reps?.toString() ?? "",
       }));
+    } else if (exercise.recommendedWeight != null) {
+      // Pre-fill a suggested starting weight from the AI's recommendation —
+      // the user can still edit or add sets before saving.
+      result[exercise.id] = [
+        {
+          id: `${exercise.id}-recommended`,
+          weight: exercise.recommendedWeight.toString(),
+          reps: "",
+        },
+      ];
     }
   }
 
@@ -33,6 +63,15 @@ const WorkoutDetail = ({ dayDetail, isLoading }: WorkoutDetailProps) => {
   const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(
     null,
   );
+  const [descriptionExerciseName, setDescriptionExerciseName] = useState<
+    string | null
+  >(null);
+
+  const { data: exerciseCatalog } = useExercises();
+  const descriptionByName: Record<string, string | null> = {};
+  for (const catalogExercise of exerciseCatalog ?? []) {
+    descriptionByName[catalogExercise.name] = catalogExercise.description;
+  }
 
   const [setsByExercise, setSetsByExercise] = useState<
     Record<string, SetEntry[]>
@@ -40,7 +79,11 @@ const WorkoutDetail = ({ dayDetail, isLoading }: WorkoutDetailProps) => {
 
   useEffect(() => {
     setSetsByExercise(buildInitialSetsByExercise(dayDetail?.exercises));
-  }, [dayDetail?.id]);
+    // Depends on the whole dayDetail object, not just its id — a background
+    // refetch (e.g. after logging performance elsewhere) can update fields
+    // like recommendedWeight on the same day without the id ever changing,
+    // and that should still resync the pre-filled set values.
+  }, [dayDetail]);
 
   if (isLoading) {
     return (
@@ -70,20 +113,50 @@ const WorkoutDetail = ({ dayDetail, isLoading }: WorkoutDetailProps) => {
   return (
     <View style={styles.container}>
       <Text style={styles.focus}>{dayDetail?.focus}</Text>
-      {dayDetail?.exercises.map((exercise) => (
-        <View key={exercise.id} style={styles.exerciseRow}>
-          <Text style={styles.exerciseName}>{exercise.exerciseName}</Text>
-          <Text style={styles.exerciseMeta}>
-            {exercise.sets} sets x {exercise.reps} reps
-          </Text>
-          <Button
-            title="LOG"
-            style={{ width: 70, height: 30, paddingVertical: 4 }}
-            textStyle={{ fontSize: 12 }}
-            onPress={() => handleLogPress(exercise.id)}
-          />
-        </View>
-      ))}
+      {dayDetail?.exercises.map((exercise) => {
+        const logButtonState = getLogButtonState(exercise);
+
+        return (
+          <View key={exercise.id} style={styles.exerciseRow}>
+            <View style={styles.exerciseNameRow}>
+              <Text style={styles.exerciseName}>{exercise.exerciseName}</Text>
+              {descriptionByName[exercise.exerciseName] && (
+                <TouchableOpacity
+                  onPress={() =>
+                    setDescriptionExerciseName(exercise.exerciseName)
+                  }
+                >
+                  <Feather
+                    name="info"
+                    size={16}
+                    color={colors.textSecondary}
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
+            <Text style={styles.exerciseMeta}>
+              {exercise.sets} sets x {exercise.reps} reps
+            </Text>
+            {exercise.recommendedWeight != null && (
+              <Text style={styles.recommendedWeight}>
+                Weight: {exercise.recommendedWeight} lbs
+              </Text>
+            )}
+            <Button
+              title={logButtonState.title}
+              backgroundColor={logButtonState.backgroundColor}
+              style={{
+                alignSelf: "flex-start",
+                height: 30,
+                paddingVertical: 4,
+                paddingHorizontal: 10,
+              }}
+              textStyle={{ fontSize: 12 }}
+              onPress={() => handleLogPress(exercise.id)}
+            />
+          </View>
+        );
+      })}
       {selectedExercise && (
         <LogExerciseModal
           visible={logModalVisible}
@@ -93,6 +166,19 @@ const WorkoutDetail = ({ dayDetail, isLoading }: WorkoutDetailProps) => {
           onSetsChange={(sets) => handleSetsChange(selectedExercise.id, sets)}
         />
       )}
+      <Modal
+        visible={!!descriptionExerciseName}
+        onClose={() => setDescriptionExerciseName(null)}
+      >
+        <Text style={styles.descriptionModalTitle}>
+          {descriptionExerciseName}
+        </Text>
+        <Text style={styles.descriptionModalBody}>
+          {descriptionExerciseName
+            ? descriptionByName[descriptionExerciseName]
+            : null}
+        </Text>
+      </Modal>
     </View>
   );
 };

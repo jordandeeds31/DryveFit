@@ -66,6 +66,40 @@ export const logStandaloneWorkout = async (
   return workoutLog;
 };
 
+export const deleteWorkoutLogSet = async (
+  userId: string,
+  exerciseLogId: string,
+  setId: string,
+) => {
+  const exerciseLog = await prisma.exerciseLog.findFirst({
+    where: { id: exerciseLogId, workoutLog: { userId } },
+    include: { sets: true, workoutLog: { include: { exercises: true } } },
+  });
+
+  if (!exerciseLog) {
+    throw new AppError(404, "Exercise log not found");
+  }
+
+  const set = exerciseLog.sets.find((s) => s.id === setId);
+  if (!set) {
+    throw new AppError(404, "Set not found");
+  }
+
+  await prisma.exerciseSet.delete({ where: { id: setId } });
+
+  const remainingSets = exerciseLog.sets.length - 1;
+  if (remainingSets === 0) {
+    await prisma.exerciseLog.delete({ where: { id: exerciseLog.id } });
+
+    const remainingExercises = exerciseLog.workoutLog.exercises.length - 1;
+    if (remainingExercises === 0) {
+      await prisma.workoutLog.delete({
+        where: { id: exerciseLog.workoutLog.id },
+      });
+    }
+  }
+};
+
 export const getWorkoutLogsForDate = async (
   userId: string,
   dateStr: string,

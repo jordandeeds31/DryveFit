@@ -10,10 +10,13 @@ const adapter = new PrismaPg({
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  await prisma.exercise.createMany({
-    data: exercises,
-    skipDuplicates: true,
-  });
+  for (const exercise of exercises) {
+    await prisma.exercise.upsert({
+      where: { name: exercise.name },
+      create: exercise,
+      update: { description: exercise.description },
+    });
+  }
   console.log(`Seeded ${exercises.length} exercises.`);
 }
 

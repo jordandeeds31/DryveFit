@@ -5,6 +5,7 @@ import {
   listProgramsHandler,
   getProgramHandler,
   deactivateProgramHandler,
+  deleteProgramHandler,
   getScheduleHandler,
   getProgramDayHandler,
   logExercisePerformanceHandler,
@@ -24,5 +25,6 @@ router.get("/:id", getProgramHandler);
 router.post("/exercises/:exerciseId/log", logExercisePerformanceHandler);
 router.delete("/exercises/:exerciseId/log", deleteExercisePerformanceHandler);
 router.patch("/:id/deactivate", deactivateProgramHandler);
+router.delete("/:id", deleteProgramHandler);
 
 export default router;

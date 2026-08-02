@@ -7,6 +7,7 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: "column",
     gap: spacing.md,
+    marginBottom: spacing.lg,
   },
   label: {
     color: colors.textSecondary,

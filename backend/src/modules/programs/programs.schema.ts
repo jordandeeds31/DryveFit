@@ -8,6 +8,7 @@ export const weekExerciseSchema = z.object({
   restSeconds: z.number().int().nonnegative(),
   notes: z.string().optional(),
   order: z.number().int(),
+  recommendedWeight: z.number().positive().optional(),
 });
 
 export const weekDaySchema = z

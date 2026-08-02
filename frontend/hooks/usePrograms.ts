@@ -7,6 +7,7 @@ import {
   getProgramDay,
   logExercisePerformance,
   deleteExercisePerformance,
+  deleteProgram,
 } from "@/lib/api/programs.api";
 
 export const usePrograms = () => {
@@ -85,6 +86,21 @@ export const useDeleteExercisePerformance = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
       queryClient.invalidateQueries({ queryKey: ["programDay"] });
+    },
+  });
+};
+
+export const useDeleteProgram = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (programId: string) => deleteProgram(programId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["programs"] });
+      queryClient.invalidateQueries({ queryKey: ["schedule"] });
+      queryClient.invalidateQueries({ queryKey: ["programDay"] });
+      queryClient.invalidateQueries({ queryKey: ["workoutLogs"] });
+      queryClient.invalidateQueries({ queryKey: ["1rmHistory"] });
     },
   });
 };

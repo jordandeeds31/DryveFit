@@ -12,6 +12,12 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.semibold,
     marginBottom: spacing.sm,
   },
+  recommendedWeight: {
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.semibold,
+    color: colors.completedGreen,
+    marginBottom: spacing.sm,
+  },
   setRow: {
     flexDirection: "row",
     alignItems: "center",

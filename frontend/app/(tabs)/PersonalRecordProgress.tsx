@@ -8,6 +8,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { spacing } from "@/constants/spacing";
+import { colors } from "@/constants/colors";
+import { fontSizes, fontWeights } from "@/constants/typography";
 import DropdownExerciseSelect from "@/components/shared/DropdownExerciseSelect/DropdownExerciseSelect";
 import Graph from "@/features/Graph/Graph";
 import { Exercise } from "@/types/exercise.types";
@@ -28,6 +30,13 @@ const PersonalRecordProgress = () => {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
       >
+        <Text style={styles.title}>PR Progress</Text>
+        <Text style={styles.subtitle}>
+          Track how your estimated one-rep max for an exercise changes over
+          time, based on the sets you've logged. Pick an exercise below to
+          see its progress.
+        </Text>
+
         <DropdownExerciseSelect
           selectedExercise={selectedExercise}
           setSelectedExercise={setSelectedExercise}
@@ -36,8 +45,10 @@ const PersonalRecordProgress = () => {
         {isLoading && <ActivityIndicator style={{ marginTop: spacing.md }} />}
 
         {!isLoading && selectedExercise && history && history.length === 0 && (
-          <Text style={{ marginTop: spacing.md }}>
-            No logged history yet for {selectedExercise.name}.
+          <Text style={styles.emptyText}>
+            No logged history yet for {selectedExercise.name}. Log a set for
+            this exercise from your workout, and your progress will start
+            showing up here.
           </Text>
         )}
 
@@ -61,5 +72,21 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: spacing.sm,
     flexGrow: 1,
+  },
+  title: {
+    fontSize: fontSizes.xl,
+    fontWeight: fontWeights.bold,
+    marginTop: spacing.sm,
+  },
+  subtitle: {
+    fontSize: fontSizes.sm,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  emptyText: {
+    fontSize: fontSizes.sm,
+    color: colors.textSecondary,
+    marginTop: spacing.md,
   },
 });

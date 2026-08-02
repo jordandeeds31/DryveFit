@@ -1,15 +1,19 @@
 import { useState } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import {
-  BodyPart,
   ProgramDurationDays,
   FitnessLevel as FitnessLevelType,
+  EquipmentAccess as EquipmentAccessType,
+  TrainingGoal as TrainingGoalType,
+  TrainingSplit as TrainingSplitType,
 } from "@/types/programs.types";
 import Duration from "./components/Duration/Duration";
 import SelectedDays from "./components/SelectedDays/SelectedDays";
 import SessionMinutes from "./components/SessionMinutes/SessionMinutes";
-import FocusAreas from "./components/FocusAreas/FocusAreas";
+import TrainingSplit from "./components/TrainingSplit/TrainingSplit";
 import FitnessLevel from "./components/FitnessLevel/FitnessLevel";
+import EquipmentAccess from "./components/EquipmentAccess/EquipmentAccess";
+import TrainingGoal from "./components/TrainingGoal/TrainingGoal";
 import styles from "./ProgramBuilder.styles";
 import Button from "@/components/shared/Button/Button";
 import { useCreateProgram } from "@/hooks/usePrograms";
@@ -32,9 +36,14 @@ const ProgramBuilder = ({ onCancel, onCreated }: ProgramBuilderProps) => {
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const [sessionMinutes, setSessionMinutes] = useState<number>(30);
   const [startDate, setStartDate] = useState<Date>(new Date());
-  const [selectedFocusAreas, setSelectedFocusAreas] = useState<BodyPart[]>([]);
+  const [trainingSplit, setTrainingSplit] =
+    useState<TrainingSplitType>("full body");
   const [fitnessLevel, setFitnessLevel] =
     useState<FitnessLevelType>("beginner");
+  const [equipmentAccess, setEquipmentAccess] =
+    useState<EquipmentAccessType>("full gym");
+  const [trainingGoal, setTrainingGoal] =
+    useState<TrainingGoalType>("general fitness");
   const [validationError, setValidationError] = useState<string | null>(null);
   const [generatingProgramId, setGeneratingProgramId] = useState<string | null>(
     null,
@@ -51,19 +60,16 @@ const ProgramBuilder = ({ onCancel, onCreated }: ProgramBuilderProps) => {
       return;
     }
 
-    if (selectedFocusAreas.length === 0) {
-      setValidationError("Select at least one focus area.");
-      return;
-    }
-
     createProgram(
       {
         startDate: normalizeToLocalMidnight(startDate).toISOString(),
         durationDays,
         preferredDays: selectedDays,
-        focusArea: selectedFocusAreas,
+        trainingSplit,
         sessionMinutes,
         fitnessLevel,
+        equipmentAccess,
+        trainingGoal,
       },
       {
         onSuccess: (program) => {
@@ -100,13 +106,21 @@ const ProgramBuilder = ({ onCancel, onCreated }: ProgramBuilderProps) => {
           sessionMinutes={sessionMinutes}
           setSessionMinutes={setSessionMinutes}
         />
-        <FocusAreas
-          selectedFocusAreas={selectedFocusAreas}
-          setSelectedFocusAreas={setSelectedFocusAreas}
+        <TrainingSplit
+          trainingSplit={trainingSplit}
+          setTrainingSplit={setTrainingSplit}
         />
         <FitnessLevel
           fitnessLevel={fitnessLevel}
           setFitnessLevel={setFitnessLevel}
+        />
+        <EquipmentAccess
+          equipmentAccess={equipmentAccess}
+          setEquipmentAccess={setEquipmentAccess}
+        />
+        <TrainingGoal
+          trainingGoal={trainingGoal}
+          setTrainingGoal={setTrainingGoal}
         />
       </View>
       {validationError && (

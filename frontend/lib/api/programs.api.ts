@@ -49,3 +49,8 @@ export const deleteExercisePerformance = async (programExerciseId: string) => {
   );
   return data;
 };
+
+export const deleteProgram = async (programId: string) => {
+  const { data } = await apiClient.delete(`/api/programs/${programId}`);
+  return data;
+};

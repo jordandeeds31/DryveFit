@@ -3,6 +3,7 @@ export interface Exercise {
   name: string;
   muscleGroup: string;
   equipment: string;
+  description: string | null;
   isCompound: boolean;
   createdAt: string;
 }

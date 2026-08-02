@@ -58,11 +58,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginTop: 4,
   },
-  workoutDot: {
+  completionPercent: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.bold,
+    color: colors.primaryBlue,
+    marginTop: 2,
+  },
+  completionPercentComplete: {
+    color: colors.completedGreen,
+  },
+  standaloneLogDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: colors.primaryBlue,
+    backgroundColor: colors.purple,
     marginTop: 2,
   },
   noWorkoutDash: {

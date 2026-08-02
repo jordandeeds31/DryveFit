@@ -1,7 +1,9 @@
 import {
   ProgramDurationDays,
-  BodyPart,
+  TrainingSplit,
   FitnessLevel,
+  EquipmentAccess,
+  TrainingGoal,
 } from "./programs.prompts";
 
 export interface CreateProgramInput {
@@ -11,7 +13,9 @@ export interface CreateProgramInput {
   durationDays: ProgramDurationDays;
   daysPerWeek: number;
   preferredDays: string[];
-  focusArea: BodyPart[];
+  trainingSplit: TrainingSplit;
   sessionMinutes: number;
   fitnessLevel: FitnessLevel;
+  equipmentAccess: EquipmentAccess;
+  trainingGoal: TrainingGoal;
 }

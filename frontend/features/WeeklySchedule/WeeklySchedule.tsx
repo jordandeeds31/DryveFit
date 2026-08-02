@@ -35,7 +35,17 @@ const WeeklySchedule = ({
         {weekDates.map((date, index) => {
           const isSelected = isSameDay(date, selectedDate);
           const scheduleEntry = scheduleMap[toDateKey(date)];
-          const hasWorkout = !!scheduleEntry;
+          const programDay = scheduleEntry?.programDays[0];
+          const hasStandaloneLog = !!scheduleEntry?.hasStandaloneLog;
+
+          const completionPercent =
+            programDay && programDay.totalCount > 0
+              ? Math.round(
+                  (programDay.completedCount / programDay.totalCount) * 100,
+                )
+              : programDay
+                ? 0
+                : null;
 
           return (
             <TouchableOpacity
@@ -51,8 +61,18 @@ const WeeklySchedule = ({
                 {date.getDate()}
               </Text>
               <View style={styles.indicatorContainer}>
-                {hasWorkout ? (
-                  <View style={styles.workoutDot} />
+                {completionPercent !== null ? (
+                  <Text
+                    style={[
+                      styles.completionPercent,
+                      completionPercent === 100 &&
+                        styles.completionPercentComplete,
+                    ]}
+                  >
+                    {completionPercent}%
+                  </Text>
+                ) : hasStandaloneLog ? (
+                  <View style={styles.standaloneLogDot} />
                 ) : (
                   <Text style={styles.noWorkoutDash}>–</Text>
                 )}

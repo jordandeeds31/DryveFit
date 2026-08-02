@@ -56,6 +56,7 @@ const HomeScreen = () => {
     useWorkoutLogsForDate(selectedDateKey);
 
   const hasPrograms = !!programs && programs.length > 0;
+  const hasLoggedStandaloneWorkout = (workoutLogs ?? []).length > 0;
 
   // Combined flag — true while EITHER query is refetching for the newly
   // selected date, so we show exactly one spinner instead of two, and
@@ -104,7 +105,7 @@ const HomeScreen = () => {
           scheduleMap={scheduleMap}
         />
 
-        {!hasPrograms && (
+        {!hasPrograms && !isWorkoutLoggerOpen && !hasLoggedStandaloneWorkout && (
           <View style={styles.noProgramsContainer}>
             <NoPrograms />
           </View>
@@ -112,7 +113,7 @@ const HomeScreen = () => {
 
         {isSwitchingDay ? (
           <ActivityIndicator style={{ marginVertical: spacing.md }} />
-        ) : isWorkoutLoggerOpen && !dayDetail ? (
+        ) : (isWorkoutLoggerOpen || hasLoggedStandaloneWorkout) && !dayDetail ? (
           <WorkoutLogger
             setClose={setIsWorkoutLoggerOpen}
             date={selectedDateKey}
