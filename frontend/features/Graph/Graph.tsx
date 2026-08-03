@@ -2,9 +2,17 @@ import { useState } from "react";
 import { View, Text, Dimensions, StyleSheet } from "react-native";
 import { LineChart } from "react-native-chart-kit";
 import { spacing } from "@/constants/spacing";
+import { colors } from "@/constants/colors";
+import { fontSizes, fontWeights } from "@/constants/typography";
 import { GraphProps } from "./Graph.types";
 
 const screenWidth = Dimensions.get("window").width;
+const CARD_HORIZONTAL_PADDING = spacing.sm;
+const SCREEN_HORIZONTAL_PADDING = spacing.sm;
+const chartWidth =
+  screenWidth -
+  SCREEN_HORIZONTAL_PADDING * 2 -
+  CARD_HORIZONTAL_PADDING * 2;
 
 interface SelectedPoint {
   value: number;
@@ -17,8 +25,6 @@ const Graph = ({ history }: GraphProps) => {
   const [selectedPoint, setSelectedPoint] = useState<SelectedPoint | null>(
     null,
   );
-
-  console.log("history:", JSON.stringify(history, null, 2));
 
   const chartData = {
     labels: history.map((entry) =>
@@ -35,29 +41,38 @@ const Graph = ({ history }: GraphProps) => {
   };
 
   return (
-    <View>
+    <View style={styles.card}>
+      <Text style={styles.title}>Estimated 1-Rep Max</Text>
       <LineChart
         data={chartData}
-        width={screenWidth - spacing.sm * 2}
-        height={240}
+        width={chartWidth}
+        height={220}
         yAxisSuffix=" lbs"
         fromZero
         segments={5}
         chartConfig={{
-          backgroundColor: "#ffffff",
-          backgroundGradientFrom: "#ffffff",
-          backgroundGradientTo: "#ffffff",
+          backgroundColor: "white",
+          backgroundGradientFrom: "white",
+          backgroundGradientTo: "white",
           decimalPlaces: 0,
-          color: (opacity = 1) => `rgba(37, 99, 235, ${opacity})`,
-          labelColor: (opacity = 1) => `rgba(100, 100, 100, ${opacity})`,
-          propsForDots: {
-            r: "5",
-            strokeWidth: "2",
-            stroke: "#2563eb",
+          color: (opacity = 1) => `rgba(2, 44, 250, ${opacity})`,
+          labelColor: (opacity = 1) => `rgba(71, 85, 105, ${opacity})`,
+          propsForBackgroundLines: {
+            stroke: colors.borderGray,
+            strokeDasharray: "4",
           },
+          propsForDots: {
+            r: "4",
+            strokeWidth: "2",
+            stroke: colors.primaryBlue,
+            fill: "white",
+          },
+          fillShadowGradient: colors.primaryBlue,
+          fillShadowGradientOpacity: 0.15,
         }}
         bezier
-        style={{ marginTop: spacing.md, borderRadius: 8 }}
+        withOuterLines={false}
+        style={styles.chart}
         onDataPointClick={({ value, index, x, y }) => {
           setSelectedPoint({
             value,
@@ -87,6 +102,30 @@ const Graph = ({ history }: GraphProps) => {
 export default Graph;
 
 const styles = StyleSheet.create({
+  card: {
+    marginTop: spacing.md,
+    backgroundColor: "white",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.borderGray,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: CARD_HORIZONTAL_PADDING,
+    paddingTop: spacing.md,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  title: {
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.bold,
+    marginBottom: spacing.xs,
+    textAlign: "center",
+  },
+  chart: {
+    borderRadius: 8,
+  },
   tooltip: {
     position: "absolute",
     backgroundColor: "rgba(0,0,0,0.8)",

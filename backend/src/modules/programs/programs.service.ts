@@ -22,6 +22,8 @@ import {
   normalizeDay,
   getWeightIncrement,
   roundToNearestIncrement,
+  BODYWEIGHT_REP_CEILING,
+  BODYWEIGHT_MAX_SETS,
 } from "./programs.prompts";
 import { weekResponseSchema } from "./programs.schema";
 import { CreateProgramInput } from "./programs.types";
@@ -219,6 +221,49 @@ const calculateWorkingWeightForPrescription = (
   );
 };
 
+// Code-side equivalent of estimateRecommendedWeight/calculateWorkingWeightForPrescription,
+// for exercises with no external load: the double-progression model —
+// increase reps toward a practical per-set ceiling, then progress via
+// added sets once at it. Mirrors the BODYWEIGHT PROGRESSION RULES given to
+// the AI in programs.prompts.ts, computed deterministically here so a
+// bodyweight exercise's prescription actually reacts to logged performance
+// on every view instead of staying frozen at whatever the AI guessed
+// up front, before any real performance existed for it.
+//
+// baselineSets/baselineReps must be what was actually ACHIEVED last time,
+// not what was originally prescribed — this result is never persisted back
+// to the ProgramExercise row, so the next occurrence's "prescribed" value
+// in the DB stays frozen forever. Progressing from the frozen prescription
+// instead of actual performance would make every future occurrence
+// re-derive the exact same single bump rather than compounding session
+// over session, the same way weighted progression must be based on
+// estimated1RM (derived from actual lifts), not the frozen prescription.
+const calculateBodyweightProgression = (
+  baselineSets: number,
+  baselineReps: number,
+  didMeetTarget: boolean,
+  fallbackReps: number,
+): { sets: number; reps: number } => {
+  if (!didMeetTarget) {
+    return { sets: baselineSets, reps: fallbackReps };
+  }
+
+  if (baselineReps < BODYWEIGHT_REP_CEILING) {
+    // ~15% increase, but always at least +1 rep so low starting rep counts
+    // (e.g. 5) still make forward progress rather than rounding to no-op.
+    const increasedReps = Math.min(
+      BODYWEIGHT_REP_CEILING,
+      Math.max(baselineReps + 1, Math.round(baselineReps * 1.15)),
+    );
+    return { sets: baselineSets, reps: increasedReps };
+  }
+
+  return {
+    sets: Math.min(BODYWEIGHT_MAX_SETS, baselineSets + 1),
+    reps: BODYWEIGHT_REP_CEILING,
+  };
+};
+
 // For each exercise name, finds the user's most recent logged session and
 // returns the best (highest estimated-1RM) set from that session — this is
 // the performance context fed to the AI when recommending next weights.
@@ -278,17 +323,26 @@ const getRecentPerformanceByExerciseName = async (
   for (const log of logs) {
     if (performanceByName[log.exerciseName]) continue; // already have the most recent session
 
-    const validSets = log.sets.filter(
-      (set) => set.weight != null && set.reps != null,
+    // Bodyweight sets are logged with no weight at all — only reps are
+    // meaningful for them, so weight must not be required for a set to
+    // count as valid, or every bodyweight session would be silently
+    // dropped from performance history.
+    const isBodyweight = equipmentByName.get(log.exerciseName) === "bodyweight";
+    const validSets = log.sets.filter((set) =>
+      isBodyweight
+        ? set.reps != null
+        : set.weight != null && set.reps != null,
     );
     if (validSets.length === 0) continue;
 
-    const bestSet = validSets.reduce((best, set) =>
-      estimate1RM(set.weight!, set.reps!) >
-      estimate1RM(best.weight!, best.reps!)
-        ? set
-        : best,
-    );
+    const bestSet = isBodyweight
+      ? validSets.reduce((best, set) => (set.reps! > best.reps! ? set : best))
+      : validSets.reduce((best, set) =>
+          estimate1RM(set.weight!, set.reps!) >
+          estimate1RM(best.weight!, best.reps!)
+            ? set
+            : best,
+        );
 
     // Every prescribed set must be met — not just some, not an average.
     // Standalone logs (no linked programExercise) have nothing prescribed
@@ -316,6 +370,14 @@ const getRecentPerformanceByExerciseName = async (
       equipmentByName.get(log.exerciseName),
     );
 
+    // Bodyweight equivalent of fallbackWeight: the lowest rep count they
+    // actually completed across every logged set — a rep target already
+    // proven sustainable for a full set, not just their best one.
+    const fallbackReps = Math.max(
+      1,
+      Math.min(...validSets.map((set) => set.reps!)),
+    );
+
     performanceByName[log.exerciseName] = {
       weight: bestSet.weight!,
       reps: bestSet.reps!,
@@ -326,6 +388,11 @@ const getRecentPerformanceByExerciseName = async (
       // the prompt state an explicit "recommended X, achieved Y" comparison
       // instead of just the raw performance numbers.
       recommendedWeightAtTime: prescription?.recommendedWeight ?? null,
+      equipment: equipmentByName.get(log.exerciseName) ?? null,
+      prescribedSets: prescription?.sets ?? null,
+      prescribedReps: prescription?.reps ?? null,
+      achievedSets: validSets.length,
+      fallbackReps,
     };
   }
 
@@ -604,6 +671,11 @@ export const getProgramDayByDate = async (
   // Exercises generated before any history existed for them were stored
   // with recommendedWeight: null — backfill a recommendation now from
   // whatever the user has logged since, so it doesn't stay missing forever.
+  // Bodyweight exercises always have recommendedWeight: null (weight never
+  // applies to them), so this filter also naturally captures every
+  // bodyweight exercise — used below to live-recompute their reps/sets
+  // instead, since those fields (unlike recommendedWeight) are never null
+  // and so need a different signal to know when to react to new history.
   const namesMissingRecommendation = [
     ...new Set(
       programDay.exercises
@@ -631,7 +703,35 @@ export const getProgramDayByDate = async (
 
     programDay.exercises = programDay.exercises.map((exercise) => {
       const performance = performanceHistory[exercise.exerciseName];
-      if (exercise.recommendedWeight != null || !performance) return exercise;
+      if (!performance) return exercise;
+
+      const equipment = equipmentByName.get(exercise.exerciseName);
+
+      if (equipment === "bodyweight") {
+        // reps/sets are never null the way recommendedWeight is, so this
+        // recomputes live on every view instead of only backfilling a
+        // missing value — otherwise a bodyweight exercise's prescription
+        // would stay frozen forever at whatever the AI guessed during
+        // bulk generation, before any real performance existed to react to.
+        //
+        // Progression is based on what they actually achieved (performance.reps,
+        // their best completed set) rather than prescribedReps (the value
+        // frozen on the DB row at generation time, which this same live
+        // recompute never writes back) — otherwise every future occurrence
+        // would re-derive the same single bump from that same stale
+        // baseline instead of compounding session over session, exactly
+        // like the weighted case progresses from estimated1RM (derived
+        // from actual lifts) rather than from the frozen prescription.
+        const { sets, reps } = calculateBodyweightProgression(
+          Math.max(performance.prescribedSets ?? exercise.sets, performance.achievedSets),
+          performance.reps,
+          performance.didMeetTarget,
+          performance.fallbackReps,
+        );
+        return { ...exercise, sets, reps };
+      }
+
+      if (exercise.recommendedWeight != null) return exercise;
 
       // Only apply the upward progression estimate if they fully met their
       // last prescription — otherwise hold at what they actually
@@ -642,24 +742,28 @@ export const getProgramDayByDate = async (
           ? estimateRecommendedWeight(
               performance.estimated1RM,
               exercise.reps,
-              equipmentByName.get(exercise.exerciseName),
+              equipment,
             )
           : performance.fallbackWeight,
       };
     });
   }
 
-  // Attach each exercise's catalog image so the frontend can render it
-  // without a separate request.
+  // Attach each exercise's catalog image and equipment type so the frontend
+  // can render it — and know to hide the weight input entirely for
+  // bodyweight exercises — without a separate request.
   const allExerciseNames = [
     ...new Set(programDay.exercises.map((exercise) => exercise.exerciseName)),
   ];
   const imageCatalogEntries = await prisma.exercise.findMany({
     where: { name: { in: allExerciseNames } },
-    select: { name: true, imageUrl: true },
+    select: { name: true, imageUrl: true, equipment: true },
   });
   const imageUrlByName = new Map(
     imageCatalogEntries.map((entry) => [entry.name, entry.imageUrl]),
+  );
+  const equipmentByExerciseName = new Map(
+    imageCatalogEntries.map((entry) => [entry.name, entry.equipment]),
   );
 
   programDay.exercises = programDay.exercises.map((exercise) => ({
@@ -668,6 +772,7 @@ export const getProgramDayByDate = async (
       exercise.exerciseName,
       imageUrlByName.get(exercise.exerciseName) != null,
     ),
+    equipment: equipmentByExerciseName.get(exercise.exerciseName) ?? null,
   }));
 
   return programDay;
@@ -676,7 +781,7 @@ export const getProgramDayByDate = async (
 export const logExercisePerformance = async (
   userId: string,
   programExerciseId: string,
-  sets: Array<{ weight: number; reps: number }>,
+  sets: Array<{ weight: number | null; reps: number }>,
 ) => {
   const programExercise = await prisma.programExercise.findFirst({
     where: {
@@ -1001,14 +1106,19 @@ const generateProgramWeeks = async (
               focus: day.focus,
               isRestDay: day.isRestDay,
               exercises: {
-                create: day.exercises.map((exercise) => ({
+                // "order" is derived from final array position, not taken
+                // from the AI's output — it's not always present, and even
+                // when it is, dropped exercises (unresolvable names) would
+                // leave gaps in it. Array position is always contiguous and
+                // always reflects what's actually being persisted.
+                create: day.exercises.map((exercise, exerciseIndex) => ({
                   exerciseName: exercise.exerciseName,
                   muscleGroup: exercise.muscleGroup,
                   sets: exercise.sets,
                   reps: exercise.reps,
                   restSeconds: exercise.restSeconds,
                   notes: exercise.notes,
-                  order: exercise.order,
+                  order: exerciseIndex + 1,
                   recommendedWeight: exercise.recommendedWeight ?? null,
                 })),
               },

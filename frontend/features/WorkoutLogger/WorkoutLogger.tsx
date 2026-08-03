@@ -38,6 +38,7 @@ const mapWorkoutLogsToEntries = (
       exercise: {
         name: exercise.exerciseName,
         muscleGroup: exercise.muscleGroup,
+        equipment: exercise.equipment,
       } as Exercise,
       sets: exercise.sets.map((set) => ({
         id: set.id,
@@ -164,10 +165,15 @@ const WorkoutLogger = ({
     const payload = exerciseEntries
       .filter((entry) => entry.exercise !== null)
       .map((entry) => {
+        const isBodyweight = entry.exercise?.equipment === "bodyweight";
         const validSets = entry.sets
-          .filter((set) => set.weight.trim() !== "" && set.reps.trim() !== "")
+          .filter(
+            (set) =>
+              (isBodyweight || set.weight.trim() !== "") &&
+              set.reps.trim() !== "",
+          )
           .map((set) => ({
-            weight: parseFloat(set.weight),
+            weight: isBodyweight ? null : parseFloat(set.weight),
             reps: parseInt(set.reps, 10),
           }));
 
@@ -190,7 +196,7 @@ const WorkoutLogger = ({
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
-        <Text>Workout Log</Text>
+        <Text style={styles.title}>Workout Log</Text>
         <TouchableOpacity onPress={() => setClose(false)}>
           <AntDesign name="close" size={20} color="black" />
         </TouchableOpacity>
@@ -221,15 +227,17 @@ const WorkoutLogger = ({
                 <View key={set.id} style={styles.setRow}>
                   <Text style={styles.setLabel}>Set {setIndex + 1}</Text>
 
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Weight"
-                    keyboardType="numeric"
-                    value={set.weight}
-                    onChangeText={(value) =>
-                      handleUpdateSet(entry.id, set.id, "weight", value)
-                    }
-                  />
+                  {entry.exercise?.equipment !== "bodyweight" && (
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Weight"
+                      keyboardType="numeric"
+                      value={set.weight}
+                      onChangeText={(value) =>
+                        handleUpdateSet(entry.id, set.id, "weight", value)
+                      }
+                    />
+                  )}
 
                   <TextInput
                     style={styles.input}

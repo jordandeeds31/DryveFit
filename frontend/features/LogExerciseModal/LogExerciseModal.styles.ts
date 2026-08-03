@@ -18,6 +18,11 @@ const styles = StyleSheet.create({
     color: colors.completedGreen,
     marginBottom: spacing.sm,
   },
+  completionHint: {
+    fontSize: fontSizes.xs,
+    color: colors.pendingAmber,
+    marginBottom: spacing.sm,
+  },
   setRow: {
     flexDirection: "row",
     alignItems: "center",

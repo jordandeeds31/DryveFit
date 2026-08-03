@@ -12,9 +12,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  buttonOutline: {
+    backgroundColor: "white",
+    borderWidth: 1,
+    borderColor: colors.primaryBlue,
+  },
   text: {
     color: "white",
     fontWeight: fontWeights.semibold,
+  },
+  textOutline: {
+    color: colors.primaryBlue,
   },
 });
 

@@ -34,7 +34,7 @@ export const getProgramDay = async (programId: string, date: string) => {
 
 export const logExercisePerformance = async (
   programExerciseId: string,
-  sets: Array<{ weight: number; reps: number }>,
+  sets: Array<{ weight: number | null; reps: number }>,
 ) => {
   const { data } = await apiClient.post(
     `/api/programs/exercises/${programExerciseId}/log`,

@@ -24,12 +24,10 @@ const StartDate = ({ startDate, setStartDate }: StartDateProps) => {
   today.setHours(0, 0, 0, 0);
 
   const handleChange = (event: DateTimePickerEvent, date?: Date) => {
-    if (Platform.OS === "android") {
-      setShowPicker(false);
-    }
     if (event.type !== "dismissed" && date) {
       setStartDate(date);
     }
+    setShowPicker(false);
   };
 
   return (

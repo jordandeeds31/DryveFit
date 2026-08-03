@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Text, TouchableOpacity } from "react-native";
+import { View, Text } from "react-native";
 import {
   ProgramDurationDays,
   FitnessLevel as FitnessLevelType,
@@ -21,8 +21,8 @@ import { useCreateProgram } from "@/hooks/usePrograms";
 import ProgramGenerationModal from "./components/ProgramGenerationModal/ProgramGenerationModal";
 
 interface ProgramBuilderProps {
-  onCancel: () => void;
   onCreated?: () => void;
+  onGeneratingChange?: (isGenerating: boolean) => void;
 }
 
 // Strips the time-of-day, keeping only the local calendar date — so
@@ -32,7 +32,7 @@ const normalizeToLocalMidnight = (date: Date): Date => {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 };
 
-const ProgramBuilder = ({ onCancel, onCreated }: ProgramBuilderProps) => {
+const ProgramBuilder = ({ onCreated, onGeneratingChange }: ProgramBuilderProps) => {
   const [durationDays, setDurationDays] = useState<ProgramDurationDays>(30);
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const [sessionMinutes, setSessionMinutes] = useState<number>(30);
@@ -89,63 +89,78 @@ const ProgramBuilder = ({ onCancel, onCreated }: ProgramBuilderProps) => {
   const handleModalClose = () => {
     setModalVisible(false);
     setGeneratingProgramId(null);
+    onGeneratingChange?.(false);
     onCreated?.();
   };
 
-  return (
-    <View style={styles.container}>
-      <View style={styles.programFormContainer}>
-        <StartDate startDate={startDate} setStartDate={setStartDate} />
-        <Duration
-          durationDays={durationDays}
-          setDurationDays={setDurationDays}
-        />
-        <SelectedDays
-          selectedDays={selectedDays}
-          setSelectedDays={setSelectedDays}
-        />
-        <SessionMinutes
-          sessionMinutes={sessionMinutes}
-          setSessionMinutes={setSessionMinutes}
-        />
-        <TrainingSplit
-          trainingSplit={trainingSplit}
-          setTrainingSplit={setTrainingSplit}
-        />
-        <FitnessLevel
-          fitnessLevel={fitnessLevel}
-          setFitnessLevel={setFitnessLevel}
-        />
-        <EquipmentAccess
-          equipmentAccess={equipmentAccess}
-          setEquipmentAccess={setEquipmentAccess}
-        />
-        <TrainingGoal
-          trainingGoal={trainingGoal}
-          setTrainingGoal={setTrainingGoal}
-        />
-      </View>
-      {validationError && (
-        <Text style={styles.errorText}>{validationError}</Text>
-      )}
-      <View style={styles.buttonsRow}>
-        <TouchableOpacity
-          onPress={onCancel}
-          style={styles.cancelButton}
-          disabled={isPending}
-        >
-          <Text style={styles.cancel}>CANCEL</Text>
-        </TouchableOpacity>
-        <Button
-          title={isPending ? "BUILDING..." : "BUILD & ACTIVATE PROGRAM"}
-          onPress={handleBuildProgram}
-          disabled={isPending}
-        />
-      </View>
+  if (modalVisible) {
+    return (
       <ProgramGenerationModal
         visible={modalVisible}
         programId={generatingProgramId}
         onClose={handleModalClose}
+        onInProgressChange={onGeneratingChange}
+      />
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.programFormContainer}>
+        <View style={styles.section}>
+          <StartDate startDate={startDate} setStartDate={setStartDate} />
+        </View>
+        <View style={styles.section}>
+          <Duration
+            durationDays={durationDays}
+            setDurationDays={setDurationDays}
+          />
+        </View>
+        <View style={styles.section}>
+          <SelectedDays
+            selectedDays={selectedDays}
+            setSelectedDays={setSelectedDays}
+          />
+        </View>
+        <View style={styles.section}>
+          <SessionMinutes
+            sessionMinutes={sessionMinutes}
+            setSessionMinutes={setSessionMinutes}
+          />
+        </View>
+        <View style={styles.section}>
+          <TrainingSplit
+            trainingSplit={trainingSplit}
+            setTrainingSplit={setTrainingSplit}
+          />
+        </View>
+        <View style={styles.section}>
+          <FitnessLevel
+            fitnessLevel={fitnessLevel}
+            setFitnessLevel={setFitnessLevel}
+          />
+        </View>
+        <View style={styles.section}>
+          <EquipmentAccess
+            equipmentAccess={equipmentAccess}
+            setEquipmentAccess={setEquipmentAccess}
+          />
+        </View>
+        <View style={[styles.section, styles.lastSection]}>
+          <TrainingGoal
+            trainingGoal={trainingGoal}
+            setTrainingGoal={setTrainingGoal}
+          />
+        </View>
+      </View>
+      {validationError && (
+        <Text style={styles.errorText}>{validationError}</Text>
+      )}
+      <Button
+        title={isPending ? "BUILDING..." : "BUILD & ACTIVATE PROGRAM"}
+        onPress={handleBuildProgram}
+        disabled={isPending}
+        style={styles.buildButton}
       />
     </View>
   );

@@ -7,4 +7,7 @@ export interface WeeklyScheduleProps {
   onNextWeek: () => void;
   onPreviousWeek: () => void;
   scheduleMap: Record<string, ScheduleEntry>;
+  canGoToPreviousWeek: boolean;
+  canGoToNextWeek: boolean;
+  isCurrentProgramWeek: boolean;
 }

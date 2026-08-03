@@ -9,6 +9,7 @@ export interface ExerciseLog {
   id: string;
   exerciseName: string;
   muscleGroup: string | null;
+  equipment: string | null;
   sets: ExerciseSetLog[];
 }
 

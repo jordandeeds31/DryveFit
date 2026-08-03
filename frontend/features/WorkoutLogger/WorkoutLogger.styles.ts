@@ -9,7 +9,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    // marginBottom: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  title: {
+    fontSize: fontSizes.lg,
+    fontWeight: fontWeights.bold,
   },
   exerciseBlock: {
     marginTop: spacing.md,

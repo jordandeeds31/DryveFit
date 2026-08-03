@@ -5,7 +5,7 @@ export const logStandaloneWorkout = async (
   exercises: Array<{
     exerciseName: string;
     muscleGroup: string;
-    sets: Array<{ weight: number; reps: number }>;
+    sets: Array<{ weight: number | null; reps: number }>;
   }>,
   date: string,
 ) => {

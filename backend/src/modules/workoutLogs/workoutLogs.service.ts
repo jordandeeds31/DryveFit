@@ -6,7 +6,7 @@ export const logStandaloneWorkout = async (
   exercises: Array<{
     exerciseName: string;
     muscleGroup: string;
-    sets: Array<{ weight: number; reps: number }>;
+    sets: Array<{ weight: number | null; reps: number }>;
   }>,
   dateStr: string,
 ) => {
@@ -122,5 +122,28 @@ export const getWorkoutLogsForDate = async (
     orderBy: { createdAt: "asc" },
   });
 
-  return workoutLogs;
+  // Attach each exercise's catalog equipment type so re-opening an already
+  // logged bodyweight exercise still knows to hide the weight input.
+  const allExerciseNames = [
+    ...new Set(
+      workoutLogs.flatMap((log) =>
+        log.exercises.map((exercise) => exercise.exerciseName),
+      ),
+    ),
+  ];
+  const catalogEntries = await prisma.exercise.findMany({
+    where: { name: { in: allExerciseNames } },
+    select: { name: true, equipment: true },
+  });
+  const equipmentByName = new Map(
+    catalogEntries.map((entry) => [entry.name, entry.equipment]),
+  );
+
+  return workoutLogs.map((log) => ({
+    ...log,
+    exercises: log.exercises.map((exercise) => ({
+      ...exercise,
+      equipment: equipmentByName.get(exercise.exerciseName) ?? null,
+    })),
+  }));
 };

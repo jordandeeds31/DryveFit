@@ -61,6 +61,16 @@ export const getWeightIncrement = (
   equipment: string | null | undefined,
 ): number => (equipment && FINE_INCREMENT_EQUIPMENT.has(equipment) ? 2.5 : 5);
 
+// Pure bodyweight exercises have no adjustable external load, so weight
+// progression doesn't apply to them at all — progression instead follows
+// the standard "double progression" model used broadly in resistance
+// training programming (NSCA/ACSM): increase reps linearly until a
+// practical per-set ceiling, then progress by adding a set instead, since
+// reps alone would otherwise climb indefinitely into endurance/cardio
+// territory rather than continuing to drive strength/hypertrophy adaptation.
+export const BODYWEIGHT_REP_CEILING = 20;
+export const BODYWEIGHT_MAX_SETS = 5;
+
 // Rounds a raw calculated weight to the nearest realistic gym increment
 // (nearest, not always up or down, so recommendations don't drift) — the
 // final step every weight-recommendation calculation should apply before
@@ -233,6 +243,20 @@ export interface ExercisePerformance {
   // achieved Y" comparison rather than just raw performance numbers. Null
   // for standalone logs or exercises that had no recommendation at the time.
   recommendedWeightAtTime: number | null;
+  // The Exercise catalog's equipment type — "bodyweight" routes progression
+  // through reps/sets instead of weight (see BODYWEIGHT_REP_CEILING above).
+  equipment: string | null;
+  prescribedSets: number | null;
+  prescribedReps: number | null;
+  // How many sets they actually completed — may exceed prescribedSets if
+  // they did extra. Progression should build on what actually happened,
+  // not just repeat whatever was originally prescribed.
+  achievedSets: number;
+  // The lowest rep count they actually completed across all logged sets —
+  // i.e. a rep target proven realistic across every set, not just their
+  // best one. Used as the bodyweight equivalent of fallbackWeight when they
+  // didn't meet target: reduce to this, don't repeat the target they missed.
+  fallbackReps: number;
 }
 
 interface WeekPromptInput {
@@ -267,6 +291,19 @@ export const buildWeekPrompt = (input: WeekPromptInput): string => {
     performanceEntries.length > 0
       ? performanceEntries
           .map(([exerciseName, perf]) => {
+            if (perf.equipment === "bodyweight") {
+              const prescriptionText =
+                perf.prescribedSets != null && perf.prescribedReps != null
+                  ? `was prescribed ${perf.prescribedSets} sets x ${perf.prescribedReps} reps`
+                  : "had no prior prescription";
+
+              const targetStatus = perf.didMeetTarget
+                ? `TARGET MET OR EXCEEDED — they completed every prescribed set at or above the prescribed reps, actually achieving ${perf.achievedSets} sets x ${perf.reps} reps on their best set. This is a bodyweight exercise with no external load to increase — apply rep/set progression instead, based on what they ACTUALLY ACHIEVED (${perf.achievedSets} sets x ${perf.reps} reps), NOT the original prescription above — see BODYWEIGHT PROGRESSION RULES below.`
+                : `TARGET NOT MET — at least one prescribed set fell short on reps, so they could not sustain that rep count across the full prescription. Their lowest completed set was ${perf.fallbackReps} reps. Set "reps" to EXACTLY ${perf.fallbackReps} for every set next time, sets unchanged at ${perf.prescribedSets ?? "the same count"}. Do NOT increase, and do NOT simply repeat the ${perf.prescribedReps ?? "previous"}-rep target they missed.`;
+
+              return `- User's last logged performance for ${exerciseName} (bodyweight): ${prescriptionText}, their best completed set was ${perf.reps} reps. ${targetStatus}`;
+            }
+
             const comparisonText =
               perf.recommendedWeightAtTime != null
                 ? `was recommended ${perf.recommendedWeightAtTime} lbs and their best completed set was ${perf.weight} lbs x ${perf.reps} reps`
@@ -358,6 +395,17 @@ IMPORTANT RULES:
 - If the history entry says "TARGET NOT MET", set "recommendedWeight" to EXACTLY the fallback weight stated in that entry — with NO upward progression applied. Do not simply repeat the original prescribed weight they failed to sustain, do not use their best single set's weight unmodified, and do not guess at your own reduction — the fallback weight already accounts for scaling their demonstrated 1RM down to something completable across the full prescription, so just use the number given.
 - Concrete example of a partial failure: an exercise was prescribed as 4 sets of 8 reps at 220 lbs, and the user logged Set 1: 220 lbs x 8 reps, Set 2: 220 lbs x 8 reps, Set 3: 215 lbs x 6 reps. Because Set 3 fell short on both weight and reps, this is TARGET NOT MET even though the first two sets were successful — it does not matter that most sets were fine. The next "recommendedWeight" must NOT be 220 lbs (their failed weight) and must NOT be higher, like 223 lbs — it should be the noticeably lower fallback weight the history entry provides (roughly 205-210 lbs in a case like this, calculated from their demonstrated 1RM scaled down for a realistic full 4x8 attempt), reflecting that they couldn't sustain 220 lbs across all 4 sets.
 - Concrete example of a success: an intermediate lifter was recommended 185 lbs x 8 reps for Barbell Bench Press (a compound upper-body lift) and successfully logged 185 lbs x 8 reps on every prescribed set — TARGET MET OR EXCEEDED. A reasonable next "recommendedWeight" is a small increase like 190-195 lbs (roughly 3-5%), not a large jump to 205+ lbs and not simply repeating 185 lbs. For a compound lower-body lift like Barbell Back Squat in the same scenario, a somewhat larger jump (e.g. 5-10%) would be reasonable; for an isolation exercise like Dumbbell Bicep Curl at 25 lbs, a small fixed increment like 2.5-5 lbs is more appropriate than a percentage jump.
+
+BODYWEIGHT PROGRESSION RULES (applies to every exercise whose history entry above is explicitly marked "(bodyweight)" — these have no external load, so "sets" and "reps" themselves are the progression variables instead of "recommendedWeight"):
+- This is the standard double-progression model used in resistance training programming generally, adapted here because load can't be added: increase REPS first, and only increase SETS once reps reach a practical per-set ceiling of ${BODYWEIGHT_REP_CEILING}. Past that many reps in a single set, further gains lean into muscular endurance rather than the strength/hypertrophy stimulus most programs are targeting, and additional volume is better delivered as another set than an ever-longer single set.
+- If the history entry says "TARGET MET OR EXCEEDED", base the increase on what they ACTUALLY ACHIEVED last time (the "actually achieving X sets x Y reps" figure in the history entry) — NOT the original prescribed sets/reps also stated there. Progressing from the original prescription instead of actual performance would repeat the exact same small bump forever instead of continuing to build on real progress session over session.
+  - If what they actually achieved was BELOW ${BODYWEIGHT_REP_CEILING} reps, increase "reps" by roughly 10-20% versus that achieved number, rounded to a whole number, and never exceeding ${BODYWEIGHT_REP_CEILING}. Keep "sets" at what they actually achieved (which may be more than the original prescription, if they did extra).
+  - If what they actually achieved was AT or ABOVE ${BODYWEIGHT_REP_CEILING} reps, keep "reps" at ${BODYWEIGHT_REP_CEILING} and instead increase "sets" by exactly 1 versus what they actually achieved, up to a maximum of ${BODYWEIGHT_MAX_SETS} sets. If already at ${BODYWEIGHT_MAX_SETS} sets and ${BODYWEIGHT_REP_CEILING} reps, hold both steady and rely on coaching notes to suggest a harder variation of the movement instead (e.g. elevating feet for push-ups, or a slower eccentric tempo) rather than continuing to add volume indefinitely.
+  - Lean toward the lower end of the 10-20% rep increase range for beginners or for a strength-focused training goal (fewer, more effortful reps per set); lean toward the higher end for endurance or fat-loss goals, where higher rep counts are already the intent.
+- If the history entry says "TARGET NOT MET": set "reps" to EXACTLY the fallback rep count stated in that entry for every set, and leave "sets" unchanged from their last prescription — do not increase either, and do not simply repeat the rep target they missed.
+- Concrete example of a success: a user was prescribed 3 sets x 12 reps of Push-Ups (bodyweight) and completed all 3 sets at 12+ reps — TARGET MET. Since 12 reps is below the ${BODYWEIGHT_REP_CEILING}-rep ceiling, a reasonable next prescription is 3 sets x 14 reps (roughly a 15% increase), not 3 sets x 20 reps and not repeating 3 sets x 12 reps.
+- Concrete example of hitting the ceiling: a user was prescribed 3 sets x 19 reps of Bodyweight Squats and completed all 3 sets — TARGET MET. Because 19 reps is already essentially at the ${BODYWEIGHT_REP_CEILING}-rep ceiling, the next prescription should hold reps near ${BODYWEIGHT_REP_CEILING} and instead move to 4 sets x ${BODYWEIGHT_REP_CEILING} reps, not push reps to 22-25.
+- Concrete example of a partial failure: an exercise was prescribed as 3 sets of 15 reps, and the user logged Set 1: 15 reps, Set 2: 15 reps, Set 3: 11 reps. Because Set 3 fell short, this is TARGET NOT MET even though the first two sets were successful. The next prescription must be 3 sets x 11 reps (their lowest completed set), not 3 sets x 15 reps repeated and not a higher number.
 
 Include exactly one entry in "days" for each of: ${dayNames.join(", ")} — in that order. Be thorough and specific with exercise selection, sets, reps, and coaching notes.`;
 };

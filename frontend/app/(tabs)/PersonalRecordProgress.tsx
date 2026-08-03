@@ -30,7 +30,7 @@ const PersonalRecordProgress = () => {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
       >
-        <Text style={styles.title}>PR Progress</Text>
+        <Text style={styles.title}>Personal Record Progress</Text>
         <Text style={styles.subtitle}>
           Track how your estimated one-rep max for an exercise changes over
           time, based on the sets you've logged. Pick an exercise below to

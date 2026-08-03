@@ -67,7 +67,7 @@ export const useLogExercisePerformance = () => {
       sets,
     }: {
       programExerciseId: string;
-      sets: Array<{ weight: number; reps: number }>;
+      sets: Array<{ weight: number | null; reps: number }>;
     }) => logExercisePerformance(programExerciseId, sets),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["schedule"] });

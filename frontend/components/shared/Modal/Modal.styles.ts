@@ -14,6 +14,16 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: spacing.lg,
     width: "100%",
+    maxHeight: "85%",
+  },
+  closeRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginBottom: spacing.sm,
+  },
+  scrollArea: {
+    flexGrow: 0,
+    flexShrink: 1,
   },
 });
 

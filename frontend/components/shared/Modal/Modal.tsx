@@ -1,4 +1,13 @@
-import { Modal as RNModal, View, TouchableWithoutFeedback } from "react-native";
+import {
+  Modal as RNModal,
+  View,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+} from "react-native";
+import Feather from "@expo/vector-icons/Feather";
+import { colors } from "@/constants/colors";
 import styles from "./Modal.styles";
 import { ModalProps } from "./Modal.types";
 
@@ -16,13 +25,36 @@ const Modal = ({ visible, onClose, children, closable = true }: ModalProps) => {
       animationType="fade"
       onRequestClose={handleClose}
     >
-      <TouchableWithoutFeedback onPress={handleClose}>
-        <View style={styles.overlay}>
-          <TouchableWithoutFeedback>
-            <View style={styles.card}>{children}</View>
-          </TouchableWithoutFeedback>
+      <View style={styles.overlay}>
+        {/* Absolutely-positioned sibling behind the card, not a wrapper
+            around it — a wrapper would sit as a touch-responder ancestor
+            of the ScrollView below and swallow scroll gestures before they
+            ever reach it. As a sibling, it only ever receives touches that
+            land outside the card's bounds. */}
+        <TouchableWithoutFeedback onPress={handleClose}>
+          <View style={StyleSheet.absoluteFill} />
+        </TouchableWithoutFeedback>
+
+        <View style={styles.card}>
+          {closable && (
+            <View style={styles.closeRow}>
+              <TouchableOpacity
+                onPress={onClose}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Feather name="x" size={22} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+          )}
+          <ScrollView
+            style={styles.scrollArea}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {children}
+          </ScrollView>
         </View>
-      </TouchableWithoutFeedback>
+      </View>
     </RNModal>
   );
 };

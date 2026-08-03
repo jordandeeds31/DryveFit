@@ -105,6 +105,7 @@ export interface ProgramExercise {
   isCompleted: boolean;
   recommendedWeight: number | null;
   imageUrl: string | null;
+  equipment: string | null;
   exerciseLogs: ProgramExerciseLog[];
 }
 

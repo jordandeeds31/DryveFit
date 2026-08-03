@@ -21,14 +21,19 @@ const LogExerciseModal = ({
     useDeleteExercisePerformance();
 
   const isPending = isSaving || isDeleting;
+  const isBodyweight = exercise?.equipment === "bodyweight";
 
   const handleSave = () => {
     if (!exercise) return;
 
     const validSets = sets
-      .filter((set) => set.weight.trim() !== "" && set.reps.trim() !== "")
+      .filter(
+        (set) =>
+          (isBodyweight || set.weight.trim() !== "") &&
+          set.reps.trim() !== "",
+      )
       .map((set) => ({
-        weight: parseFloat(set.weight),
+        weight: isBodyweight ? null : parseFloat(set.weight),
         reps: parseInt(set.reps, 10),
       }));
 
@@ -90,16 +95,28 @@ const LogExerciseModal = ({
             Weight: {exercise.recommendedWeight} lbs
           </Text>
         )}
+        <Text style={styles.completionHint}>
+          Log at least {exercise?.sets} sets of {exercise?.reps}+ reps
+          {exercise?.recommendedWeight != null
+            ? ` at ${exercise.recommendedWeight}+ lbs`
+            : ""}{" "}
+          to mark this exercise LOGGED — anything less will show as IN
+          PROGRESS.
+        </Text>
         {sets.map((set, index) => (
           <View key={set.id} style={styles.setRow}>
             <Text style={styles.setLabel}>Set {index + 1}</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Weight"
-              keyboardType="numeric"
-              value={set.weight}
-              onChangeText={(value) => handleUpdateSet(set.id, "weight", value)}
-            />
+            {!isBodyweight && (
+              <TextInput
+                style={styles.input}
+                placeholder="Weight"
+                keyboardType="numeric"
+                value={set.weight}
+                onChangeText={(value) =>
+                  handleUpdateSet(set.id, "weight", value)
+                }
+              />
+            )}
             <TextInput
               style={styles.input}
               placeholder="Reps"

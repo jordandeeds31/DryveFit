@@ -18,7 +18,26 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: spacing.sm,
   },
-  weekRange: {
+  headerCenter: {
+    flex: 1,
+    alignItems: "center",
+    gap: 4,
+  },
+  monthLabel: {
+    fontWeight: fontWeights.bold,
+    fontSize: fontSizes.md,
+    color: colors.primaryBlue,
+  },
+  currentProgramBadge: {
+    backgroundColor: colors.surfaceBlueLight,
+    borderWidth: 1,
+    borderColor: colors.borderBlueLight,
+    borderRadius: 12,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+  },
+  currentProgramBadgeText: {
+    fontSize: fontSizes.xs,
     fontWeight: fontWeights.bold,
     color: colors.primaryBlue,
   },

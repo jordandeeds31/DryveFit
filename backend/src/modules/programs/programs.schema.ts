@@ -7,7 +7,12 @@ export const weekExerciseSchema = z.object({
   reps: z.number().int().positive(),
   restSeconds: z.number().int().nonnegative(),
   notes: z.string().optional(),
-  order: z.number().int(),
+  // The AI is asked to include this, but occasionally drops it for a
+  // handful of entries in a longer response — the persisted order is
+  // derived from each exercise's final array position at write time
+  // instead, so this is never load-bearing and must not reject the whole
+  // week's generation just because it's missing.
+  order: z.number().int().optional(),
   recommendedWeight: z.number().positive().optional(),
 });
 

@@ -2,10 +2,11 @@ import { View, Text, TouchableOpacity } from "react-native";
 import Feather from "@expo/vector-icons/Feather";
 import styles from "./WeeklySchedule.styles";
 import { WeeklyScheduleProps } from "./WeeklySchedule.types";
+import { colors } from "@/constants/colors";
 import {
   DAY_LABELS,
   isSameDay,
-  formatWeekRange,
+  formatMonthYear,
   toDateKey,
 } from "@/lib/utils/date.utils";
 
@@ -16,18 +17,41 @@ const WeeklySchedule = ({
   onNextWeek,
   onPreviousWeek,
   scheduleMap,
+  canGoToPreviousWeek,
+  canGoToNextWeek,
+  isCurrentProgramWeek,
 }: WeeklyScheduleProps) => {
   return (
     <View style={styles.datesContainer}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={onPreviousWeek}>
-          <Feather name="chevron-left" size={24} />
+        <TouchableOpacity
+          onPress={onPreviousWeek}
+          disabled={!canGoToPreviousWeek}
+        >
+          <Feather
+            name="chevron-left"
+            size={24}
+            color={canGoToPreviousWeek ? undefined : colors.textMuted}
+          />
         </TouchableOpacity>
 
-        <Text style={styles.weekRange}>{formatWeekRange(weekDates)}</Text>
+        <View style={styles.headerCenter}>
+          <Text style={styles.monthLabel}>{formatMonthYear(weekDates)}</Text>
+          {isCurrentProgramWeek && (
+            <View style={styles.currentProgramBadge}>
+              <Text style={styles.currentProgramBadgeText}>
+                CURRENT PROGRAM
+              </Text>
+            </View>
+          )}
+        </View>
 
-        <TouchableOpacity onPress={onNextWeek}>
-          <Feather name="chevron-right" size={24} />
+        <TouchableOpacity onPress={onNextWeek} disabled={!canGoToNextWeek}>
+          <Feather
+            name="chevron-right"
+            size={24}
+            color={canGoToNextWeek ? undefined : colors.textMuted}
+          />
         </TouchableOpacity>
       </View>
 

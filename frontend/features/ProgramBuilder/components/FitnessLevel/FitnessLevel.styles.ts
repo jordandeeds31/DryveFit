@@ -1,6 +1,7 @@
 import { StyleSheet } from "react-native";
 import { colors } from "@/constants/colors";
 import { spacing } from "@/constants/spacing";
+import { fontSizes } from "@/constants/typography";
 
 const styles = StyleSheet.create({
   container: {},
@@ -21,6 +22,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   levelText: {
+    fontSize: fontSizes.sm,
     fontWeight: "bold",
     color: colors.textSecondary,
   },

@@ -8,13 +8,16 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import ProgramBuilder from "@/features/ProgramBuilder/ProgramBuilder";
+import Modal from "@/components/shared/Modal/Modal";
 import Button from "@/components/shared/Button/Button";
 import useToggle from "@/hooks/useToggle";
 import { spacing } from "@/constants/spacing";
+import { colors } from "@/constants/colors";
+import { fontSizes, fontWeights } from "@/constants/typography";
 import NoPrograms from "@/components/shared/NoPrograms/NoPrograms";
 import { usePrograms, useSchedule, useProgramDay } from "@/hooks/usePrograms";
 import { useWorkoutLogsForDate } from "@/hooks/useWorkoutLogs";
-import { getWeekDates, toDateKey } from "@/lib/utils/date.utils";
+import { getWeekDates, toDateKey, startOfDay } from "@/lib/utils/date.utils";
 import WeeklySchedule from "@/features/WeeklySchedule/WeeklySchedule";
 import { ScheduleEntry } from "@/types/programs.types";
 import WorkoutDetail from "@/features/WorkoutDetail/WorkoutDetail";
@@ -25,6 +28,7 @@ const HomeScreen = () => {
   const [referenceDate, setReferenceDate] = useState<Date>(new Date());
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isWorkoutLoggerOpen, setIsWorkoutLoggerOpen] = useState(false);
+  const [isGeneratingProgram, setIsGeneratingProgram] = useState(false);
 
   const { isOpen, close, toggle } = useToggle();
 
@@ -32,6 +36,52 @@ const HomeScreen = () => {
   const { data: schedule } = useSchedule();
 
   const weekDates = getWeekDates(referenceDate);
+
+  const activeProgram = programs?.find((program) => program.isActive) ?? null;
+
+  // Nothing exists before the user's earliest program, so there's no reason
+  // to let them page back past the week it starts in.
+  const earliestProgramStartDate =
+    programs && programs.length > 0
+      ? new Date(
+          Math.min(...programs.map((p) => new Date(p.startDate).getTime())),
+        )
+      : null;
+
+  const earliestWeekStart = earliestProgramStartDate
+    ? startOfDay(getWeekDates(earliestProgramStartDate)[0])
+    : null;
+
+  const canGoToPreviousWeek =
+    !earliestWeekStart ||
+    startOfDay(weekDates[0]).getTime() > earliestWeekStart.getTime();
+
+  // Mirror of the above: nothing exists after the user's latest program
+  // ends, so there's no reason to let them page forward past its week.
+  const latestProgramEndDate =
+    programs && programs.length > 0
+      ? new Date(
+          Math.max(...programs.map((p) => new Date(p.endDate).getTime())),
+        )
+      : null;
+
+  const latestWeekStart = latestProgramEndDate
+    ? startOfDay(getWeekDates(latestProgramEndDate)[0])
+    : null;
+
+  const canGoToNextWeek =
+    !latestWeekStart ||
+    startOfDay(weekDates[0]).getTime() < latestWeekStart.getTime();
+
+  const isCurrentProgramWeek =
+    !!activeProgram &&
+    weekDates.some((date) => {
+      const day = startOfDay(date).getTime();
+      return (
+        day >= startOfDay(new Date(activeProgram.startDate)).getTime() &&
+        day <= startOfDay(new Date(activeProgram.endDate)).getTime()
+      );
+    });
 
   const scheduleMap = (schedule ?? []).reduce(
     (acc, entry) => {
@@ -69,12 +119,14 @@ const HomeScreen = () => {
   }, [selectedDateKey]);
 
   const goToNextWeek = () => {
+    if (!canGoToNextWeek) return;
     const nextDate = new Date(referenceDate);
     nextDate.setDate(referenceDate.getDate() + 7);
     setReferenceDate(nextDate);
   };
 
   const goToPreviousWeek = () => {
+    if (!canGoToPreviousWeek) return;
     const prevDate = new Date(referenceDate);
     prevDate.setDate(referenceDate.getDate() - 7);
     setReferenceDate(prevDate);
@@ -102,10 +154,23 @@ const HomeScreen = () => {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.buttonContainer}>
-          <Button title="CREATE NEW PROGRAM" onPress={handleCreateProgram} />
+          <Button
+            title="CREATE NEW PROGRAM"
+            onPress={handleCreateProgram}
+            style={styles.createProgramButton}
+          />
         </View>
 
-        {isOpen && <ProgramBuilder onCancel={close} onCreated={close} />}
+        <Modal
+          visible={isOpen}
+          onClose={close}
+          closable={!isGeneratingProgram}
+        >
+          <ProgramBuilder
+            onCreated={close}
+            onGeneratingChange={setIsGeneratingProgram}
+          />
+        </Modal>
 
         <WeeklySchedule
           weekDates={weekDates}
@@ -114,6 +179,9 @@ const HomeScreen = () => {
           onNextWeek={goToNextWeek}
           onPreviousWeek={goToPreviousWeek}
           scheduleMap={scheduleMap}
+          canGoToPreviousWeek={canGoToPreviousWeek}
+          canGoToNextWeek={canGoToNextWeek}
+          isCurrentProgramWeek={isCurrentProgramWeek}
         />
 
         {!hasPrograms && !isWorkoutLoggerOpen && !hasLoggedStandaloneWorkout && (
@@ -135,12 +203,21 @@ const HomeScreen = () => {
         ) : (
           <View>
             {hasPrograms && (
-              <Text style={{ marginBottom: spacing.sm }}>
-                No workout scheduled for today. You can still log a workout if
-                you decide to train by clicking the button below.
-              </Text>
+              <View style={styles.noWorkoutContainer}>
+                <Text style={styles.noWorkoutTitle}>
+                  No workout scheduled for today
+                </Text>
+                <Text style={styles.noWorkoutText}>
+                  You can still log a workout if you decide to train by
+                  clicking the button below.
+                </Text>
+              </View>
             )}
-            <Button title="Log Workout" onPress={handleLogWorkout} />
+            <Button
+              title="Log Workout"
+              onPress={handleLogWorkout}
+              variant="outline"
+            />
           </View>
         )}
       </ScrollView>
@@ -164,9 +241,27 @@ const styles = StyleSheet.create({
   buttonContainer: {
     marginBottom: spacing.md,
   },
+  createProgramButton: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 4,
+  },
   noProgramsContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
+  },
+  noWorkoutContainer: {
+    marginBottom: spacing.sm,
+    gap: spacing.xs,
+  },
+  noWorkoutTitle: {
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.bold,
+  },
+  noWorkoutText: {
+    color: colors.textSecondary,
   },
 });

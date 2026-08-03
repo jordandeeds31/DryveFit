@@ -80,18 +80,23 @@ export const getExercise1RMHistory = async (
     orderBy: { workoutLog: { loggedAt: "asc" } },
   });
 
-  return logs.map((log) => {
-    // Use the heaviest estimated 1RM among that session's sets
-    const best1RM = Math.max(
-      ...log.sets
-        .filter((set) => set.weight != null && set.reps != null)
-        .map((set) => Math.round(set.weight! * (1 + set.reps! / 30))),
-    );
+  return logs.flatMap((log) => {
+    const estimates = log.sets
+      .filter((set) => set.weight != null && set.reps != null)
+      .map((set) => Math.round(set.weight! * (1 + set.reps! / 30)));
 
-    return {
-      date: log.workoutLog.loggedAt,
-      estimated1RM: best1RM,
-      sets: log.sets,
-    };
+    // No external load logged for this session at all (e.g. a bodyweight
+    // exercise, which has no meaningful 1RM) — Math.max() on an empty
+    // array would silently produce -Infinity, so skip the session
+    // entirely rather than plotting a broken data point.
+    if (estimates.length === 0) return [];
+
+    return [
+      {
+        date: log.workoutLog.loggedAt,
+        estimated1RM: Math.max(...estimates),
+        sets: log.sets,
+      },
+    ];
   });
 };

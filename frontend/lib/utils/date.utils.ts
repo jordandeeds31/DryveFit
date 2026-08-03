@@ -24,30 +24,33 @@ export const isSameDay = (dateA: Date, dateB: Date) => {
   );
 };
 
-export const formatWeekRange = (weekDates: Date[]): string => {
-  const start = weekDates[0];
-  const end = weekDates[6];
+const MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
 
-  const monthNames = [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
-  ];
+// Weeks that straddle a month boundary are labeled with the month that owns
+// the middle of the week, so the header reflects the month most of the
+// visible days actually belong to.
+export const formatMonthYear = (weekDates: Date[]): string => {
+  const anchor = weekDates[3] ?? weekDates[0];
+  return `${MONTH_NAMES[anchor.getMonth()]} ${anchor.getFullYear()}`;
+};
 
-  const startLabel = `${monthNames[start.getMonth()]} ${start.getDate()}`;
-  const endLabel = `${monthNames[end.getMonth()]} ${end.getDate()}`;
-  const year = end.getFullYear();
-
-  return `${startLabel} - ${endLabel}, ${year}`;
+export const startOfDay = (date: Date): Date => {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  return start;
 };
 
 export const toDateKey = (date: Date): string => {
