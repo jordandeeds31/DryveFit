@@ -92,6 +92,29 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: spacing.md,
   },
+  checkPreviousButton: {
+    alignSelf: "flex-start",
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: colors.borderGray,
+    borderRadius: 6,
+  },
+  checkPreviousText: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.semibold,
+    color: colors.textSecondary,
+  },
+  previousSessionDate: {
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.semibold,
+    color: colors.completedGreen,
+    marginBottom: spacing.sm,
+  },
+  previousSetValue: {
+    fontSize: 14,
+    fontWeight: fontWeights.semibold,
+  },
 });
 
 export default styles;

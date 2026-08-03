@@ -1,15 +1,30 @@
 import { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, TextInput } from "react-native";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  TextInput,
+  ActivityIndicator,
+} from "react-native";
 import styles from "./WorkoutLogger.styles";
 import { WorkoutLoggerProps } from "./WorkoutLogger.types";
 import AntDesign from "@expo/vector-icons/AntDesign";
 import DropdownExerciseSelect from "@/components/shared/DropdownExerciseSelect/DropdownExerciseSelect";
 import Button from "@/components/shared/Button/Button";
+import Modal from "@/components/shared/Modal/Modal";
 import { Exercise } from "@/types/exercise.types";
 import {
   useLogStandaloneWorkout,
   useDeleteWorkoutLogSet,
 } from "@/hooks/useWorkoutLogs";
+import { usePreviousSession } from "@/hooks/useExercises";
+
+const formatSessionDate = (dateStr: string) =>
+  new Date(dateStr).toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
 
 interface SetEntry {
   id: string;
@@ -64,6 +79,19 @@ const WorkoutLogger = ({
 
   const { mutate: logWorkout, isPending } = useLogStandaloneWorkout();
   const { mutate: deleteWorkoutLogSet } = useDeleteWorkoutLogSet();
+
+  const [previousModalEntryId, setPreviousModalEntryId] = useState<
+    string | null
+  >(null);
+  const previousModalEntry = exerciseEntries.find(
+    (entry) => entry.id === previousModalEntryId,
+  );
+  const { data: previousSession, isLoading: isPreviousLoading } =
+    usePreviousSession(
+      previousModalEntry?.exercise?.name ?? null,
+      date,
+      !!previousModalEntryId,
+    );
 
   // Set IDs already persisted to the database (loaded from initialWorkoutLogs) —
   // deleting one of these needs an immediate API call, not just local state removal.
@@ -223,6 +251,14 @@ const WorkoutLogger = ({
 
           {entry.exercise && (
             <View style={styles.setsContainer}>
+              <TouchableOpacity
+                style={styles.checkPreviousButton}
+                onPress={() => setPreviousModalEntryId(entry.id)}
+              >
+                <Text style={styles.checkPreviousText}>
+                  CHECK PREVIOUS WORKOUT
+                </Text>
+              </TouchableOpacity>
               {entry.sets.map((set, setIndex) => (
                 <View key={set.id} style={styles.setRow}>
                   <Text style={styles.setLabel}>Set {setIndex + 1}</Text>
@@ -289,6 +325,37 @@ const WorkoutLogger = ({
           disabled={isPending}
         />
       </View>
+
+      <Modal
+        visible={!!previousModalEntryId}
+        onClose={() => setPreviousModalEntryId(null)}
+      >
+        <Text style={styles.title}>
+          {previousModalEntry?.exercise?.name}
+        </Text>
+        {isPreviousLoading ? (
+          <ActivityIndicator style={{ marginTop: 12 }} />
+        ) : !previousSession ? (
+          <Text style={styles.saveReminder}>
+            No previous session logged for this exercise yet.
+          </Text>
+        ) : (
+          <>
+            <Text style={styles.previousSessionDate}>
+              {formatSessionDate(previousSession.date)}
+            </Text>
+            {previousSession.sets.map((set) => (
+              <View key={set.setNumber} style={styles.setRow}>
+                <Text style={styles.setLabel}>Set {set.setNumber}</Text>
+                <Text style={styles.previousSetValue}>
+                  {set.weight != null ? `${set.weight} lbs x ` : ""}
+                  {set.reps ?? "-"} reps
+                </Text>
+              </View>
+            ))}
+          </>
+        )}
+      </Modal>
     </View>
   );
 };

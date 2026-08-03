@@ -64,6 +64,43 @@ export const getExerciseImage = async (
   };
 };
 
+// The most recent logged session for an exercise, set-by-set — powers the
+// "Check Previous Workout" button so a user doesn't have to navigate back
+// to an earlier day just to see what weight/reps they used last time.
+export const getPreviousSession = async (
+  userId: string,
+  exerciseName: string,
+  beforeDateStr?: string,
+) => {
+  const beforeDate = beforeDateStr ? new Date(beforeDateStr) : undefined;
+
+  const log = await prisma.exerciseLog.findFirst({
+    where: {
+      exerciseName,
+      workoutLog: {
+        userId,
+        ...(beforeDate ? { loggedAt: { lt: beforeDate } } : {}),
+      },
+    },
+    include: {
+      sets: { orderBy: { setNumber: "asc" } },
+      workoutLog: { select: { loggedAt: true } },
+    },
+    orderBy: { workoutLog: { loggedAt: "desc" } },
+  });
+
+  if (!log) return null;
+
+  return {
+    date: log.workoutLog.loggedAt,
+    sets: log.sets.map((set) => ({
+      setNumber: set.setNumber,
+      weight: set.weight,
+      reps: set.reps,
+    })),
+  };
+};
+
 export const getExercise1RMHistory = async (
   userId: string,
   exerciseName: string,

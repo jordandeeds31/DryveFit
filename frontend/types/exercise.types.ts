@@ -9,6 +9,17 @@ export interface Exercise {
   createdAt: string;
 }
 
+export interface PreviousSessionSet {
+  setNumber: number;
+  weight: number | null;
+  reps: number | null;
+}
+
+export interface PreviousSession {
+  date: string;
+  sets: PreviousSessionSet[];
+}
+
 export interface OneRepMaxEntry {
   date: string;
   estimated1RM: number;

@@ -16,6 +16,7 @@ import {
   TRAINING_GOALS,
   TrainingGoal,
   ExercisePerformance,
+  SessionClassification,
   getWeeksPlan,
   buildWeekPrompt,
   assignSplitToDays,
@@ -221,6 +222,75 @@ const calculateWorkingWeightForPrescription = (
   );
 };
 
+interface SetOutcome {
+  reps: number;
+  weight: number | null;
+}
+
+const NEAR_MISS_MAX_SHORTFALL = 2;
+const MODERATE_NONFINAL_MAX_SHORTFALL = 2;
+const WEIGHT_REDUCTION_SIGNIFICANT_PERCENT = 0.1;
+
+const classifyWeightedSession = (
+  prescribedSets: number,
+  prescribedReps: number,
+  prescribedWeight: number | null,
+  achievedSets: SetOutcome[],
+): SessionClassification => {
+  // Didn't even attempt every prescribed set — a stronger signal of
+  // overreach than falling short on reps within a set they did attempt.
+  if (achievedSets.length < prescribedSets) return "significant_miss";
+
+  if (prescribedWeight != null) {
+    const weightShortfalls = achievedSets.map((set) =>
+      Math.max(0, prescribedWeight - (set.weight ?? 0)),
+    );
+    const setsWithReducedWeight = weightShortfalls.filter((s) => s > 0).length;
+    const maxWeightReduction = Math.max(...weightShortfalls);
+
+    if (
+      setsWithReducedWeight >= 2 ||
+      maxWeightReduction > prescribedWeight * WEIGHT_REDUCTION_SIGNIFICANT_PERCENT
+    ) {
+      return "significant_miss";
+    }
+    if (setsWithReducedWeight === 1) {
+      // A minor reduction on one set is a real (if small) sign of struggle
+      // — hold rather than progress, but not a full regression either.
+      return "moderate_miss";
+    }
+  }
+
+  const repShortfalls = achievedSets.map((set) =>
+    Math.max(0, prescribedReps - set.reps),
+  );
+  const totalShortfall = repShortfalls.reduce((sum, s) => sum + s, 0);
+  if (totalShortfall === 0) return "full_success";
+
+  const lastIndex = repShortfalls.length - 1;
+  const finalShortfall = repShortfalls[lastIndex];
+  const nonFinalShortfalls = repShortfalls.slice(0, lastIndex);
+  const missedNonFinalSets = nonFinalShortfalls.filter((s) => s > 0);
+
+  if (missedNonFinalSets.length === 0 && finalShortfall > 0) {
+    if (finalShortfall <= NEAR_MISS_MAX_SHORTFALL) return "near_miss";
+    // Missed by more on the final set, but still completed at least half
+    // the prescribed reps — a bigger fade, not a collapse.
+    const finalSetReps = achievedSets[lastIndex].reps;
+    return finalSetReps >= prescribedReps / 2 ? "moderate_miss" : "significant_miss";
+  }
+
+  if (
+    missedNonFinalSets.length === 1 &&
+    missedNonFinalSets[0] <= MODERATE_NONFINAL_MAX_SHORTFALL &&
+    finalShortfall === 0
+  ) {
+    return "moderate_miss";
+  }
+
+  return "significant_miss";
+};
+
 // Code-side equivalent of estimateRecommendedWeight/calculateWorkingWeightForPrescription,
 // for exercises with no external load: the double-progression model —
 // increase reps toward a practical per-set ceiling, then progress via
@@ -242,10 +312,14 @@ const calculateBodyweightProgression = (
   baselineSets: number,
   baselineReps: number,
   didMeetTarget: boolean,
+  isNearMiss: boolean,
   fallbackReps: number,
 ): { sets: number; reps: number } => {
   if (!didMeetTarget) {
-    return { sets: baselineSets, reps: fallbackReps };
+    // A near miss (fell only a rep or two short, usually on the last set)
+    // is normal variance, not proof the target itself was too high — hold
+    // it steady for another attempt instead of dropping to the fallback.
+    return { sets: baselineSets, reps: isNearMiss ? baselineReps : fallbackReps };
   }
 
   if (baselineReps < BODYWEIGHT_REP_CEILING) {
@@ -319,21 +393,48 @@ const getRecentPerformanceByExerciseName = async (
   });
 
   const performanceByName: Record<string, ExercisePerformance> = {};
+  // Tracks, across ALL past sessions for each name (not just the most
+  // recent one), the highest weight at which the FULL prescription was
+  // ever completed — the hard floor a recommendation must never drop
+  // below except on a genuine significant miss at that same weight.
+  const provenWeightFloorByName: Record<string, number> = {};
 
   for (const log of logs) {
-    if (performanceByName[log.exerciseName]) continue; // already have the most recent session
-
     // Bodyweight sets are logged with no weight at all — only reps are
     // meaningful for them, so weight must not be required for a set to
     // count as valid, or every bodyweight session would be silently
     // dropped from performance history.
     const isBodyweight = equipmentByName.get(log.exerciseName) === "bodyweight";
-    const validSets = log.sets.filter((set) =>
-      isBodyweight
-        ? set.reps != null
-        : set.weight != null && set.reps != null,
-    );
+    const validSets = log.sets
+      .filter((set) =>
+        isBodyweight ? set.reps != null : set.weight != null && set.reps != null,
+      )
+      .sort((a, b) => a.setNumber - b.setNumber);
     if (validSets.length === 0) continue;
+
+    const prescription = log.programExercise;
+    const metFullPrescription = prescription
+      ? validSets.length >= prescription.sets &&
+        validSets.every(
+          (set) =>
+            set.reps! >= prescription.reps &&
+            (prescription.recommendedWeight == null ||
+              set.weight! >= prescription.recommendedWeight),
+        )
+      : true;
+
+    // Scan every session (not just the most recent) for the floor — a
+    // fully successful session from several occurrences ago still proves
+    // that weight is achievable, even if a more recent session struggled.
+    if (!isBodyweight && prescription && metFullPrescription) {
+      const provenWeight = Math.min(...validSets.map((set) => set.weight!));
+      provenWeightFloorByName[log.exerciseName] = Math.max(
+        provenWeightFloorByName[log.exerciseName] ?? 0,
+        provenWeight,
+      );
+    }
+
+    if (performanceByName[log.exerciseName]) continue; // full detail only needed for the most recent session
 
     const bestSet = isBodyweight
       ? validSets.reduce((best, set) => (set.reps! > best.reps! ? set : best))
@@ -347,16 +448,50 @@ const getRecentPerformanceByExerciseName = async (
     // Every prescribed set must be met — not just some, not an average.
     // Standalone logs (no linked programExercise) have nothing prescribed
     // to fall short of, so they're treated as met by default.
-    const prescription = log.programExercise;
-    const didMeetTarget = prescription
-      ? validSets.length >= prescription.sets &&
-        validSets.every(
-          (set) =>
-            set.reps! >= prescription.reps &&
-            (prescription.recommendedWeight == null ||
-              set.weight! >= prescription.recommendedWeight),
-        )
+    const didMeetTarget = metFullPrescription;
+
+    // A missed set doesn't automatically mean the load itself was too
+    // heavy — falling one or two reps short on a single set (usually the
+    // last, most fatigued one) after attempting every set at the full
+    // prescribed weight is normal session-to-session variance, not a sign
+    // of overreach. Full regression is reserved for a genuinely failed
+    // session: skipped sets, reduced weight, or a larger rep shortfall.
+    // (This coarser check still backs the bodyweight path below — the
+    // weighted path uses the full four-tier weightClassification instead.)
+    const NEAR_MISS_MAX_TOTAL_SHORTFALL = 2;
+    const NEAR_MISS_MAX_SINGLE_SET_SHORTFALL = 2;
+    const attemptedEverySet = prescription
+      ? validSets.length >= prescription.sets
       : true;
+    const heldPrescribedWeight =
+      isBodyweight ||
+      !prescription ||
+      prescription.recommendedWeight == null ||
+      validSets.every((set) => set.weight! >= prescription.recommendedWeight!);
+    const repShortfalls = prescription
+      ? validSets.map((set) => Math.max(0, prescription.reps - set.reps!))
+      : [];
+    const totalRepShortfall = repShortfalls.reduce((sum, s) => sum + s, 0);
+    const worstSetShortfall = repShortfalls.length
+      ? Math.max(...repShortfalls)
+      : 0;
+    const isNearMiss =
+      !didMeetTarget &&
+      !!prescription &&
+      attemptedEverySet &&
+      heldPrescribedWeight &&
+      totalRepShortfall <= NEAR_MISS_MAX_TOTAL_SHORTFALL &&
+      worstSetShortfall <= NEAR_MISS_MAX_SINGLE_SET_SHORTFALL;
+
+    const weightClassification: SessionClassification | null =
+      !isBodyweight && prescription
+        ? classifyWeightedSession(
+            prescription.sets,
+            prescription.reps,
+            prescription.recommendedWeight,
+            validSets.map((set) => ({ reps: set.reps!, weight: set.weight })),
+          )
+        : null;
 
     const sessionEstimated1RM = estimate1RM(bestSet.weight!, bestSet.reps!);
 
@@ -383,6 +518,9 @@ const getRecentPerformanceByExerciseName = async (
       reps: bestSet.reps!,
       estimated1RM: sessionEstimated1RM,
       didMeetTarget,
+      isNearMiss,
+      weightClassification,
+      provenWeightFloor: null, // filled in below once every log has been scanned
       fallbackWeight,
       // What was actually recommended for that session, if anything — lets
       // the prompt state an explicit "recommended X, achieved Y" comparison
@@ -394,6 +532,11 @@ const getRecentPerformanceByExerciseName = async (
       achievedSets: validSets.length,
       fallbackReps,
     };
+  }
+
+  for (const name of Object.keys(performanceByName)) {
+    performanceByName[name].provenWeightFloor =
+      provenWeightFloorByName[name] ?? null;
   }
 
   return performanceByName;
@@ -726,6 +869,7 @@ export const getProgramDayByDate = async (
           Math.max(performance.prescribedSets ?? exercise.sets, performance.achievedSets),
           performance.reps,
           performance.didMeetTarget,
+          performance.isNearMiss,
           performance.fallbackReps,
         );
         return { ...exercise, sets, reps };
@@ -733,19 +877,40 @@ export const getProgramDayByDate = async (
 
       if (exercise.recommendedWeight != null) return exercise;
 
-      // Only apply the upward progression estimate if they fully met their
-      // last prescription — otherwise hold at what they actually
-      // demonstrated, same as the AI-generation-time logic.
-      return {
-        ...exercise,
-        recommendedWeight: performance.didMeetTarget
-          ? estimateRecommendedWeight(
-              performance.estimated1RM,
-              exercise.reps,
-              equipment,
-            )
-          : performance.fallbackWeight,
-      };
+      // Four-tier response instead of a binary met/not-met check: only a
+      // full success progresses the weight. A near miss or moderate miss
+      // (every set attempted, shortfall small or isolated) holds the same
+      // weight for another attempt — that's normal variance, not evidence
+      // of overreach. Only a significant miss (skipped set, reduced
+      // weight, or a real collapse) triggers the scaled-down fallback.
+      const heldWeight = performance.recommendedWeightAtTime ?? performance.weight;
+      let recommendedWeight: number;
+      switch (performance.weightClassification) {
+        case "full_success":
+          recommendedWeight = estimateRecommendedWeight(
+            performance.estimated1RM,
+            exercise.reps,
+            equipment,
+          );
+          break;
+        case "near_miss":
+        case "moderate_miss":
+          recommendedWeight = heldWeight;
+          break;
+        default:
+          recommendedWeight = performance.fallbackWeight;
+      }
+
+      // Hard floor: never recommend below a weight this exercise has
+      // already fully succeeded at in some past session — unless the
+      // significant miss happened at that exact floor weight, which is
+      // real evidence the floor itself no longer holds.
+      const floor = performance.provenWeightFloor;
+      if (floor != null && recommendedWeight < floor && heldWeight > floor) {
+        recommendedWeight = floor;
+      }
+
+      return { ...exercise, recommendedWeight };
     });
   }
 
@@ -856,7 +1021,9 @@ export const logExercisePerformance = async (
     sets.length >= programExercise.sets &&
     sets.every((set) => set.reps >= programExercise.reps) &&
     (programExercise.recommendedWeight == null ||
-      sets.every((set) => set.weight >= programExercise.recommendedWeight!));
+      sets.every(
+        (set) => (set.weight ?? 0) >= programExercise.recommendedWeight!,
+      ));
 
   await prisma.programExercise.update({
     where: { id: programExercise.id },

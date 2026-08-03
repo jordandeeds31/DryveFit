@@ -224,6 +224,27 @@ export const assignSplitToDays = (
   return assignment;
 };
 
+// A single true/false "did they meet every set" check treats a session
+// that fell one rep short on the last, most fatigued set identically to a
+// session that collapsed across multiple sets — those call for opposite
+// coaching responses. This four-tier classification distinguishes them:
+//   full_success      — every set met or exceeded prescription.
+//   near_miss         — only the final set fell short, by a small margin —
+//                        classic end-of-session fatigue, not overreach.
+//   moderate_miss     — a single non-final set missed by a small margin
+//                        (final set otherwise fine), or the final set
+//                        missed by a larger margin without collapsing
+//                        (still completed a meaningful number of reps).
+//   significant_miss  — a set was skipped outright, weight itself was
+//                        reduced, more than one set missed meaningfully,
+//                        or a set collapsed to well under half its target
+//                        — genuine evidence the load is too heavy.
+export type SessionClassification =
+  | "full_success"
+  | "near_miss"
+  | "moderate_miss"
+  | "significant_miss";
+
 export interface ExercisePerformance {
   weight: number;
   reps: number;
@@ -232,6 +253,26 @@ export interface ExercisePerformance {
   // the prescribed weight and reps — computed in code, not left for the AI
   // to infer from raw set data.
   didMeetTarget: boolean;
+  // True when didMeetTarget is false but only barely — every set was
+  // attempted at the full prescribed weight, and the rep shortfall was
+  // small (at most 2 reps total, at most 2 on any single set). This is
+  // normal day-to-day variance (usually just the last, most fatigued set),
+  // not evidence the weight itself is too heavy, so it should hold the
+  // same weight steady next time rather than triggering full regression
+  // down to fallbackWeight.
+  isNearMiss: boolean;
+  // Four-tier classification of the most recent session, for weighted
+  // exercises only (null for bodyweight, which uses didMeetTarget/
+  // isNearMiss above instead). See SessionClassification for tier meanings.
+  weightClassification: SessionClassification | null;
+  // The highest weight at which this exercise's FULL prescription (every
+  // set, every prescribed rep, at that weight) has ever been completed,
+  // across all past sessions — not just the most recent one. Acts as a
+  // hard floor: a recommendation should never drop below a weight already
+  // proven fully achievable, except when a significant miss happens AT
+  // that same floor weight (real evidence of newly reduced capacity).
+  // Null for bodyweight or if no session has ever fully succeeded.
+  provenWeightFloor: number | null;
   // Precomputed weight to fall back to when didMeetTarget is false — a
   // working weight scaled down from their demonstrated 1RM for the full
   // originally prescribed rep target, so it's realistically completable
@@ -299,7 +340,9 @@ export const buildWeekPrompt = (input: WeekPromptInput): string => {
 
               const targetStatus = perf.didMeetTarget
                 ? `TARGET MET OR EXCEEDED — they completed every prescribed set at or above the prescribed reps, actually achieving ${perf.achievedSets} sets x ${perf.reps} reps on their best set. This is a bodyweight exercise with no external load to increase — apply rep/set progression instead, based on what they ACTUALLY ACHIEVED (${perf.achievedSets} sets x ${perf.reps} reps), NOT the original prescription above — see BODYWEIGHT PROGRESSION RULES below.`
-                : `TARGET NOT MET — at least one prescribed set fell short on reps, so they could not sustain that rep count across the full prescription. Their lowest completed set was ${perf.fallbackReps} reps. Set "reps" to EXACTLY ${perf.fallbackReps} for every set next time, sets unchanged at ${perf.prescribedSets ?? "the same count"}. Do NOT increase, and do NOT simply repeat the ${perf.prescribedReps ?? "previous"}-rep target they missed.`;
+                : perf.isNearMiss
+                  ? `NEAR MISS — they attempted every prescribed set and fell only slightly short on reps (a small shortfall, usually just the last, most fatigued set). This is normal session-to-session variance, not evidence the rep target itself is too high. Set "reps" to EXACTLY ${perf.reps} (what they actually achieved) and "sets" to ${perf.achievedSets} — repeat it, giving them another attempt. Do NOT increase, and do NOT drop down to a lower fallback target.`
+                  : `TARGET NOT MET — at least one prescribed set fell short on reps by a meaningful margin, so they could not sustain that rep count across the full prescription. Their lowest completed set was ${perf.fallbackReps} reps. Set "reps" to EXACTLY ${perf.fallbackReps} for every set next time, sets unchanged at ${perf.prescribedSets ?? "the same count"}. Do NOT increase, and do NOT simply repeat the ${perf.prescribedReps ?? "previous"}-rep target they missed.`;
 
               return `- User's last logged performance for ${exerciseName} (bodyweight): ${prescriptionText}, their best completed set was ${perf.reps} reps. ${targetStatus}`;
             }
@@ -309,11 +352,22 @@ export const buildWeekPrompt = (input: WeekPromptInput): string => {
                 ? `was recommended ${perf.recommendedWeightAtTime} lbs and their best completed set was ${perf.weight} lbs x ${perf.reps} reps`
                 : `logged ${perf.weight} lbs x ${perf.reps} reps (their best completed set — no recommendation was given that session)`;
 
-            const targetStatus = perf.didMeetTarget
-              ? "TARGET MET OR EXCEEDED — they completed every prescribed set at or above the prescribed weight and reps. Apply an upward progression increase (see IMPORTANT RULES below for how much)."
-              : `TARGET NOT MET — at least one prescribed set fell short (lower weight, fewer reps, or both), so they could not sustain that weight across the full prescription. Recommend ${perf.fallbackWeight} lbs — a working weight scaled down from their demonstrated 1RM for a full prescription at this rep target. Do NOT increase, and do NOT simply repeat the weight they failed to sustain.`;
+            const heldWeight = perf.recommendedWeightAtTime ?? perf.weight;
 
-            return `- User's last logged performance for ${exerciseName}: ${comparisonText}, estimated 1RM: ${perf.estimated1RM} lbs. ${targetStatus}`;
+            const targetStatus =
+              perf.weightClassification === "full_success"
+                ? "FULL SUCCESS — they completed every prescribed set at or above the prescribed weight and reps. Apply an upward progression increase (see IMPORTANT RULES below for how much)."
+                : perf.weightClassification === "near_miss"
+                  ? `NEAR MISS — they attempted every set at the full prescribed weight and fell only slightly short on reps, usually just on the last, most fatigued set. This is normal session-to-session variance, not evidence the weight is too heavy. Recommend ${heldWeight} lbs — the SAME weight as last time, giving them another attempt. Do NOT increase, and do NOT decrease.`
+                  : perf.weightClassification === "moderate_miss"
+                    ? `MODERATE MISS — either one earlier (non-final) set fell slightly short, or the final set fell short by a larger margin without collapsing. Not yet clear evidence the weight is too heavy, but not a clean success either. Recommend ${heldWeight} lbs — the SAME weight as last time, giving them another attempt before deciding to reduce it. Do NOT increase, and do NOT decrease.`
+                    : `SIGNIFICANT MISS — a set was skipped, the weight itself was reduced, multiple sets fell meaningfully short, or a set collapsed well under its target. This is real evidence the weight is too heavy right now. Recommend ${perf.fallbackWeight} lbs — a working weight scaled down from their demonstrated 1RM for a full prescription at this rep target.${
+                        perf.provenWeightFloor != null && perf.fallbackWeight < perf.provenWeightFloor && heldWeight > perf.provenWeightFloor
+                          ? ` However, they have previously fully completed this exercise's prescription at ${perf.provenWeightFloor} lbs in an earlier session — NEVER recommend below that proven floor unless this miss happened AT ${perf.provenWeightFloor} lbs itself. Use ${perf.provenWeightFloor} lbs instead of ${perf.fallbackWeight} lbs here.`
+                          : ""
+                      } Do NOT increase, and do NOT simply repeat the weight they failed to sustain.`;
+
+            return `- User's last logged performance for ${exerciseName}: ${comparisonText}, estimated 1RM: ${perf.estimated1RM} lbs${perf.provenWeightFloor != null ? `, previously fully completed a full prescription at ${perf.provenWeightFloor} lbs (their proven floor for this exercise)` : ""}. ${targetStatus}`;
           })
           .join("\n")
       : "- No prior logged performance for any allowed exercise. Omit \"recommendedWeight\" for every exercise this week.";
@@ -386,15 +440,19 @@ IMPORTANT RULES:
 - For timed exercises (planks, holds), use "reps" as the number of seconds instead, still as a single whole number.
 - "recommendedWeight" is OPTIONAL and only applies to weighted exercises. Include it ONLY when the USER'S LOGGED PERFORMANCE HISTORY section above contains a prior entry for that exact exercise name. If there is no prior history for an exercise (or it isn't a weighted exercise, like bodyweight holds), OMIT the "recommendedWeight" key entirely for that exercise — never guess or estimate one without history.
 - DO NOT include "recommendedWeight" just because it seems helpful or because you know a typical/reasonable working weight for that exercise. For example, if "Dumbbell Bicep Curl" is in the ALLOWED EXERCISES list but the USER'S LOGGED PERFORMANCE HISTORY section does NOT mention "Dumbbell Bicep Curl" by that exact name — even if a different, similar-looking exercise like "Hammer Curls" does appear there — you MUST leave "recommendedWeight" out of the "Dumbbell Bicep Curl" object entirely. This is the first time this person is doing that exact exercise, so having no "recommendedWeight" on it is the CORRECT output, not a mistake to fix.
-- Only apply a weight INCREASE if the exercise's history entry says "TARGET MET OR EXCEEDED" — i.e. their most recent logged session shows they completed ALL prescribed sets at or above both the recommended weight and prescribed rep count. If even one set fell short, do NOT increase (see the "TARGET NOT MET" rule below instead).
+- Only apply a weight INCREASE if the exercise's history entry says "FULL SUCCESS" — i.e. their most recent logged session shows they completed ALL prescribed sets at or above both the recommended weight and prescribed rep count. Anything less (NEAR MISS, MODERATE MISS, or SIGNIFICANT MISS) must NOT increase — see the rules for each below.
 - When applying an increase, base it on the weight they were recommended and actually lifted last time (not a fresh recalculation from their estimated 1RM), and use your judgment as a coach to pick a reasonable increment for that specific exercise, guided by:
   - Exercise type: smaller increments for isolation and upper-body exercises (e.g. bicep curls, lateral raises, tricep extensions — often 2.5-5 lbs or roughly 2-4%), larger increments for compound lower-body lifts (e.g. squats, deadlifts, hip thrusts — can reasonably be 5-10%), with compound upper-body lifts (bench press, overhead press, rows) somewhere in between.
   - Fitness level and training goal: lean toward the smaller end of these ranges for beginners or when the training goal is endurance/fat loss (higher reps, less emphasis on maximal loading), and toward the larger end for advanced lifters training for strength.
-  - Guardrails that always apply regardless of exercise type: never increase by more than roughly 5-10% above the previous recommended weight in a single jump, and the new "recommendedWeight" must never be LOWER than what they already successfully lifted (that would contradict "TARGET MET").
+  - Guardrails that always apply regardless of exercise type: never increase by more than roughly 5-10% above the previous recommended weight in a single jump, and the new "recommendedWeight" must never be LOWER than what they already successfully lifted (that would contradict "FULL SUCCESS").
   - Always round the final number to a realistic gym increment — never a raw, oddly precise value. Use the nearest 5 lbs for barbell, dumbbell, or machine exercises (e.g. 202 → 200, 203 → 205), or the nearest 2.5 lbs for cable-based or bodyweight-added-resistance exercises.
-- If the history entry says "TARGET NOT MET", set "recommendedWeight" to EXACTLY the fallback weight stated in that entry — with NO upward progression applied. Do not simply repeat the original prescribed weight they failed to sustain, do not use their best single set's weight unmodified, and do not guess at your own reduction — the fallback weight already accounts for scaling their demonstrated 1RM down to something completable across the full prescription, so just use the number given.
-- Concrete example of a partial failure: an exercise was prescribed as 4 sets of 8 reps at 220 lbs, and the user logged Set 1: 220 lbs x 8 reps, Set 2: 220 lbs x 8 reps, Set 3: 215 lbs x 6 reps. Because Set 3 fell short on both weight and reps, this is TARGET NOT MET even though the first two sets were successful — it does not matter that most sets were fine. The next "recommendedWeight" must NOT be 220 lbs (their failed weight) and must NOT be higher, like 223 lbs — it should be the noticeably lower fallback weight the history entry provides (roughly 205-210 lbs in a case like this, calculated from their demonstrated 1RM scaled down for a realistic full 4x8 attempt), reflecting that they couldn't sustain 220 lbs across all 4 sets.
-- Concrete example of a success: an intermediate lifter was recommended 185 lbs x 8 reps for Barbell Bench Press (a compound upper-body lift) and successfully logged 185 lbs x 8 reps on every prescribed set — TARGET MET OR EXCEEDED. A reasonable next "recommendedWeight" is a small increase like 190-195 lbs (roughly 3-5%), not a large jump to 205+ lbs and not simply repeating 185 lbs. For a compound lower-body lift like Barbell Back Squat in the same scenario, a somewhat larger jump (e.g. 5-10%) would be reasonable; for an isolation exercise like Dumbbell Bicep Curl at 25 lbs, a small fixed increment like 2.5-5 lbs is more appropriate than a percentage jump.
+- If the history entry says "NEAR MISS" or "MODERATE MISS", set "recommendedWeight" to EXACTLY the same weight stated in that entry (their previous recommendedWeight, or their logged weight if none) — repeat it, do not increase and do not decrease. Both of these mean every set was attempted (nothing skipped), and the shortfall was either small (a rep or two, usually on the last, most fatigued set) or isolated to one set — that's ordinary session-to-session variance, not proof the weight is too heavy, so the correct response is another attempt at the same load, not a cut.
+- If the history entry says "SIGNIFICANT MISS", set "recommendedWeight" to EXACTLY the fallback weight (or proven-floor weight, if the entry says to use that instead) stated in that entry — with NO upward progression applied. Do not simply repeat the original prescribed weight they failed to sustain, do not use their best single set's weight unmodified, and do not guess at your own reduction — the entry already gives you the correct number, so just use it.
+- CRITICAL: if the history entry states a "proven floor" (a weight this exercise has been fully completed at before, in some past session), the "recommendedWeight" you output must NEVER be lower than that floor, even after a significant miss — UNLESS the significant miss happened at that exact floor weight itself. A miss at a higher weight than the floor only proves that higher weight wasn't sustainable yet; it says nothing negative about the floor weight, which is already proven achievable.
+- Concrete example of a near miss (this exact scenario has previously caused an incorrect recommendation — do not repeat it): a user's first-ever session of an exercise was 250 lbs x 4 sets x 8 reps, completed in full — FULL SUCCESS, so next time was correctly increased to 255 lbs x 4 sets x 8 reps. In that next session they logged Set 1: 255 x 8, Set 2: 255 x 8, Set 3: 255 x 8, Set 4: 255 x 7 — every set was attempted at the full 255 lbs, and the shortfall was a single rep on the last set. This is a NEAR MISS. The next "recommendedWeight" must be 255 lbs again (repeat it). It must NOT be cut to 240 lbs or any value below 250 lbs — 250 lbs was already proven fully achievable in the first session, so it is a hard floor here, and one rep of normal end-of-session fatigue at 255 lbs is not evidence that even 250 lbs is now too heavy. It must also NOT increase to 260+ lbs, since the target wasn't fully hit either.
+- Concrete example of a moderate miss: an exercise was prescribed as 4 sets of 10 reps at 135 lbs, and the user logged Set 1: 135 x 10, Set 2: 135 x 8, Set 3: 135 x 10, Set 4: 135 x 10. Full weight was held throughout, and only one set (a non-final one) fell short, by 2 reps. This is a MODERATE MISS. The next "recommendedWeight" must repeat 135 lbs, not increase and not decrease.
+- Concrete example of a significant miss: an exercise was prescribed as 4 sets of 8 reps at 220 lbs, and the user logged only 3 sets: Set 1: 220 x 8, Set 2: 220 x 8, Set 3: 215 x 6. A whole set was skipped AND the weight itself was dropped on the last one — this is a SIGNIFICANT MISS, not a near or moderate miss. The next "recommendedWeight" must NOT be 220 lbs (their failed weight) and must NOT be higher — it should be the fallback weight the history entry provides (roughly 205-210 lbs, scaled from their demonstrated 1RM for a realistic full 4x8 attempt), UNLESS a proven floor at or above that fallback is stated, in which case use the floor instead.
+- Concrete example of a success: an intermediate lifter was recommended 185 lbs x 8 reps for Barbell Bench Press (a compound upper-body lift) and successfully logged 185 lbs x 8 reps on every prescribed set — FULL SUCCESS. A reasonable next "recommendedWeight" is a small increase like 190-195 lbs (roughly 3-5%), not a large jump to 205+ lbs and not simply repeating 185 lbs. For a compound lower-body lift like Barbell Back Squat in the same scenario, a somewhat larger jump (e.g. 5-10%) would be reasonable; for an isolation exercise like Dumbbell Bicep Curl at 25 lbs, a small fixed increment like 2.5-5 lbs is more appropriate than a percentage jump.
 
 BODYWEIGHT PROGRESSION RULES (applies to every exercise whose history entry above is explicitly marked "(bodyweight)" — these have no external load, so "sets" and "reps" themselves are the progression variables instead of "recommendedWeight"):
 - This is the standard double-progression model used in resistance training programming generally, adapted here because load can't be added: increase REPS first, and only increase SETS once reps reach a practical per-set ceiling of ${BODYWEIGHT_REP_CEILING}. Past that many reps in a single set, further gains lean into muscular endurance rather than the strength/hypertrophy stimulus most programs are targeting, and additional volume is better delivered as another set than an ever-longer single set.
@@ -402,10 +460,12 @@ BODYWEIGHT PROGRESSION RULES (applies to every exercise whose history entry abov
   - If what they actually achieved was BELOW ${BODYWEIGHT_REP_CEILING} reps, increase "reps" by roughly 10-20% versus that achieved number, rounded to a whole number, and never exceeding ${BODYWEIGHT_REP_CEILING}. Keep "sets" at what they actually achieved (which may be more than the original prescription, if they did extra).
   - If what they actually achieved was AT or ABOVE ${BODYWEIGHT_REP_CEILING} reps, keep "reps" at ${BODYWEIGHT_REP_CEILING} and instead increase "sets" by exactly 1 versus what they actually achieved, up to a maximum of ${BODYWEIGHT_MAX_SETS} sets. If already at ${BODYWEIGHT_MAX_SETS} sets and ${BODYWEIGHT_REP_CEILING} reps, hold both steady and rely on coaching notes to suggest a harder variation of the movement instead (e.g. elevating feet for push-ups, or a slower eccentric tempo) rather than continuing to add volume indefinitely.
   - Lean toward the lower end of the 10-20% rep increase range for beginners or for a strength-focused training goal (fewer, more effortful reps per set); lean toward the higher end for endurance or fat-loss goals, where higher rep counts are already the intent.
+- If the history entry says "NEAR MISS": set "reps" and "sets" to EXACTLY the values stated in that entry (what they actually achieved) — repeat them, giving another attempt. A near miss means they attempted every set and fell only slightly short — that's normal variance, not proof the rep target itself is too high, so don't drop to a lower fallback and don't increase.
 - If the history entry says "TARGET NOT MET": set "reps" to EXACTLY the fallback rep count stated in that entry for every set, and leave "sets" unchanged from their last prescription — do not increase either, and do not simply repeat the rep target they missed.
 - Concrete example of a success: a user was prescribed 3 sets x 12 reps of Push-Ups (bodyweight) and completed all 3 sets at 12+ reps — TARGET MET. Since 12 reps is below the ${BODYWEIGHT_REP_CEILING}-rep ceiling, a reasonable next prescription is 3 sets x 14 reps (roughly a 15% increase), not 3 sets x 20 reps and not repeating 3 sets x 12 reps.
 - Concrete example of hitting the ceiling: a user was prescribed 3 sets x 19 reps of Bodyweight Squats and completed all 3 sets — TARGET MET. Because 19 reps is already essentially at the ${BODYWEIGHT_REP_CEILING}-rep ceiling, the next prescription should hold reps near ${BODYWEIGHT_REP_CEILING} and instead move to 4 sets x ${BODYWEIGHT_REP_CEILING} reps, not push reps to 22-25.
-- Concrete example of a partial failure: an exercise was prescribed as 3 sets of 15 reps, and the user logged Set 1: 15 reps, Set 2: 15 reps, Set 3: 11 reps. Because Set 3 fell short, this is TARGET NOT MET even though the first two sets were successful. The next prescription must be 3 sets x 11 reps (their lowest completed set), not 3 sets x 15 reps repeated and not a higher number.
+- Concrete example of a near miss: an exercise was prescribed as 3 sets of 15 reps, and the user logged Set 1: 15 reps, Set 2: 15 reps, Set 3: 14 reps. Every set was attempted and the shortfall was a single rep on the last set — this is a NEAR MISS, not a real failure. The next prescription must repeat 3 sets x 14 reps (what they actually achieved), NOT drop further to something like 3 sets x 11 reps, and not increase either.
+- Concrete example of a partial failure: an exercise was prescribed as 3 sets of 15 reps, and the user logged Set 1: 15 reps, Set 2: 15 reps, Set 3: 11 reps. Because Set 3 fell short by a meaningful margin (not just a rep or two), this is TARGET NOT MET, not a near miss. The next prescription must be 3 sets x 11 reps (their lowest completed set), not 3 sets x 15 reps repeated and not a higher number.
 
 Include exactly one entry in "days" for each of: ${dayNames.join(", ")} — in that order. Be thorough and specific with exercise selection, sets, reps, and coaching notes.`;
 };

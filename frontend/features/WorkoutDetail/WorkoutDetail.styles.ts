@@ -74,6 +74,37 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     color: colors.textSecondary,
   },
+  cardButtonsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  checkPreviousButton: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: colors.borderGray,
+    borderRadius: 6,
+  },
+  checkPreviousText: {
+    fontSize: 11,
+    fontWeight: fontWeights.semibold,
+    color: colors.textSecondary,
+  },
+  previousSetRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.sm,
+  },
+  previousSetLabel: {
+    fontSize: fontSizes.sm,
+    color: colors.textSecondary,
+  },
+  previousSetValue: {
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.semibold,
+  },
 });
 
 export default styles;

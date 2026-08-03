@@ -4,6 +4,7 @@ import {
   getExercisesHandler,
   getExercise1RMHistoryHandler,
   getExerciseImageHandler,
+  getPreviousSessionHandler,
 } from "./exercises.controller";
 
 const router = Router();
@@ -12,6 +13,7 @@ router.use(authMiddleware);
 
 router.get("/", getExercisesHandler);
 router.get("/1rm-history", getExercise1RMHistoryHandler);
+router.get("/previous-session", getPreviousSessionHandler);
 router.get("/image", getExerciseImageHandler);
 
 export default router;

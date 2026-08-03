@@ -6,6 +6,7 @@ import {
   getAllExercises,
   getExercise1RMHistory,
   getExerciseImage,
+  getPreviousSession,
 } from "./exercises.service";
 import AppError from "../../utils/AppError";
 
@@ -26,6 +27,23 @@ export const getExercise1RMHistoryHandler = catchAsync(
 
     const history = await getExercise1RMHistory(req.userId!, exerciseName);
     sendSuccess(res, 200, "1RM_HISTORY_FETCHED", { history });
+  },
+);
+
+export const getPreviousSessionHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const exerciseName = req.query.name;
+    const before = req.query.before;
+
+    if (typeof exerciseName !== "string") {
+      throw new AppError(400, "name query parameter is required");
+    }
+    if (before !== undefined && typeof before !== "string") {
+      throw new AppError(400, "before must be a date string");
+    }
+
+    const session = await getPreviousSession(req.userId!, exerciseName, before);
+    sendSuccess(res, 200, "PREVIOUS_SESSION_FETCHED", { session });
   },
 );
 

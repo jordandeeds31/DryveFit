@@ -8,8 +8,15 @@ import Modal from "@/components/shared/Modal/Modal";
 import LogExerciseModal from "../LogExerciseModal/LogExerciseModal";
 import { SetEntry } from "../LogExerciseModal/LogExercise.types";
 import { ProgramExercise } from "@/types/programs.types";
-import { useExercises } from "@/hooks/useExercises";
+import { useExercises, usePreviousSession } from "@/hooks/useExercises";
 import { colors } from "@/constants/colors";
+
+const formatSessionDate = (dateStr: string) =>
+  new Date(dateStr).toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
 
 const getLogButtonState = (
   exercise: ProgramExercise,
@@ -66,6 +73,9 @@ const WorkoutDetail = ({ dayDetail, isLoading }: WorkoutDetailProps) => {
   const [descriptionExerciseName, setDescriptionExerciseName] = useState<
     string | null
   >(null);
+  const [previousExerciseId, setPreviousExerciseId] = useState<string | null>(
+    null,
+  );
 
   const { data: exerciseCatalog } = useExercises();
   const descriptionByName: Record<string, string | null> = {};
@@ -110,6 +120,16 @@ const WorkoutDetail = ({ dayDetail, isLoading }: WorkoutDetailProps) => {
     (exercise) => exercise.id === selectedExerciseId,
   );
 
+  const previousExercise = dayDetail?.exercises.find(
+    (exercise) => exercise.id === previousExerciseId,
+  );
+  const { data: previousSession, isLoading: isPreviousLoading } =
+    usePreviousSession(
+      previousExercise?.exerciseName ?? null,
+      dayDetail?.date,
+      !!previousExerciseId,
+    );
+
   return (
     <View style={styles.container}>
       <Text style={styles.focus}>{dayDetail?.focus}</Text>
@@ -143,18 +163,28 @@ const WorkoutDetail = ({ dayDetail, isLoading }: WorkoutDetailProps) => {
                   Weight: {exercise.recommendedWeight} lbs
                 </Text>
               )}
-              <Button
-                title={logButtonState.title}
-                backgroundColor={logButtonState.backgroundColor}
-                style={{
-                  alignSelf: "flex-start",
-                  height: 30,
-                  paddingVertical: 4,
-                  paddingHorizontal: 10,
-                }}
-                textStyle={{ fontSize: 12 }}
-                onPress={() => handleLogPress(exercise.id)}
-              />
+              <View style={styles.cardButtonsRow}>
+                <Button
+                  title={logButtonState.title}
+                  backgroundColor={logButtonState.backgroundColor}
+                  style={{
+                    alignSelf: "flex-start",
+                    height: 30,
+                    paddingVertical: 4,
+                    paddingHorizontal: 10,
+                  }}
+                  textStyle={{ fontSize: 12 }}
+                  onPress={() => handleLogPress(exercise.id)}
+                />
+                <TouchableOpacity
+                  style={styles.checkPreviousButton}
+                  onPress={() => setPreviousExerciseId(exercise.id)}
+                >
+                  <Text style={styles.checkPreviousText}>
+                    CHECK PREVIOUS WORKOUT
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         );
@@ -168,6 +198,38 @@ const WorkoutDetail = ({ dayDetail, isLoading }: WorkoutDetailProps) => {
           onSetsChange={(sets) => handleSetsChange(selectedExercise.id, sets)}
         />
       )}
+      <Modal
+        visible={!!previousExerciseId}
+        onClose={() => setPreviousExerciseId(null)}
+      >
+        <Text style={styles.descriptionModalTitle}>
+          {previousExercise?.exerciseName}
+        </Text>
+        {isPreviousLoading ? (
+          <ActivityIndicator style={{ marginTop: 12 }} />
+        ) : !previousSession ? (
+          <Text style={styles.descriptionModalBody}>
+            No previous session logged for this exercise yet.
+          </Text>
+        ) : (
+          <>
+            <Text style={styles.recommendedWeight}>
+              {formatSessionDate(previousSession.date)}
+            </Text>
+            {previousSession.sets.map((set) => (
+              <View key={set.setNumber} style={styles.previousSetRow}>
+                <Text style={styles.previousSetLabel}>
+                  Set {set.setNumber}
+                </Text>
+                <Text style={styles.previousSetValue}>
+                  {set.weight != null ? `${set.weight} lbs x ` : ""}
+                  {set.reps ?? "-"} reps
+                </Text>
+              </View>
+            ))}
+          </>
+        )}
+      </Modal>
       <Modal
         visible={!!descriptionExerciseName}
         onClose={() => setDescriptionExerciseName(null)}
