@@ -118,42 +118,44 @@ const WorkoutDetail = ({ dayDetail, isLoading }: WorkoutDetailProps) => {
 
         return (
           <View key={exercise.id} style={styles.exerciseRow}>
-            <View style={styles.exerciseNameRow}>
-              <Text style={styles.exerciseName}>{exercise.exerciseName}</Text>
-              {descriptionByName[exercise.exerciseName] && (
-                <TouchableOpacity
-                  onPress={() =>
-                    setDescriptionExerciseName(exercise.exerciseName)
-                  }
-                >
-                  <Feather
-                    name="info"
-                    size={16}
-                    color={colors.textSecondary}
-                  />
-                </TouchableOpacity>
-              )}
-            </View>
-            <Text style={styles.exerciseMeta}>
-              {exercise.sets} sets x {exercise.reps} reps
-            </Text>
-            {exercise.recommendedWeight != null && (
-              <Text style={styles.recommendedWeight}>
-                Weight: {exercise.recommendedWeight} lbs
+            <View style={styles.exerciseContent}>
+              <View style={styles.exerciseNameRow}>
+                <Text style={styles.exerciseName}>{exercise.exerciseName}</Text>
+                {descriptionByName[exercise.exerciseName] && (
+                  <TouchableOpacity
+                    onPress={() =>
+                      setDescriptionExerciseName(exercise.exerciseName)
+                    }
+                  >
+                    <Feather
+                      name="info"
+                      size={16}
+                      color={colors.textSecondary}
+                    />
+                  </TouchableOpacity>
+                )}
+              </View>
+              <Text style={styles.exerciseMeta}>
+                {exercise.sets} sets x {exercise.reps} reps
               </Text>
-            )}
-            <Button
-              title={logButtonState.title}
-              backgroundColor={logButtonState.backgroundColor}
-              style={{
-                alignSelf: "flex-start",
-                height: 30,
-                paddingVertical: 4,
-                paddingHorizontal: 10,
-              }}
-              textStyle={{ fontSize: 12 }}
-              onPress={() => handleLogPress(exercise.id)}
-            />
+              {exercise.recommendedWeight != null && (
+                <Text style={styles.recommendedWeight}>
+                  Weight: {exercise.recommendedWeight} lbs
+                </Text>
+              )}
+              <Button
+                title={logButtonState.title}
+                backgroundColor={logButtonState.backgroundColor}
+                style={{
+                  alignSelf: "flex-start",
+                  height: 30,
+                  paddingVertical: 4,
+                  paddingHorizontal: 10,
+                }}
+                textStyle={{ fontSize: 12 }}
+                onPress={() => handleLogPress(exercise.id)}
+              />
+            </View>
           </View>
         );
       })}

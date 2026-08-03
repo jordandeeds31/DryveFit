@@ -259,6 +259,9 @@ const WorkoutLogger = ({
           )}
         </View>
       ))}
+      <Text style={styles.saveReminder}>
+        Don't forget to tap Save — your sets aren't recorded until you do.
+      </Text>
       <View style={styles.addExerciseSaveRow}>
         <TouchableOpacity
           style={styles.addExerciseButton}

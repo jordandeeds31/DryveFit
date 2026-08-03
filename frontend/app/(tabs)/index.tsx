@@ -19,6 +19,7 @@ import WeeklySchedule from "@/features/WeeklySchedule/WeeklySchedule";
 import { ScheduleEntry } from "@/types/programs.types";
 import WorkoutDetail from "@/features/WorkoutDetail/WorkoutDetail";
 import WorkoutLogger from "@/features/WorkoutLogger/WorkoutLogger";
+import { ensureProAccess } from "@/lib/purchases/requirePro";
 
 const HomeScreen = () => {
   const [referenceDate, setReferenceDate] = useState<Date>(new Date());
@@ -79,6 +80,16 @@ const HomeScreen = () => {
     setReferenceDate(prevDate);
   };
 
+  const handleCreateProgram = async () => {
+    const granted = await ensureProAccess();
+    if (granted) toggle();
+  };
+
+  const handleLogWorkout = async () => {
+    const granted = await ensureProAccess();
+    if (granted) setIsWorkoutLoggerOpen(true);
+  };
+
   if (isProgramsLoading) {
     return <ActivityIndicator style={{ flex: 1 }} />;
   }
@@ -91,7 +102,7 @@ const HomeScreen = () => {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.buttonContainer}>
-          <Button title="CREATE NEW PROGRAM" onPress={toggle} />
+          <Button title="CREATE NEW PROGRAM" onPress={handleCreateProgram} />
         </View>
 
         {isOpen && <ProgramBuilder onCancel={close} onCreated={close} />}
@@ -129,10 +140,7 @@ const HomeScreen = () => {
                 you decide to train by clicking the button below.
               </Text>
             )}
-            <Button
-              title="Log Workout"
-              onPress={() => setIsWorkoutLoggerOpen(true)}
-            />
+            <Button title="Log Workout" onPress={handleLogWorkout} />
           </View>
         )}
       </ScrollView>

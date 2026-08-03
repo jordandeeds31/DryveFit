@@ -13,12 +13,32 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.bold,
   },
   exerciseRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     borderWidth: 1,
     borderColor: "black",
     paddingHorizontal: spacing.sm,
     borderRadius: 8,
     paddingVertical: spacing.sm,
+    gap: spacing.sm,
+  },
+  exerciseContent: {
+    flex: 1,
     gap: spacing.xs,
+  },
+  exerciseImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+  },
+  exerciseImagePlaceholder: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: colors.lightGraySoft,
+    alignItems: "center",
+    justifyContent: "center",
   },
   exerciseNameRow: {
     flexDirection: "row",

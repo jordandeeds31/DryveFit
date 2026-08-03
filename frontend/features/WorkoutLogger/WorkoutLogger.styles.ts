@@ -82,6 +82,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.sm,
   },
+  saveReminder: {
+    fontSize: fontSizes.xs,
+    color: colors.textSecondary,
+    textAlign: "center",
+    marginTop: spacing.md,
+  },
 });
 
 export default styles;

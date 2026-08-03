@@ -140,6 +140,7 @@ model Exercise {
   muscleGroup String
   equipment   String
   description String?
+  imageUrl    String?
   createdAt   DateTime @default(now())
   isCompound  Boolean  @default(false)
 

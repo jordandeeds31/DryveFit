@@ -4,6 +4,7 @@ export interface Exercise {
   muscleGroup: string;
   equipment: string;
   description: string | null;
+  imageUrl: string | null;
   isCompound: boolean;
   createdAt: string;
 }

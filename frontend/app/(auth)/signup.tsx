@@ -12,13 +12,19 @@ import { router } from "expo-router";
 const Signup = () => {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const { register, isLoading, error } = useAuth();
+    const { register, error } = useAuth();
 
     const handleSignup = async () => {
-        const result = await register(email, password);
-        if ((result as any).meta?.requestStatus === "fulfilled") {
-            router.replace("/(tabs)");
+        setIsSubmitting(true);
+        try {
+            const result = await register(email, password);
+            if ((result as any).meta?.requestStatus === "fulfilled") {
+                router.replace("/(tabs)");
+            }
+        } finally {
+            setIsSubmitting(false);
         }
     }
 
@@ -34,7 +40,7 @@ const Signup = () => {
             </View>
             {error && <Text style={styles.errorText}>{error}</Text>}
             <View style={styles.buttonContainer}>
-                <Button title={isLoading ? "Signing Up..." : "Sign Up"} onPress={handleSignup} disabled={isLoading} />
+                <Button title={isSubmitting ? "Signing Up..." : "Sign Up"} onPress={handleSignup} disabled={isSubmitting} />
             </View>
             <View style={styles.accountRow}>
                 <Text>Already have an account?</Text>

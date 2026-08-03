@@ -62,6 +62,12 @@ const styles = StyleSheet.create({
   addSetButtonInRow: {
     flex: 1,
   },
+  saveReminder: {
+    fontSize: fontSizes.xs,
+    color: colors.textSecondary,
+    textAlign: "center",
+    marginBottom: spacing.xs,
+  },
 });
 
 export default styles;

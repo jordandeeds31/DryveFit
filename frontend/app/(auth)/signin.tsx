@@ -12,13 +12,19 @@ import { fontSizes } from "@/constants/typography";
 const Signin = () => {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const { login, isLoading, error } = useAuth();
+    const { login, error } = useAuth();
 
     const handleSignin = async () => {
-        const result = await login(email, password);
-        if ((result as any).meta?.requestStatus === "fulfilled") {
-            router.replace("/(tabs)")
+        setIsSubmitting(true);
+        try {
+            const result = await login(email, password);
+            if ((result as any).meta?.requestStatus === "fulfilled") {
+                router.replace("/(tabs)")
+            }
+        } finally {
+            setIsSubmitting(false);
         }
     }
 
@@ -36,7 +42,7 @@ const Signin = () => {
             {error && <Text style={styles.errorText}>{error}</Text>}
 
             <View style={styles.buttonContainer}>
-                <Button title={isLoading ? "Signing In..." : "Sign In"} onPress={handleSignin} disabled={isLoading} />
+                <Button title={isSubmitting ? "Signing In..." : "Sign In"} onPress={handleSignin} disabled={isSubmitting} />
             </View>
             <View style={styles.accountRow}>
                 <Text>Don't have an account?</Text>

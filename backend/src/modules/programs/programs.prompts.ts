@@ -52,6 +52,24 @@ export const getSplitBodyParts = (split: TrainingSplit): string[] => [
   ...new Set(SPLIT_TEMPLATES[split].flat()),
 ];
 
+// Equipment types where a finer plate/adjustment increment is realistic
+// (e.g. a cable stack's small add-on plate) — everything else defaults to
+// standard 5 lb barbell/dumbbell/machine plate increments.
+const FINE_INCREMENT_EQUIPMENT = new Set(["cable", "bodyweight"]);
+
+export const getWeightIncrement = (
+  equipment: string | null | undefined,
+): number => (equipment && FINE_INCREMENT_EQUIPMENT.has(equipment) ? 2.5 : 5);
+
+// Rounds a raw calculated weight to the nearest realistic gym increment
+// (nearest, not always up or down, so recommendations don't drift) — the
+// final step every weight-recommendation calculation should apply before
+// the number is stored as recommendedWeight or shown to the user.
+export const roundToNearestIncrement = (
+  weight: number,
+  increment: number,
+): number => Math.round(weight / increment) * increment;
+
 export const FITNESS_LEVELS = ["beginner", "intermediate", "advanced"] as const;
 export type FitnessLevel = (typeof FITNESS_LEVELS)[number];
 
@@ -200,6 +218,21 @@ export interface ExercisePerformance {
   weight: number;
   reps: number;
   estimated1RM: number;
+  // Whether every prescribed set in that session was completed at or above
+  // the prescribed weight and reps — computed in code, not left for the AI
+  // to infer from raw set data.
+  didMeetTarget: boolean;
+  // Precomputed weight to fall back to when didMeetTarget is false — a
+  // working weight scaled down from their demonstrated 1RM for the full
+  // originally prescribed rep target, so it's realistically completable
+  // across every set (not just their single best set repeated, and not
+  // the failed weight repeated).
+  fallbackWeight: number;
+  // What was actually recommended on the ProgramExercise for that logged
+  // session, if any — lets the prompt state an explicit "recommended X,
+  // achieved Y" comparison rather than just raw performance numbers. Null
+  // for standalone logs or exercises that had no recommendation at the time.
+  recommendedWeightAtTime: number | null;
 }
 
 interface WeekPromptInput {
@@ -233,10 +266,18 @@ export const buildWeekPrompt = (input: WeekPromptInput): string => {
   const performanceHistoryText =
     performanceEntries.length > 0
       ? performanceEntries
-          .map(
-            ([exerciseName, perf]) =>
-              `- User's last logged performance for ${exerciseName}: ${perf.weight} lbs x ${perf.reps} reps, estimated 1RM: ${perf.estimated1RM} lbs`,
-          )
+          .map(([exerciseName, perf]) => {
+            const comparisonText =
+              perf.recommendedWeightAtTime != null
+                ? `was recommended ${perf.recommendedWeightAtTime} lbs and their best completed set was ${perf.weight} lbs x ${perf.reps} reps`
+                : `logged ${perf.weight} lbs x ${perf.reps} reps (their best completed set — no recommendation was given that session)`;
+
+            const targetStatus = perf.didMeetTarget
+              ? "TARGET MET OR EXCEEDED — they completed every prescribed set at or above the prescribed weight and reps. Apply an upward progression increase (see IMPORTANT RULES below for how much)."
+              : `TARGET NOT MET — at least one prescribed set fell short (lower weight, fewer reps, or both), so they could not sustain that weight across the full prescription. Recommend ${perf.fallbackWeight} lbs — a working weight scaled down from their demonstrated 1RM for a full prescription at this rep target. Do NOT increase, and do NOT simply repeat the weight they failed to sustain.`;
+
+            return `- User's last logged performance for ${exerciseName}: ${comparisonText}, estimated 1RM: ${perf.estimated1RM} lbs. ${targetStatus}`;
+          })
           .join("\n")
       : "- No prior logged performance for any allowed exercise. Omit \"recommendedWeight\" for every exercise this week.";
 
@@ -272,23 +313,51 @@ Respond ONLY with valid JSON — no markdown, no explanation, no code blocks. St
           "reps": 8,
           "restSeconds": 120,
           "notes": "Keep shoulder blades retracted. Control the eccentric for 3 seconds.",
-          "order": 1,
-          "recommendedWeight": 155
+          "order": 1
+        },
+        {
+          "exerciseName": "Incline Dumbbell Press",
+          "muscleGroup": "chest",
+          "sets": 3,
+          "reps": 10,
+          "restSeconds": 90,
+          "notes": "Control the descent, press explosively on the way up.",
+          "order": 2,
+          "recommendedWeight": 45
         }
       ]
+    },
+    {
+      "dayName": "TUE",
+      "focus": "Rest",
+      "isRestDay": true,
+      "exercises": []
     }
   ]
 }
+
+NOTE ON THE EXAMPLE ABOVE: "Barbell Bench Press" has NO "recommendedWeight" key — that's what it looks like when the USER'S LOGGED PERFORMANCE HISTORY section does not contain that exact exercise name. "Incline Dumbbell Press" DOES have a "recommendedWeight" — that's what it looks like ONLY when the history section above does contain that exact exercise name. The presence of prior logged history for that EXACT exercise name is the ONLY thing that decides whether the key appears at all. This is not a stylistic choice — most exercises in most weeks will have NO "recommendedWeight" key, and that's expected and correct.
 
 IMPORTANT RULES:
 - "exerciseName" MUST be copied EXACTLY, character-for-character, from the ALLOWED EXERCISES list above. Do not combine, rename, merge, abbreviate, or paraphrase any exercise name — even if it seems like a reasonable variation. For example, if the list contains "Barbell Bent Over Row" and "One-Arm Dumbbell Row" as two separate items, do NOT invent a new name like "Dumbbell Bent Over Row" by blending them — pick one of the two exact names as listed, unmodified.
 - Before finalizing your response, double-check every "exerciseName" value against the ALLOWED EXERCISES list — if any name does not appear verbatim in that list, replace it with the closest exact match from the list instead.
 - "reps" must be a single whole number (e.g. 8, 10, 12) — NEVER a range like "6-8" or "8-10", and never a string.
 - "focus" must always be a non-empty string. For training days, it should name the assigned body part(s) exactly (e.g. "Chest", "Back & Biceps"). For rest days, use "Rest" or "Active Recovery".
+- "exercises" MUST be present on every single day, including rest days — use an empty array "[]" for rest days, never omit the key entirely.
 - Each training day's exercises must ONLY target that day's assigned body part(s) — do not mix in unrelated muscle groups.
 - Exercise selection, volume, and intensity must match the stated fitness level.
 - For timed exercises (planks, holds), use "reps" as the number of seconds instead, still as a single whole number.
-- "recommendedWeight" is OPTIONAL and only applies to weighted exercises. Include it ONLY when the USER'S LOGGED PERFORMANCE HISTORY section above contains a prior entry for that exact exercise name. When included, set it to a specific number of pounds equal to roughly 70-85% of that exercise's estimated 1RM from the history — use a value closer to 85% when this week's prescribed "reps" for that exercise are low (e.g. 3-6) and closer to 70% when "reps" are high (e.g. 12+), scaling proportionally in between. If there is no prior history for an exercise (or it isn't a weighted exercise, like bodyweight holds), OMIT the "recommendedWeight" key entirely for that exercise — never guess or estimate one without history.
+- "recommendedWeight" is OPTIONAL and only applies to weighted exercises. Include it ONLY when the USER'S LOGGED PERFORMANCE HISTORY section above contains a prior entry for that exact exercise name. If there is no prior history for an exercise (or it isn't a weighted exercise, like bodyweight holds), OMIT the "recommendedWeight" key entirely for that exercise — never guess or estimate one without history.
+- DO NOT include "recommendedWeight" just because it seems helpful or because you know a typical/reasonable working weight for that exercise. For example, if "Dumbbell Bicep Curl" is in the ALLOWED EXERCISES list but the USER'S LOGGED PERFORMANCE HISTORY section does NOT mention "Dumbbell Bicep Curl" by that exact name — even if a different, similar-looking exercise like "Hammer Curls" does appear there — you MUST leave "recommendedWeight" out of the "Dumbbell Bicep Curl" object entirely. This is the first time this person is doing that exact exercise, so having no "recommendedWeight" on it is the CORRECT output, not a mistake to fix.
+- Only apply a weight INCREASE if the exercise's history entry says "TARGET MET OR EXCEEDED" — i.e. their most recent logged session shows they completed ALL prescribed sets at or above both the recommended weight and prescribed rep count. If even one set fell short, do NOT increase (see the "TARGET NOT MET" rule below instead).
+- When applying an increase, base it on the weight they were recommended and actually lifted last time (not a fresh recalculation from their estimated 1RM), and use your judgment as a coach to pick a reasonable increment for that specific exercise, guided by:
+  - Exercise type: smaller increments for isolation and upper-body exercises (e.g. bicep curls, lateral raises, tricep extensions — often 2.5-5 lbs or roughly 2-4%), larger increments for compound lower-body lifts (e.g. squats, deadlifts, hip thrusts — can reasonably be 5-10%), with compound upper-body lifts (bench press, overhead press, rows) somewhere in between.
+  - Fitness level and training goal: lean toward the smaller end of these ranges for beginners or when the training goal is endurance/fat loss (higher reps, less emphasis on maximal loading), and toward the larger end for advanced lifters training for strength.
+  - Guardrails that always apply regardless of exercise type: never increase by more than roughly 5-10% above the previous recommended weight in a single jump, and the new "recommendedWeight" must never be LOWER than what they already successfully lifted (that would contradict "TARGET MET").
+  - Always round the final number to a realistic gym increment — never a raw, oddly precise value. Use the nearest 5 lbs for barbell, dumbbell, or machine exercises (e.g. 202 → 200, 203 → 205), or the nearest 2.5 lbs for cable-based or bodyweight-added-resistance exercises.
+- If the history entry says "TARGET NOT MET", set "recommendedWeight" to EXACTLY the fallback weight stated in that entry — with NO upward progression applied. Do not simply repeat the original prescribed weight they failed to sustain, do not use their best single set's weight unmodified, and do not guess at your own reduction — the fallback weight already accounts for scaling their demonstrated 1RM down to something completable across the full prescription, so just use the number given.
+- Concrete example of a partial failure: an exercise was prescribed as 4 sets of 8 reps at 220 lbs, and the user logged Set 1: 220 lbs x 8 reps, Set 2: 220 lbs x 8 reps, Set 3: 215 lbs x 6 reps. Because Set 3 fell short on both weight and reps, this is TARGET NOT MET even though the first two sets were successful — it does not matter that most sets were fine. The next "recommendedWeight" must NOT be 220 lbs (their failed weight) and must NOT be higher, like 223 lbs — it should be the noticeably lower fallback weight the history entry provides (roughly 205-210 lbs in a case like this, calculated from their demonstrated 1RM scaled down for a realistic full 4x8 attempt), reflecting that they couldn't sustain 220 lbs across all 4 sets.
+- Concrete example of a success: an intermediate lifter was recommended 185 lbs x 8 reps for Barbell Bench Press (a compound upper-body lift) and successfully logged 185 lbs x 8 reps on every prescribed set — TARGET MET OR EXCEEDED. A reasonable next "recommendedWeight" is a small increase like 190-195 lbs (roughly 3-5%), not a large jump to 205+ lbs and not simply repeating 185 lbs. For a compound lower-body lift like Barbell Back Squat in the same scenario, a somewhat larger jump (e.g. 5-10%) would be reasonable; for an isolation exercise like Dumbbell Bicep Curl at 25 lbs, a small fixed increment like 2.5-5 lbs is more appropriate than a percentage jump.
 
 Include exactly one entry in "days" for each of: ${dayNames.join(", ")} — in that order. Be thorough and specific with exercise selection, sets, reps, and coaching notes.`;
 };

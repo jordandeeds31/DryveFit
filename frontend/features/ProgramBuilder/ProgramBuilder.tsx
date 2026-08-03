@@ -8,6 +8,7 @@ import {
   TrainingSplit as TrainingSplitType,
 } from "@/types/programs.types";
 import Duration from "./components/Duration/Duration";
+import StartDate from "./components/StartDate/StartDate";
 import SelectedDays from "./components/SelectedDays/SelectedDays";
 import SessionMinutes from "./components/SessionMinutes/SessionMinutes";
 import TrainingSplit from "./components/TrainingSplit/TrainingSplit";
@@ -94,6 +95,7 @@ const ProgramBuilder = ({ onCancel, onCreated }: ProgramBuilderProps) => {
   return (
     <View style={styles.container}>
       <View style={styles.programFormContainer}>
+        <StartDate startDate={startDate} setStartDate={setStartDate} />
         <Duration
           durationDays={durationDays}
           setDurationDays={setDurationDays}

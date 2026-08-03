@@ -16,7 +16,10 @@ export const weekDaySchema = z
     dayName: z.string().min(1),
     focus: z.string(),
     isRestDay: z.boolean(),
-    exercises: z.array(weekExerciseSchema),
+    // The AI sometimes omits "exercises" entirely for rest days instead of
+    // returning an empty array — default it rather than failing the whole
+    // week's generation over a rest day.
+    exercises: z.array(weekExerciseSchema).optional().default([]),
   })
   .transform((day) => ({
     ...day,

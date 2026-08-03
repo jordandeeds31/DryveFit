@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "frontend",
-    "slug": "frontend",
+    "name": "Dryve",
+    "slug": "dryve",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
+    "scheme": "dryve",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -14,9 +14,11 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.jordandeeds.dryve"
     },
     "android": {
+      "package": "com.jordandeeds.dryve",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -32,7 +34,8 @@
       "@react-native-community/datetimepicker",
       "expo-build-properties",
       "expo-font",
-      "expo-secure-store"
+      "expo-secure-store",
+      "./plugins/withFmtCxx17Fix.js"
     ],
     "experiments": {
       "typedRoutes": true

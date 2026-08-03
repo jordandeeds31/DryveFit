@@ -28,6 +28,7 @@
     "morgan": "^1.11.0",
     "openai": "^6.48.0",
     "pg": "^8.22.0",
+    "sharp": "^0.35.3",
     "zod": "^4.4.3"
   },
   "devDependencies": {

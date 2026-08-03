@@ -20,9 +20,12 @@ import {
   buildWeekPrompt,
   assignSplitToDays,
   normalizeDay,
+  getWeightIncrement,
+  roundToNearestIncrement,
 } from "./programs.prompts";
 import { weekResponseSchema } from "./programs.schema";
 import { CreateProgramInput } from "./programs.types";
+import { toProxiedImagePath } from "../exercises/exercises.service";
 
 const validateTrainingSplit = (trainingSplit: string) => {
   if (!TRAINING_SPLITS.includes(trainingSplit as TrainingSplit)) {
@@ -60,6 +63,30 @@ const validateTrainingGoal = (trainingGoal: string) => {
   }
 };
 
+const hasStandaloneWorkoutLogOnDate = async (
+  userId: string,
+  date: Date,
+): Promise<boolean> => {
+  const startOfDay = new Date(date);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(date);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  const existingLog = await prisma.workoutLog.findFirst({
+    where: {
+      userId,
+      loggedAt: { gte: startOfDay, lte: endOfDay },
+      exercises: {
+        some: {},
+        every: { programExerciseId: null },
+      },
+    },
+    select: { id: true },
+  });
+
+  return !!existingLog;
+};
+
 const validateProgramDates = async (input: {
   userId: string;
   startDate: Date;
@@ -82,7 +109,15 @@ const validateProgramDates = async (input: {
     throw new AppError(400, "Start date cannot be in the past");
   }
 
-  const endDate = new Date(startDate);
+  // Don't let the program's first training day land on a date the user
+  // already logged an unrelated, ad-hoc workout — push the start date
+  // forward one day at a time until it lands on a clear day.
+  const adjustedStartDate = new Date(startDate);
+  while (await hasStandaloneWorkoutLogOnDate(userId, adjustedStartDate)) {
+    adjustedStartDate.setDate(adjustedStartDate.getDate() + 1);
+  }
+
+  const endDate = new Date(adjustedStartDate);
   endDate.setDate(endDate.getDate() + durationDays);
 
   const overlapping = await prisma.program.findFirst({
@@ -90,7 +125,7 @@ const validateProgramDates = async (input: {
       userId,
       isActive: true,
       startDate: { lt: endDate },
-      endDate: { gt: startDate },
+      endDate: { gt: adjustedStartDate },
     },
   });
 
@@ -98,7 +133,7 @@ const validateProgramDates = async (input: {
     throw new AppError(400, "Selected dates overlap with an existing program");
   }
 
-  return endDate;
+  return { startDate: adjustedStartDate, endDate };
 };
 
 const buildDefaultProgramName = (input: {
@@ -140,6 +175,7 @@ const estimate1RM = (weight: number, reps: number): number =>
 const estimateRecommendedWeight = (
   estimated1RM: number,
   prescribedReps: number,
+  equipment: string | null | undefined,
 ): number => {
   const LOW_REPS = 6;
   const HIGH_REPS = 12;
@@ -150,7 +186,37 @@ const estimateRecommendedWeight = (
   const t = (clampedReps - LOW_REPS) / (HIGH_REPS - LOW_REPS);
   const percent = LOW_REPS_PERCENT - t * (LOW_REPS_PERCENT - HIGH_REPS_PERCENT);
 
-  return Math.round(estimated1RM * percent);
+  return roundToNearestIncrement(
+    estimated1RM * percent,
+    getWeightIncrement(equipment),
+  );
+};
+
+// Estimates a working weight the user could realistically complete for a
+// FULL prescription (all sets, full rep count) from their true 1RM —
+// deliberately more conservative than estimateRecommendedWeight above,
+// since this is only used as a fallback after they already failed to
+// sustain a heavier weight across every prescribed set. Reusable for any
+// exercise: callers just pass that exercise's own prescribed reps and the
+// 1RM estimated from their most recent best completed set.
+const calculateWorkingWeightForPrescription = (
+  estimated1RM: number,
+  prescribedReps: number,
+  equipment: string | null | undefined,
+): number => {
+  const LOW_REPS = 6;
+  const HIGH_REPS = 12;
+  const LOW_REPS_PERCENT = 0.8;
+  const HIGH_REPS_PERCENT = 0.65;
+
+  const clampedReps = Math.min(Math.max(prescribedReps, LOW_REPS), HIGH_REPS);
+  const t = (clampedReps - LOW_REPS) / (HIGH_REPS - LOW_REPS);
+  const percent = LOW_REPS_PERCENT - t * (LOW_REPS_PERCENT - HIGH_REPS_PERCENT);
+
+  return roundToNearestIncrement(
+    estimated1RM * percent,
+    getWeightIncrement(equipment),
+  );
 };
 
 // For each exercise name, finds the user's most recent logged session and
@@ -160,13 +226,29 @@ const getRecentPerformanceByExerciseName = async (
   userId: string,
   exerciseNames: string[],
   excludeProgramExerciseIds: string[] = [],
+  // When set, only logs strictly before this date count as "history" — so a
+  // program day doesn't pick up a recommendation from a log dated AFTER it
+  // (e.g. an earlier occurrence of the same exercise shouldn't inherit a
+  // recommendation computed from a later session).
+  beforeDate?: Date,
 ): Promise<Record<string, ExercisePerformance>> => {
   if (exerciseNames.length === 0) return {};
+
+  const catalogEntries = await prisma.exercise.findMany({
+    where: { name: { in: exerciseNames } },
+    select: { name: true, equipment: true },
+  });
+  const equipmentByName = new Map(
+    catalogEntries.map((entry) => [entry.name, entry.equipment]),
+  );
 
   const logs = await prisma.exerciseLog.findMany({
     where: {
       exerciseName: { in: exerciseNames },
-      workoutLog: { userId },
+      workoutLog: {
+        userId,
+        ...(beforeDate ? { loggedAt: { lt: beforeDate } } : {}),
+      },
       // Exclude the very occurrence(s) we're computing a recommendation
       // for — otherwise a user's first-ever log of an exercise would
       // immediately count as "prior history" for that same occurrence.
@@ -184,6 +266,9 @@ const getRecentPerformanceByExerciseName = async (
     include: {
       sets: true,
       workoutLog: { select: { loggedAt: true } },
+      programExercise: {
+        select: { sets: true, reps: true, recommendedWeight: true },
+      },
     },
     orderBy: { workoutLog: { loggedAt: "desc" } },
   });
@@ -205,10 +290,42 @@ const getRecentPerformanceByExerciseName = async (
         : best,
     );
 
+    // Every prescribed set must be met — not just some, not an average.
+    // Standalone logs (no linked programExercise) have nothing prescribed
+    // to fall short of, so they're treated as met by default.
+    const prescription = log.programExercise;
+    const didMeetTarget = prescription
+      ? validSets.length >= prescription.sets &&
+        validSets.every(
+          (set) =>
+            set.reps! >= prescription.reps &&
+            (prescription.recommendedWeight == null ||
+              set.weight! >= prescription.recommendedWeight),
+        )
+      : true;
+
+    const sessionEstimated1RM = estimate1RM(bestSet.weight!, bestSet.reps!);
+
+    // A working weight they could realistically complete for the FULL
+    // original prescription (not just their single best set) — based on
+    // the prescribed rep target if we have one, falling back to the reps
+    // they actually hit if this exercise has no linked prescription.
+    const fallbackWeight = calculateWorkingWeightForPrescription(
+      sessionEstimated1RM,
+      prescription?.reps ?? bestSet.reps!,
+      equipmentByName.get(log.exerciseName),
+    );
+
     performanceByName[log.exerciseName] = {
       weight: bestSet.weight!,
       reps: bestSet.reps!,
-      estimated1RM: estimate1RM(bestSet.weight!, bestSet.reps!),
+      estimated1RM: sessionEstimated1RM,
+      didMeetTarget,
+      fallbackWeight,
+      // What was actually recommended for that session, if anything — lets
+      // the prompt state an explicit "recommended X, achieved Y" comparison
+      // instead of just the raw performance numbers.
+      recommendedWeightAtTime: prescription?.recommendedWeight ?? null,
     };
   }
 
@@ -221,7 +338,7 @@ export const createProgram = async (input: CreateProgramInput) => {
   validateEquipmentAccess(input.equipmentAccess);
   validateTrainingGoal(input.trainingGoal);
 
-  const endDate = await validateProgramDates({
+  const { startDate, endDate } = await validateProgramDates({
     userId: input.userId,
     startDate: input.startDate,
     durationDays: input.durationDays,
@@ -238,7 +355,7 @@ export const createProgram = async (input: CreateProgramInput) => {
       userId: input.userId,
       name,
       description: input.description,
-      startDate: input.startDate,
+      startDate,
       endDate,
       durationDays: input.durationDays,
       daysPerWeek: input.daysPerWeek,
@@ -254,7 +371,7 @@ export const createProgram = async (input: CreateProgramInput) => {
 
   generateProgramWeeks(program.id, {
     userId: input.userId,
-    startDate: input.startDate,
+    startDate,
     durationDays: input.durationDays,
     preferredDays: input.preferredDays,
     trainingSplit: input.trainingSplit,
@@ -496,25 +613,62 @@ export const getProgramDayByDate = async (
   ];
 
   if (namesMissingRecommendation.length > 0) {
-    const performanceHistory = await getRecentPerformanceByExerciseName(
-      userId,
-      namesMissingRecommendation,
-      programDay.exercises.map((exercise) => exercise.id),
+    const [performanceHistory, catalogEntries] = await Promise.all([
+      getRecentPerformanceByExerciseName(
+        userId,
+        namesMissingRecommendation,
+        programDay.exercises.map((exercise) => exercise.id),
+        programDay.date,
+      ),
+      prisma.exercise.findMany({
+        where: { name: { in: namesMissingRecommendation } },
+        select: { name: true, equipment: true },
+      }),
+    ]);
+    const equipmentByName = new Map(
+      catalogEntries.map((entry) => [entry.name, entry.equipment]),
     );
 
     programDay.exercises = programDay.exercises.map((exercise) => {
       const performance = performanceHistory[exercise.exerciseName];
       if (exercise.recommendedWeight != null || !performance) return exercise;
 
+      // Only apply the upward progression estimate if they fully met their
+      // last prescription — otherwise hold at what they actually
+      // demonstrated, same as the AI-generation-time logic.
       return {
         ...exercise,
-        recommendedWeight: estimateRecommendedWeight(
-          performance.estimated1RM,
-          exercise.reps,
-        ),
+        recommendedWeight: performance.didMeetTarget
+          ? estimateRecommendedWeight(
+              performance.estimated1RM,
+              exercise.reps,
+              equipmentByName.get(exercise.exerciseName),
+            )
+          : performance.fallbackWeight,
       };
     });
   }
+
+  // Attach each exercise's catalog image so the frontend can render it
+  // without a separate request.
+  const allExerciseNames = [
+    ...new Set(programDay.exercises.map((exercise) => exercise.exerciseName)),
+  ];
+  const imageCatalogEntries = await prisma.exercise.findMany({
+    where: { name: { in: allExerciseNames } },
+    select: { name: true, imageUrl: true },
+  });
+  const imageUrlByName = new Map(
+    imageCatalogEntries.map((entry) => [entry.name, entry.imageUrl]),
+  );
+
+  programDay.exercises = programDay.exercises.map((exercise) => ({
+    ...exercise,
+    imageUrl: toProxiedImagePath(
+      exercise.exerciseName,
+      imageUrlByName.get(exercise.exerciseName) != null,
+    ),
+  }));
 
   return programDay;
 };
@@ -795,25 +949,42 @@ const generateProgramWeeks = async (
 
       for (const day of validated.days) {
         day.exercises = day.exercises.flatMap((exercise) => {
-          if (allowedExerciseSet.has(exercise.exerciseName)) {
-            return [exercise];
-          }
+          let resolvedName: string | null = exercise.exerciseName;
 
-          const resolvedName = resolveExerciseName(
-            exercise.exerciseName,
-            allowedExercises,
-          );
-
-          if (!resolvedName) {
-            console.warn(
-              `Dropping AI-generated exercise not in allowed list (no close match found): "${exercise.exerciseName}"`,
+          if (!allowedExerciseSet.has(exercise.exerciseName)) {
+            resolvedName = resolveExerciseName(
+              exercise.exerciseName,
+              allowedExercises,
             );
-            return [];
+
+            if (!resolvedName) {
+              console.warn(
+                `Dropping AI-generated exercise not in allowed list (no close match found): "${exercise.exerciseName}"`,
+              );
+              return [];
+            }
+
+            console.warn(
+              `Resolved AI-generated exercise "${exercise.exerciseName}" to allowed exercise "${resolvedName}"`,
+            );
           }
 
-          console.warn(
-            `Resolved AI-generated exercise "${exercise.exerciseName}" to allowed exercise "${resolvedName}"`,
-          );
+          // Structural safety net: strip any recommendedWeight the AI
+          // attached to an exercise with no real prior logged history for
+          // that exact name, regardless of what the prompt asked for —
+          // this must be enforced in code, not just requested of the AI.
+          if (
+            exercise.recommendedWeight != null &&
+            !performanceHistory[resolvedName]
+          ) {
+            console.warn(
+              `Stripping unjustified recommendedWeight for "${resolvedName}" — no prior logged history for this exact exercise name.`,
+            );
+            return [
+              { ...exercise, exerciseName: resolvedName, recommendedWeight: undefined },
+            ];
+          }
+
           return [{ ...exercise, exerciseName: resolvedName }];
         });
       }

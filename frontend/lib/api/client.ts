@@ -28,7 +28,12 @@ apiClient.interceptors.response.use(
     const message =
       error.response?.data?.message ?? error.message ?? "Something went wrong";
 
-    if (status === 401) {
+    // Login/signup return 401 for wrong credentials, not an expired
+    // session — that shouldn't clear the token or redirect (the user is
+    // already on the signin screen), just surface as an inline error.
+    const isAuthEndpoint = error.config?.url?.includes("/api/auth/");
+
+    if (status === 401 && !isAuthEndpoint) {
       await clearToken();
       router.replace("/(auth)/signin");
     }
