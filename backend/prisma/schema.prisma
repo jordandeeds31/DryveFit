@@ -136,6 +136,7 @@ model ExerciseSet {
   reps          Int?
   durationSecs  Int?
   notes         String?
+  createdAt     DateTime    @default(now())
   exerciseLog   ExerciseLog @relation(fields: [exerciseLogId], references: [id], onDelete: Cascade)
 
   @@map("exercise_sets")

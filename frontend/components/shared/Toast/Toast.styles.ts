@@ -5,7 +5,7 @@ import { fontSizes, fontWeights } from "@/constants/typography";
 const styles = StyleSheet.create({
   container: {
     position: "absolute",
-    bottom: spacing.xxl,
+    top: spacing.lg,
     left: spacing.lg,
     right: spacing.lg,
     backgroundColor: "rgba(0,0,0,0.85)",

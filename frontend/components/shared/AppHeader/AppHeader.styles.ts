@@ -12,8 +12,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   logo: {
-    width: 52,
-    height: 52,
+    width: 56,
+    height: 56,
   },
   settingsButton: {
     padding: spacing.xs,

@@ -947,6 +947,7 @@ export const logExercisePerformance = async (
   userId: string,
   programExerciseId: string,
   sets: Array<{ weight: number | null; reps: number }>,
+  durationSecs?: number,
 ) => {
   const programExercise = await prisma.programExercise.findFirst({
     where: {
@@ -983,6 +984,7 @@ export const logExercisePerformance = async (
             setNumber: index + 1,
             weight: set.weight,
             reps: set.reps,
+            durationSecs: durationSecs ?? null,
           })),
         },
       },
@@ -1007,6 +1009,7 @@ export const logExercisePerformance = async (
             setNumber: index + 1,
             weight: set.weight,
             reps: set.reps,
+            durationSecs: durationSecs ?? null,
           })),
         },
       },

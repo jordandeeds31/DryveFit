@@ -8,6 +8,7 @@ import workoutLogsRoutes from "./modules/workoutLogs/workoutLogs.routes";
 import usersRoutes from "./modules/users/users.routes";
 import leaderboardRoutes from "./modules/leaderboard/leaderboard.routes";
 import citiesRoutes from "./modules/cities/cities.routes";
+import activityRoutes from "./modules/activity/activity.routes";
 
 const app = express();
 
@@ -21,6 +22,7 @@ app.use("/api/workout-logs", workoutLogsRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/leaderboard", leaderboardRoutes);
 app.use("/api/cities", citiesRoutes);
+app.use("/api/activity", activityRoutes);
 
 app.use(errorHandler);
 

@@ -14,4 +14,5 @@ export interface DayDetail {
 export interface WorkoutDetailProps {
   dayDetail: DayDetail | undefined;
   isLoading: boolean;
+  programId: string | null;
 }

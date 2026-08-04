@@ -31,7 +31,14 @@ const RootNavigator = () => {
         dispatch(fetchSubscriptionStatus());
     }, [dispatch]);
 
-    return <Stack screenOptions={{ headerShown: false }} />;
+    return (
+        <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen
+                name="cinematic-mode"
+                options={{ presentation: "fullScreenModal", headerShown: false }}
+            />
+        </Stack>
+    );
 };
 
 export default function RootLayout() {

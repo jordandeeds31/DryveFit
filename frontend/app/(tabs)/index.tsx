@@ -23,6 +23,7 @@ import { ScheduleEntry } from "@/types/programs.types";
 import WorkoutDetail from "@/features/WorkoutDetail/WorkoutDetail";
 import WorkoutLogger from "@/features/WorkoutLogger/WorkoutLogger";
 import { ensureProAccess } from "@/lib/purchases/requirePro";
+import ActiveWorkoutBanner from "@/components/shared/ActiveWorkoutBanner/ActiveWorkoutBanner";
 
 const HomeScreen = () => {
   const [referenceDate, setReferenceDate] = useState<Date>(new Date());
@@ -153,6 +154,8 @@ const HomeScreen = () => {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
+        <ActiveWorkoutBanner />
+
         <View style={styles.buttonContainer}>
           <Button
             title="CREATE NEW PROGRAM"
@@ -195,7 +198,11 @@ const HomeScreen = () => {
             initialWorkoutLogs={workoutLogs ?? []}
           />
         ) : dayDetail ? (
-          <WorkoutDetail dayDetail={dayDetail} isLoading={false} />
+          <WorkoutDetail
+            dayDetail={dayDetail}
+            isLoading={false}
+            programId={selectedProgramId}
+          />
         ) : (
           <View>
             {hasPrograms && (
@@ -268,5 +275,10 @@ const styles = StyleSheet.create({
   logWorkoutButton: {
     alignSelf: "center",
     marginTop: spacing.sm,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 1,
+    elevation: 1,
   },
 });

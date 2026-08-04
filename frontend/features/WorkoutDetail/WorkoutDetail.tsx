@@ -8,7 +8,10 @@ import {
   TouchableOpacity,
 } from "react-native";
 import Feather from "@expo/vector-icons/Feather";
+import { router } from "expo-router";
+import { useSelector } from "react-redux";
 import { WorkoutDetailProps } from "./WorkoutDetail.types";
+import type { RootState } from "@/store";
 import Button from "@/components/shared/Button/Button";
 import Modal from "@/components/shared/Modal/Modal";
 import LogExerciseModal from "../LogExerciseModal/LogExerciseModal";
@@ -97,7 +100,11 @@ const buildInitialSetsByExercise = (
   return result;
 };
 
-const WorkoutDetail = ({ dayDetail, isLoading }: WorkoutDetailProps) => {
+const WorkoutDetail = ({
+  dayDetail,
+  isLoading,
+  programId,
+}: WorkoutDetailProps) => {
   const authImageHeaders = useAuthImageHeaders();
   const [logModalVisible, setLogModalVisible] = useState(false);
   const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(
@@ -171,9 +178,51 @@ const WorkoutDetail = ({ dayDetail, isLoading }: WorkoutDetailProps) => {
       !!previousExerciseId,
     );
 
+  const canStartCinematicMode =
+    !!dayDetail &&
+    !!programId &&
+    !dayDetail.isRestDay &&
+    dayDetail.exercises.length > 0;
+
+  const cinematicSessionKey =
+    dayDetail && programId
+      ? `${programId}:${dayDetail.date.slice(0, 10)}`
+      : null;
+  const isResumingCinematicMode = useSelector((state: RootState) =>
+    cinematicSessionKey
+      ? cinematicSessionKey in state.cinematicTimer.currentIndexBySession
+      : false,
+  );
+
+  const handleStartCinematicMode = () => {
+    if (!dayDetail || !programId) return;
+    router.push({
+      pathname: "/cinematic-mode",
+      // dayDetail.date is a full ISO datetime string — the backend's
+      // getProgramDay expects a bare "YYYY-MM-DD". Slicing the UTC-anchored
+      // string directly (not re-parsing through a local Date, which can
+      // roll the day back for users west of UTC) matches the safe pattern
+      // already used elsewhere in this codebase for the same reason.
+      params: { programId, date: dayDetail.date.slice(0, 10) },
+    });
+  };
+
   return (
     <View style={styles.container}>
-      <Text style={styles.focus}>{dayDetail?.focus}</Text>
+      <View style={styles.focusRow}>
+        <Text style={styles.focus}>{dayDetail?.focus}</Text>
+        {canStartCinematicMode && (
+          <TouchableOpacity
+            style={styles.startButton}
+            onPress={handleStartCinematicMode}
+          >
+            <Feather name="play" size={12} color="white" />
+            <Text style={styles.startButtonText}>
+              {isResumingCinematicMode ? "RESUME" : "START"}
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
       {dayDetail?.exercises.map((exercise) => {
         const logButtonState = getLogButtonState(exercise);
 

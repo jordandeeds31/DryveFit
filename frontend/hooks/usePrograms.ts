@@ -65,14 +65,18 @@ export const useLogExercisePerformance = () => {
     mutationFn: ({
       programExerciseId,
       sets,
+      durationSecs,
     }: {
       programExerciseId: string;
       sets: Array<{ weight: number | null; reps: number }>;
-    }) => logExercisePerformance(programExerciseId, sets),
+      durationSecs?: number;
+    }) => logExercisePerformance(programExerciseId, sets, durationSecs),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
       queryClient.invalidateQueries({ queryKey: ["programDay"] });
       queryClient.invalidateQueries({ queryKey: ["1rmHistory"] });
+      queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
+      queryClient.invalidateQueries({ queryKey: ["workingOutCount"] });
     },
   });
 };
@@ -86,6 +90,7 @@ export const useDeleteExercisePerformance = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
       queryClient.invalidateQueries({ queryKey: ["programDay"] });
+      queryClient.invalidateQueries({ queryKey: ["workingOutCount"] });
     },
   });
 };

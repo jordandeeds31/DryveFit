@@ -12,6 +12,25 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.md,
     fontWeight: fontWeights.bold,
   },
+  focusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  startButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: colors.primaryBlue,
+    borderRadius: 6,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+  },
+  startButtonText: {
+    color: "white",
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.bold,
+  },
   exerciseRow: {
     flexDirection: "row",
     borderRadius: 8,

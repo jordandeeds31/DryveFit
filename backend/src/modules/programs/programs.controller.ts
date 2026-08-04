@@ -104,16 +104,20 @@ export const getProgramHandler = catchAsync(
 export const logExercisePerformanceHandler = catchAsync(
   async (req: AuthRequest, res: Response) => {
     const programExerciseId = getParam(req.params.exerciseId);
-    const { sets } = req.body;
+    const { sets, durationSecs } = req.body;
 
     if (!Array.isArray(sets)) {
       throw new AppError(400, "sets must be an array");
+    }
+    if (durationSecs !== undefined && typeof durationSecs !== "number") {
+      throw new AppError(400, "durationSecs must be a number");
     }
 
     const workoutLog = await logExercisePerformance(
       req.userId!,
       programExerciseId,
       sets,
+      durationSecs,
     );
 
     sendSuccess(res, 201, "EXERCISE_LOGGED", { workoutLog });

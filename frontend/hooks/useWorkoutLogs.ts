@@ -28,6 +28,7 @@ export const useLogStandaloneWorkout = () => {
       queryClient.invalidateQueries({ queryKey: ["1rmHistory"] });
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
       queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
+      queryClient.invalidateQueries({ queryKey: ["workingOutCount"] });
     },
   });
 };
@@ -55,6 +56,7 @@ export const useDeleteWorkoutLogSet = () => {
       queryClient.invalidateQueries({ queryKey: ["1rmHistory"] });
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
       queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
+      queryClient.invalidateQueries({ queryKey: ["workingOutCount"] });
     },
   });
 };
@@ -69,6 +71,7 @@ export const useDeleteWorkoutLogsForDate = () => {
       queryClient.invalidateQueries({ queryKey: ["1rmHistory"] });
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
       queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
+      queryClient.invalidateQueries({ queryKey: ["workingOutCount"] });
     },
   });
 };

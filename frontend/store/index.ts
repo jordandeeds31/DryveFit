@@ -1,11 +1,13 @@
 import { configureStore } from "@reduxjs/toolkit";
 import authReducer from "./slices/authSlice";
 import subscriptionReducer from "./slices/subscriptionSlice";
+import cinematicTimerReducer from "./slices/cinematicTimerSlice";
 
 export const store = configureStore({
   reducer: {
     auth: authReducer,
     subscription: subscriptionReducer,
+    cinematicTimer: cinematicTimerReducer,
   },
 });
 
