@@ -11,6 +11,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: spacing.sm,
   },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
   title: {
     fontSize: fontSizes.lg,
     fontWeight: fontWeights.bold,

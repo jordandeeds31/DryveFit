@@ -5,10 +5,12 @@ import {
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import styles from "./WorkoutLogger.styles";
 import { WorkoutLoggerProps } from "./WorkoutLogger.types";
 import AntDesign from "@expo/vector-icons/AntDesign";
+import Feather from "@expo/vector-icons/Feather";
 import DropdownExerciseSelect from "@/components/shared/DropdownExerciseSelect/DropdownExerciseSelect";
 import Button from "@/components/shared/Button/Button";
 import Modal from "@/components/shared/Modal/Modal";
@@ -16,9 +18,11 @@ import { Exercise } from "@/types/exercise.types";
 import {
   useLogStandaloneWorkout,
   useDeleteWorkoutLogSet,
+  useDeleteWorkoutLogsForDate,
 } from "@/hooks/useWorkoutLogs";
 import { usePreviousSession } from "@/hooks/useExercises";
 import { formatCalendarDate } from "@/lib/utils/date.utils";
+import { colors } from "@/constants/colors";
 
 const formatSessionDate = (dateStr: string) =>
   formatCalendarDate(dateStr, {
@@ -104,6 +108,8 @@ const WorkoutLogger = ({
 
   const { mutate: logWorkout, isPending } = useLogStandaloneWorkout();
   const { mutate: deleteWorkoutLogSet } = useDeleteWorkoutLogSet();
+  const { mutate: deleteWholeWorkout, isPending: isDeletingWorkout } =
+    useDeleteWorkoutLogsForDate();
 
   const [previousModalEntryId, setPreviousModalEntryId] = useState<
     string | null
@@ -246,13 +252,42 @@ const WorkoutLogger = ({
     });
   };
 
+  const handleDeleteWorkout = () => {
+    Alert.alert(
+      "Delete this workout?",
+      "This will permanently delete everything logged for this day.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            deleteWholeWorkout(date, {
+              onSuccess: () => setClose(false),
+            });
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <Text style={styles.title}>Workout Log</Text>
-        <TouchableOpacity onPress={() => setClose(false)}>
-          <AntDesign name="close" size={20} color="black" />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          {initialWorkoutLogs.length > 0 && (
+            <TouchableOpacity
+              onPress={handleDeleteWorkout}
+              disabled={isDeletingWorkout}
+            >
+              <Feather name="trash-2" size={18} color={colors.dangerRed} />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity onPress={() => setClose(false)}>
+            <AntDesign name="close" size={20} color="black" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {exerciseEntries.map((entry) => (

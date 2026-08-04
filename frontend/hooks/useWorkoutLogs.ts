@@ -3,6 +3,7 @@ import {
   logStandaloneWorkout,
   getWorkoutLogsForDate,
   deleteWorkoutLogSet,
+  deleteWorkoutLogsForDate,
 } from "@/lib/api/workoutLogs.api";
 
 export const useLogStandaloneWorkout = () => {
@@ -26,6 +27,7 @@ export const useLogStandaloneWorkout = () => {
       });
       queryClient.invalidateQueries({ queryKey: ["1rmHistory"] });
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
+      queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
     },
   });
 };
@@ -52,6 +54,21 @@ export const useDeleteWorkoutLogSet = () => {
       queryClient.invalidateQueries({ queryKey: ["workoutLogs"] });
       queryClient.invalidateQueries({ queryKey: ["1rmHistory"] });
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
+      queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
+    },
+  });
+};
+
+export const useDeleteWorkoutLogsForDate = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: deleteWorkoutLogsForDate,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["workoutLogs"] });
+      queryClient.invalidateQueries({ queryKey: ["1rmHistory"] });
+      queryClient.invalidateQueries({ queryKey: ["schedule"] });
+      queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
     },
   });
 };

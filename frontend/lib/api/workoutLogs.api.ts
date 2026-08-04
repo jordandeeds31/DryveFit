@@ -32,3 +32,8 @@ export const deleteWorkoutLogSet = async (
   );
   return data;
 };
+
+export const deleteWorkoutLogsForDate = async (date: string) => {
+  const { data } = await apiClient.delete(`/api/workout-logs?date=${date}`);
+  return data;
+};

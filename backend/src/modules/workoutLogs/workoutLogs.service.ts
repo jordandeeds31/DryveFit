@@ -66,6 +66,28 @@ export const logStandaloneWorkout = async (
   return workoutLog;
 };
 
+export const deleteWorkoutLogsForDate = async (
+  userId: string,
+  dateStr: string,
+) => {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const startOfDay = new Date(year, month - 1, day, 0, 0, 0, 0);
+  const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
+
+  // Only ever touches standalone logs (never a program day's logged
+  // exercises) — same scoping used by logStandaloneWorkout/getWorkoutLogsForDate.
+  // ExerciseLog/ExerciseSet rows cascade-delete automatically via the schema.
+  await prisma.workoutLog.deleteMany({
+    where: {
+      userId,
+      loggedAt: { gte: startOfDay, lte: endOfDay },
+      exercises: {
+        every: { programExerciseId: null },
+      },
+    },
+  });
+};
+
 export const deleteWorkoutLogSet = async (
   userId: string,
   exerciseLogId: string,

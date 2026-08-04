@@ -7,6 +7,7 @@ import {
   logStandaloneWorkout,
   getWorkoutLogsForDate,
   deleteWorkoutLogSet,
+  deleteWorkoutLogsForDate,
 } from "./workoutLogs.service";
 
 const getParam = (value: string | string[]): string => {
@@ -40,6 +41,19 @@ export const getWorkoutLogsHandler = catchAsync(
 
     const workoutLogs = await getWorkoutLogsForDate(req.userId!, date);
     sendSuccess(res, 200, "WORKOUT_LOGS_FETCHED", { workoutLogs });
+  },
+);
+
+export const deleteWorkoutLogsForDateHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const date = req.query.date;
+
+    if (typeof date !== "string") {
+      throw new AppError(400, "date query parameter is required");
+    }
+
+    await deleteWorkoutLogsForDate(req.userId!, date);
+    sendSuccess(res, 200, "WORKOUT_LOGS_DELETED", {});
   },
 );
 
