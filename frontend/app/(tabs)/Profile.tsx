@@ -24,6 +24,7 @@ import {
   useUploadProfileImage,
   useDeleteProfileImage,
 } from "@/hooks/useUsers";
+import { useAuthImageHeaders } from "@/hooks/useAuthImageHeaders";
 import { colors } from "@/constants/colors";
 import { spacing } from "@/constants/spacing";
 import { fontSizes, fontWeights } from "@/constants/typography";
@@ -40,6 +41,7 @@ const Profile = () => {
     useUploadProfileImage();
   const { mutate: removeImage, isPending: isRemovingImage } =
     useDeleteProfileImage();
+  const authImageHeaders = useAuthImageHeaders();
 
   const [username, setUsername] = useState("");
   const [city, setCity] = useState<string | null>(null);
@@ -131,6 +133,7 @@ const Profile = () => {
             <Image
               source={{
                 uri: `${process.env.EXPO_PUBLIC_API_URL}${currentUser.profileImageUrl}`,
+                headers: authImageHeaders,
               }}
               style={styles.avatar}
             />

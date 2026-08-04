@@ -19,6 +19,7 @@ import { Exercise } from "@/types/exercise.types";
 import { LeaderboardEntry } from "@/types/leaderboard.types";
 import { useCurrentUser } from "@/hooks/useUsers";
 import { useLeaderboard } from "@/hooks/useLeaderboard";
+import { useAuthImageHeaders } from "@/hooks/useAuthImageHeaders";
 
 type Scope = "city" | "global";
 
@@ -32,6 +33,7 @@ const LeaderboardScreen = () => {
   const [page, setPage] = useState(0);
 
   const { data: currentUser } = useCurrentUser();
+  const authImageHeaders = useAuthImageHeaders();
   const { data: leaderboard, isLoading, error } = useLeaderboard(
     selectedExercise?.name ?? null,
     scope,
@@ -184,6 +186,7 @@ const LeaderboardScreen = () => {
                     <Image
                       source={{
                         uri: `${process.env.EXPO_PUBLIC_API_URL}${entry.profileImageUrl}`,
+                        headers: authImageHeaders,
                       }}
                       style={styles.avatar}
                     />

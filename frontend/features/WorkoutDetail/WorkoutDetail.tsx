@@ -17,6 +17,7 @@ import { ProgramExercise } from "@/types/programs.types";
 import { useExercises, usePreviousSession } from "@/hooks/useExercises";
 import { colors } from "@/constants/colors";
 import { formatCalendarDate } from "@/lib/utils/date.utils";
+import { useAuthImageHeaders } from "@/hooks/useAuthImageHeaders";
 
 const formatSessionDate = (dateStr: string) =>
   formatCalendarDate(dateStr, {
@@ -97,6 +98,7 @@ const buildInitialSetsByExercise = (
 };
 
 const WorkoutDetail = ({ dayDetail, isLoading }: WorkoutDetailProps) => {
+  const authImageHeaders = useAuthImageHeaders();
   const [logModalVisible, setLogModalVisible] = useState(false);
   const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(
     null,
@@ -240,6 +242,7 @@ const WorkoutDetail = ({ dayDetail, isLoading }: WorkoutDetailProps) => {
               <Image
                 source={{
                   uri: `${process.env.EXPO_PUBLIC_API_URL}${exercise.imageUrl}`,
+                  headers: authImageHeaders,
                 }}
                 style={styles.exerciseImage}
                 resizeMode="cover"
