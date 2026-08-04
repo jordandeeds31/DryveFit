@@ -9,5 +9,12 @@ export const useLeaderboard = (
     queryKey: ["leaderboard", exerciseName, scope],
     queryFn: () => getLeaderboard(exerciseName!, scope),
     enabled: !!exerciseName,
+    // Rankings change any time someone (else) logs or deletes a set —
+    // the global 5-min staleTime is too stale for this screen. Always
+    // treat cached results as stale so switching scope/exercise (or just
+    // revisiting the tab) refetches instead of showing a snapshot from
+    // whenever this exact combination was last viewed.
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 };
