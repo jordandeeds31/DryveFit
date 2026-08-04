@@ -8,11 +8,6 @@
     "scheme": "dryve",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/images/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.jordandeeds.dryve"
@@ -39,6 +34,15 @@
         "expo-image-picker",
         {
           "photosPermission": "Allow Dryve to access your photos so you can set a profile picture."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/logo.png",
+          "imageWidth": 280,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff"
         }
       ],
       "./plugins/withFmtCxx17Fix.js"
