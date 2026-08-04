@@ -35,6 +35,12 @@
       "expo-build-properties",
       "expo-font",
       "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Dryve to access your photos so you can set a profile picture."
+        }
+      ],
       "./plugins/withFmtCxx17Fix.js"
     ],
     "experiments": {

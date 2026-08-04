@@ -8,15 +8,21 @@ datasource db {
 }
 
 model User {
-  id          String       @id @default(uuid())
-  email       String       @unique
-  password    String
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  programs    Program[]
-  workoutLogs WorkoutLog[]
-  trainer     Trainer?
+  id                   String       @id @default(uuid())
+  email                String       @unique
+  password             String
+  username             String?      @unique
+  city                 String?
+  isLeaderboardVisible Boolean      @default(true)
+  profileImage         Bytes?
+  profileImageMimeType String?
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+  programs             Program[]
+  workoutLogs          WorkoutLog[]
+  trainer              Trainer?
 
+  @@index([city])
   @@map("users")
 }
 
@@ -118,6 +124,7 @@ model ExerciseLog {
   programExercise   ProgramExercise? @relation(fields: [programExerciseId], references: [id], onDelete: SetNull)
   sets              ExerciseSet[]
 
+  @@index([exerciseName])
   @@map("exercise_logs")
 }
 

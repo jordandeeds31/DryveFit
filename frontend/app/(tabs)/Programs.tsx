@@ -5,7 +5,7 @@ import ProgramsList from "@/features/ProgramsList/ProgramsList";
 
 const ProgramsScreen = () => {
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["bottom", "left", "right"]}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -21,13 +21,14 @@ export default ProgramsScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: "white",
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     paddingHorizontal: spacing.sm,
-    paddingTop: spacing.md,
+    paddingTop: spacing.sm,
     flexGrow: 1,
   },
 });

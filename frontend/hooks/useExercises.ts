@@ -20,9 +20,9 @@ export const use1RMHistory = (exerciseName: string | null) => {
   });
 };
 
-// Only fetched once the user actually opens the "Check Previous Workout"
-// view — enabled is driven by that modal's visibility, not just having a
-// name, so we don't fire this on every exercise selection.
+// Also used eagerly (enabled: true) to decide whether the "Check Previous
+// Workout" button should render at all — no button when there's no prior
+// session for the exercise.
 export const usePreviousSession = (
   exerciseName: string | null,
   beforeDate: string | undefined,

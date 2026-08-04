@@ -1,6 +1,6 @@
 import { useState } from "react";
 import Input from "@/components/shared/TextInput/TextInput"
-import { View, StyleSheet, Text, TouchableOpacity } from "react-native";
+import { View, StyleSheet, Text, TouchableOpacity, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Button from "@/components/shared/Button/Button";
 import { useAuth } from "@/hooks/useAuth";
@@ -34,6 +34,11 @@ const Signup = () => {
 
     return (
         <SafeAreaView style={styles.container}>
+            <Image
+                source={require("@/assets/images/logo.png")}
+                style={styles.logo}
+                resizeMode="contain"
+            />
             <View style={styles.textInputContainer}>
                 <Input label="Email" placeholder="Enter email" autoCapitalize="none" value={email} onChangeText={setEmail} keyboardType="email-address" />
                 <Input label="Password" placeholder="Enter password" autoCapitalize="none" value={password} onChangeText={setPassword} isPassword />
@@ -58,7 +63,14 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         justifyContent: "center",
-        paddingHorizontal: spacing.lg
+        paddingHorizontal: spacing.lg,
+        backgroundColor: "white"
+    },
+    logo: {
+        width: 96,
+        height: 96,
+        alignSelf: "center",
+        marginBottom: spacing.lg
     },
     textInputContainer: {
         gap: spacing.md,

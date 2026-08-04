@@ -1,6 +1,7 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import { login, signup } from "@/lib/api/auth.api";
 import { getToken, setToken, clearToken } from "@/lib/storage/secureStore";
+import { queryClient } from "@/lib/api/queryClient";
 
 interface AuthState {
   accessToken: string | null;
@@ -32,6 +33,11 @@ export const loginThunk = createAsyncThunk(
   ) => {
     try {
       const response = await login({ email, password });
+      // Wipe any cached data from a previous session (programs, schedule,
+      // currentUser, etc.) before this session's queries start firing —
+      // otherwise a different account can briefly (or not-so-briefly,
+      // given the 5 min staleTime) render the last user's data.
+      queryClient.clear();
       await setToken(response.accessToken);
       return response.accessToken;
     } catch (error: any) {
@@ -48,6 +54,9 @@ export const registerThunk = createAsyncThunk(
   ) => {
     try {
       const response = await signup({ email, password });
+      // Same reasoning as loginThunk — clear stale cross-account cache
+      // before this session's queries start firing.
+      queryClient.clear();
       await setToken(response.accessToken);
       return response.accessToken;
     } catch (error: any) {
@@ -58,6 +67,7 @@ export const registerThunk = createAsyncThunk(
 
 export const logoutThunk = createAsyncThunk("auth/logout", async () => {
   await clearToken();
+  queryClient.clear();
 });
 
 const authSlice = createSlice({

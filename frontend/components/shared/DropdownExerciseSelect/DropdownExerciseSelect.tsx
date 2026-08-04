@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -7,6 +7,8 @@ import {
   ScrollView,
 } from "react-native";
 import Feather from "@expo/vector-icons/Feather";
+import { useIsFocused } from "@react-navigation/native";
+import { colors } from "@/constants/colors";
 import { useExercises } from "@/hooks/useExercises";
 import { Exercise } from "@/types/exercise.types";
 import styles from "./DropdownExerciseSelect.styles";
@@ -18,6 +20,19 @@ const DropdownExerciseSelect = ({
 }: DropdownExerciseSelectProps) => {
   const [searchText, setSearchText] = useState("");
   const [isOpen, setIsOpen] = useState(false);
+  const inputRef = useRef<TextInput>(null);
+
+  const isFocused = useIsFocused();
+  useEffect(() => {
+    if (!isFocused) {
+      setIsOpen(false);
+      // Screens stay mounted across tab switches, so a still-focused
+      // TextInput can silently regain focus when this screen comes back
+      // and re-fire onFocus, reopening the dropdown right away — blur it
+      // explicitly so that can't happen.
+      inputRef.current?.blur();
+    }
+  }, [isFocused]);
 
   const { data: exercises, isLoading } = useExercises();
 
@@ -44,9 +59,13 @@ const DropdownExerciseSelect = ({
     <View style={styles.container}>
       <View style={styles.inputRow}>
         <TextInput
-          style={styles.input}
+          ref={inputRef}
+          style={[styles.input, selectedExercise && styles.inputSelected]}
           placeholder={
             selectedExercise ? selectedExercise.name : "Search for an exercise"
+          }
+          placeholderTextColor={
+            selectedExercise ? "#000000" : colors.textMuted
           }
           value={searchText}
           onChangeText={handleChangeText}

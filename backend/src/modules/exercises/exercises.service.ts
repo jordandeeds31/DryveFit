@@ -117,7 +117,16 @@ export const getExercise1RMHistory = async (
     orderBy: { workoutLog: { loggedAt: "asc" } },
   });
 
-  return logs.flatMap((log) => {
+  // Multiple ExerciseLog rows can land on the same calendar day (e.g. one
+  // from a program day plus one from a standalone log), which would
+  // otherwise plot two points for the same date and make the line zig-zag.
+  // Key by day and keep only the best estimate per day.
+  const bestByDay = new Map<
+    string,
+    { date: Date; estimated1RM: number; sets: (typeof logs)[number]["sets"] }
+  >();
+
+  for (const log of logs) {
     const estimates = log.sets
       .filter((set) => set.weight != null && set.reps != null)
       .map((set) => Math.round(set.weight! * (1 + set.reps! / 30)));
@@ -126,14 +135,22 @@ export const getExercise1RMHistory = async (
     // exercise, which has no meaningful 1RM) — Math.max() on an empty
     // array would silently produce -Infinity, so skip the session
     // entirely rather than plotting a broken data point.
-    if (estimates.length === 0) return [];
+    if (estimates.length === 0) continue;
 
-    return [
-      {
+    const estimated1RM = Math.max(...estimates);
+    const dayKey = log.workoutLog.loggedAt.toISOString().slice(0, 10);
+    const existing = bestByDay.get(dayKey);
+
+    if (!existing || estimated1RM > existing.estimated1RM) {
+      bestByDay.set(dayKey, {
         date: log.workoutLog.loggedAt,
-        estimated1RM: Math.max(...estimates),
+        estimated1RM,
         sets: log.sets,
-      },
-    ];
-  });
+      });
+    }
+  }
+
+  return Array.from(bestByDay.values()).sort(
+    (a, b) => a.date.getTime() - b.date.getTime(),
+  );
 };

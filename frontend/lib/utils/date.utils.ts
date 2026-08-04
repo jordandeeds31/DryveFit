@@ -59,3 +59,17 @@ export const toDateKey = (date: Date): string => {
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 };
+
+// Backend "calendar day" fields (loggedAt, program startDate/endDate, etc.)
+// are stored as UTC midnight for that day. Formatting them with the
+// device's local timezone can roll the date back a day for any user west
+// of UTC — so these must always be read back out using UTC getters, not
+// toLocaleDateString's default local-timezone behavior.
+export const formatCalendarDate = (
+  dateStr: string,
+  options: Intl.DateTimeFormatOptions,
+): string =>
+  new Date(dateStr).toLocaleDateString(undefined, {
+    ...options,
+    timeZone: "UTC",
+  });

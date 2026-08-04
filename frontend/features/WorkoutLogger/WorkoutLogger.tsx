@@ -18,9 +18,10 @@ import {
   useDeleteWorkoutLogSet,
 } from "@/hooks/useWorkoutLogs";
 import { usePreviousSession } from "@/hooks/useExercises";
+import { formatCalendarDate } from "@/lib/utils/date.utils";
 
 const formatSessionDate = (dateStr: string) =>
-  new Date(dateStr).toLocaleDateString(undefined, {
+  formatCalendarDate(dateStr, {
     weekday: "short",
     month: "short",
     day: "numeric",
@@ -37,6 +38,30 @@ interface ExerciseEntry {
   exercise: Exercise | null;
   sets: SetEntry[];
 }
+
+const CheckPreviousWorkoutButton = ({
+  exerciseName,
+  beforeDate,
+  onPress,
+}: {
+  exerciseName: string;
+  beforeDate: string | undefined;
+  onPress: () => void;
+}) => {
+  const { data: previousSession } = usePreviousSession(
+    exerciseName,
+    beforeDate,
+    true,
+  );
+
+  if (!previousSession) return null;
+
+  return (
+    <TouchableOpacity style={styles.checkPreviousButton} onPress={onPress}>
+      <Text style={styles.checkPreviousText}>CHECK PREVIOUS WORKOUT</Text>
+    </TouchableOpacity>
+  );
+};
 
 const createBlankEntry = (): ExerciseEntry => ({
   id: `${Date.now()}-${Math.random()}`,
@@ -251,14 +276,11 @@ const WorkoutLogger = ({
 
           {entry.exercise && (
             <View style={styles.setsContainer}>
-              <TouchableOpacity
-                style={styles.checkPreviousButton}
+              <CheckPreviousWorkoutButton
+                exerciseName={entry.exercise.name}
+                beforeDate={date}
                 onPress={() => setPreviousModalEntryId(entry.id)}
-              >
-                <Text style={styles.checkPreviousText}>
-                  CHECK PREVIOUS WORKOUT
-                </Text>
-              </TouchableOpacity>
+              />
               {entry.sets.map((set, setIndex) => (
                 <View key={set.id} style={styles.setRow}>
                   <Text style={styles.setLabel}>Set {setIndex + 1}</Text>

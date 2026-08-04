@@ -21,6 +21,9 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: fontSizes.md,
   },
+  inputSelected: {
+    fontWeight: fontWeights.semibold,
+  },
   dropdown: {
     borderWidth: 1,
     borderColor: colors.borderGray,

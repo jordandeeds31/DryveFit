@@ -6,8 +6,6 @@ import { spacing } from "@/constants/spacing";
 const styles = StyleSheet.create({
   datesContainer: {
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.borderGray,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.sm,
     marginBottom: spacing.md,

@@ -147,7 +147,7 @@ const HomeScreen = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["bottom", "left", "right"]}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -161,11 +161,7 @@ const HomeScreen = () => {
           />
         </View>
 
-        <Modal
-          visible={isOpen}
-          onClose={close}
-          closable={!isGeneratingProgram}
-        >
+        <Modal visible={isOpen} onClose={close} closable={!isGeneratingProgram}>
           <ProgramBuilder
             onCreated={close}
             onGeneratingChange={setIsGeneratingProgram}
@@ -217,6 +213,7 @@ const HomeScreen = () => {
               title="Log Workout"
               onPress={handleLogWorkout}
               variant="outline"
+              style={styles.logWorkoutButton}
             />
           </View>
         )}
@@ -230,6 +227,7 @@ export default HomeScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: "white",
   },
   scrollView: {
     flex: 1,
@@ -256,12 +254,19 @@ const styles = StyleSheet.create({
   noWorkoutContainer: {
     marginBottom: spacing.sm,
     gap: spacing.xs,
+    alignItems: "center",
   },
   noWorkoutTitle: {
     fontSize: fontSizes.md,
     fontWeight: fontWeights.bold,
+    textAlign: "center",
   },
   noWorkoutText: {
     color: colors.textSecondary,
+    textAlign: "center",
+  },
+  logWorkoutButton: {
+    alignSelf: "center",
+    marginTop: spacing.sm,
   },
 });

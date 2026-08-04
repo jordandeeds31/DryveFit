@@ -4,9 +4,10 @@ import styles from "./ProgramsList.styles";
 import Button from "@/components/shared/Button/Button";
 import { colors } from "@/constants/colors";
 import { usePrograms, useDeleteProgram } from "@/hooks/usePrograms";
+import { formatCalendarDate } from "@/lib/utils/date.utils";
 
 const formatDate = (dateStr: string) =>
-  new Date(dateStr).toLocaleDateString(undefined, {
+  formatCalendarDate(dateStr, {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -71,6 +72,7 @@ const ProgramsList = () => {
             title={isPending && deletingId === program.id ? "DELETING..." : "DELETE"}
             backgroundColor={colors.dangerRed}
             style={styles.deleteButton}
+            textStyle={styles.deleteButtonText}
             disabled={isPending && deletingId === program.id}
             onPress={() => handleDelete(program.id, program.name)}
           />

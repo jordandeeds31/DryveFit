@@ -17,9 +17,9 @@ const styles = StyleSheet.create({
   },
   exerciseBlock: {
     marginTop: spacing.md,
-    // paddingBottom: spacing.md,
-    // borderBottomWidth: 1,
-    // borderBottomColor: colors.borderGray,
+    paddingBottom: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderGray,
   },
   exerciseBlockHeader: {
     flexDirection: "row",

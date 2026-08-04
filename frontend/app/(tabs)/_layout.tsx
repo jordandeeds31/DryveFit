@@ -2,6 +2,7 @@ import { Tabs } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { colors } from "@/constants/colors";
 import { fontSizes, fontWeights } from "@/constants/typography";
+import AppHeader from "@/components/shared/AppHeader/AppHeader";
 
 export default function TabsLayout() {
   return (
@@ -19,13 +20,17 @@ export default function TabsLayout() {
         tabBarItemStyle: {
           paddingTop: 6,
         },
+        headerShown: true,
+        header: () => <AppHeader />,
+        sceneStyle: {
+          backgroundColor: "white",
+        },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
           title: "Home",
-          headerShown: false,
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
               name={focused ? "home" : "home-outline"}
@@ -36,24 +41,9 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="PersonalRecordProgress"
-        options={{
-          title: "PR Progress",
-          headerShown: false,
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "trending-up" : "trending-up-outline"}
-              size={24}
-              color={color}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="Programs"
         options={{
           title: "Programs",
-          headerShown: false,
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
               name={focused ? "clipboard" : "clipboard-outline"}
@@ -64,17 +54,36 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="Profile"
+        name="PersonalRecordProgress"
         options={{
-          title: "Profile",
-          headerShown: false,
+          title: "PR Progress",
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
-              name={focused ? "person" : "person-outline"}
+              name={focused ? "trending-up" : "trending-up-outline"}
               size={24}
               color={color}
             />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="Leaderboard"
+        options={{
+          title: "Leaderboard",
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons
+              name={focused ? "trophy" : "trophy-outline"}
+              size={24}
+              color={color}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="Profile"
+        options={{
+          title: "Profile",
+          href: null,
         }}
       />
     </Tabs>

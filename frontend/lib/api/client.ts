@@ -1,6 +1,7 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 import { setToken, getToken, clearToken } from "../storage/secureStore";
 import { router } from "expo-router";
+import { queryClient } from "./queryClient";
 
 const apiClient = axios.create({
   baseURL: process.env.EXPO_PUBLIC_API_URL,
@@ -35,6 +36,7 @@ apiClient.interceptors.response.use(
 
     if (status === 401 && !isAuthEndpoint) {
       await clearToken();
+      queryClient.clear();
       router.replace("/(auth)/signin");
     }
 

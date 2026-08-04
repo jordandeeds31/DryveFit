@@ -4,6 +4,7 @@ import { LineChart } from "react-native-chart-kit";
 import { spacing } from "@/constants/spacing";
 import { colors } from "@/constants/colors";
 import { fontSizes, fontWeights } from "@/constants/typography";
+import { formatCalendarDate } from "@/lib/utils/date.utils";
 import { GraphProps } from "./Graph.types";
 
 const screenWidth = Dimensions.get("window").width;
@@ -26,16 +27,19 @@ const Graph = ({ history }: GraphProps) => {
     null,
   );
 
+  // Defensive sort — the chart draws a connected line, so out-of-order
+  // entries (from any source) would otherwise zig-zag instead of trending.
+  const sortedHistory = [...history].sort(
+    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+  );
+
   const chartData = {
-    labels: history.map((entry) =>
-      new Date(entry.date).toLocaleDateString("en-US", {
-        month: "numeric",
-        day: "numeric",
-      }),
+    labels: sortedHistory.map((entry) =>
+      formatCalendarDate(entry.date, { month: "numeric", day: "numeric" }),
     ),
     datasets: [
       {
-        data: history.map((entry) => entry.estimated1RM),
+        data: sortedHistory.map((entry) => entry.estimated1RM),
       },
     ],
   };

@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import styles from "./WorkoutDetail.styles";
-import { View, Text, ActivityIndicator, TouchableOpacity } from "react-native";
+import {
+  View,
+  Text,
+  Image,
+  ActivityIndicator,
+  TouchableOpacity,
+} from "react-native";
 import Feather from "@expo/vector-icons/Feather";
 import { WorkoutDetailProps } from "./WorkoutDetail.types";
 import Button from "@/components/shared/Button/Button";
@@ -10,9 +16,10 @@ import { SetEntry } from "../LogExerciseModal/LogExercise.types";
 import { ProgramExercise } from "@/types/programs.types";
 import { useExercises, usePreviousSession } from "@/hooks/useExercises";
 import { colors } from "@/constants/colors";
+import { formatCalendarDate } from "@/lib/utils/date.utils";
 
 const formatSessionDate = (dateStr: string) =>
-  new Date(dateStr).toLocaleDateString(undefined, {
+  formatCalendarDate(dateStr, {
     weekday: "short",
     month: "short",
     day: "numeric",
@@ -32,6 +39,30 @@ const getLogButtonState = (
   }
 
   return { title: "LOGGED", backgroundColor: colors.completedGreen };
+};
+
+const CheckPreviousWorkoutButton = ({
+  exerciseName,
+  beforeDate,
+  onPress,
+}: {
+  exerciseName: string;
+  beforeDate: string | undefined;
+  onPress: () => void;
+}) => {
+  const { data: previousSession } = usePreviousSession(
+    exerciseName,
+    beforeDate,
+    true,
+  );
+
+  if (!previousSession) return null;
+
+  return (
+    <TouchableOpacity style={styles.checkPreviousButton} onPress={onPress}>
+      <Text style={styles.checkPreviousText}>CHECK PREVIOUS WORKOUT</Text>
+    </TouchableOpacity>
+  );
 };
 
 const buildInitialSetsByExercise = (
@@ -76,6 +107,9 @@ const WorkoutDetail = ({ dayDetail, isLoading }: WorkoutDetailProps) => {
   const [previousExerciseId, setPreviousExerciseId] = useState<string | null>(
     null,
   );
+  const [firstTimeNoticeExerciseId, setFirstTimeNoticeExerciseId] = useState<
+    string | null
+  >(null);
 
   const { data: exerciseCatalog } = useExercises();
   const descriptionByName: Record<string, string | null> = {};
@@ -123,6 +157,11 @@ const WorkoutDetail = ({ dayDetail, isLoading }: WorkoutDetailProps) => {
   const previousExercise = dayDetail?.exercises.find(
     (exercise) => exercise.id === previousExerciseId,
   );
+
+  const firstTimeNoticeExercise = dayDetail?.exercises.find(
+    (exercise) => exercise.id === firstTimeNoticeExerciseId,
+  );
+
   const { data: previousSession, isLoading: isPreviousLoading } =
     usePreviousSession(
       previousExercise?.exerciseName ?? null,
@@ -154,6 +193,20 @@ const WorkoutDetail = ({ dayDetail, isLoading }: WorkoutDetailProps) => {
                     />
                   </TouchableOpacity>
                 )}
+                {exercise.equipment !== "bodyweight" &&
+                  exercise.recommendedWeight == null && (
+                    <TouchableOpacity
+                      onPress={() =>
+                        setFirstTimeNoticeExerciseId(exercise.id)
+                      }
+                    >
+                      <Feather
+                        name="alert-circle"
+                        size={16}
+                        color={colors.primaryBlue}
+                      />
+                    </TouchableOpacity>
+                  )}
               </View>
               <Text style={styles.exerciseMeta}>
                 {exercise.sets} sets x {exercise.reps} reps
@@ -176,16 +229,30 @@ const WorkoutDetail = ({ dayDetail, isLoading }: WorkoutDetailProps) => {
                   textStyle={{ fontSize: 12 }}
                   onPress={() => handleLogPress(exercise.id)}
                 />
-                <TouchableOpacity
-                  style={styles.checkPreviousButton}
+                <CheckPreviousWorkoutButton
+                  exerciseName={exercise.exerciseName}
+                  beforeDate={dayDetail?.date}
                   onPress={() => setPreviousExerciseId(exercise.id)}
-                >
-                  <Text style={styles.checkPreviousText}>
-                    CHECK PREVIOUS WORKOUT
-                  </Text>
-                </TouchableOpacity>
+                />
               </View>
             </View>
+            {exercise.imageUrl ? (
+              <Image
+                source={{
+                  uri: `${process.env.EXPO_PUBLIC_API_URL}${exercise.imageUrl}`,
+                }}
+                style={styles.exerciseImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={styles.exerciseImagePlaceholder}>
+                <Feather
+                  name="image"
+                  size={24}
+                  color={colors.textSecondary}
+                />
+              </View>
+            )}
           </View>
         );
       })}
@@ -229,6 +296,18 @@ const WorkoutDetail = ({ dayDetail, isLoading }: WorkoutDetailProps) => {
             ))}
           </>
         )}
+      </Modal>
+      <Modal
+        visible={!!firstTimeNoticeExerciseId}
+        onClose={() => setFirstTimeNoticeExerciseId(null)}
+      >
+        <Text style={styles.descriptionModalTitle}>
+          {firstTimeNoticeExercise?.exerciseName}
+        </Text>
+        <Text style={styles.descriptionModalBody}>
+          First time doing this — pick a weight you can complete for every
+          set, and we'll set your recommended weight next time.
+        </Text>
       </Modal>
       <Modal
         visible={!!descriptionExerciseName}

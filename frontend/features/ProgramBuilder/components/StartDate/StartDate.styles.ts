@@ -8,7 +8,6 @@ const styles = StyleSheet.create({
   dateButton: {
     flexDirection: "row",
     alignItems: "center",
-    alignSelf: "flex-start",
     gap: spacing.xs,
     borderWidth: 1,
     borderColor: colors.borderGray,
