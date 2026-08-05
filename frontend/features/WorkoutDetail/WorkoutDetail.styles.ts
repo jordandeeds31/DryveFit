@@ -31,6 +31,26 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.xs,
     fontWeight: fontWeights.bold,
   },
+  focusActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  revertButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderWidth: 1,
+    borderColor: colors.borderGray,
+    borderRadius: 6,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+  },
+  revertButtonText: {
+    color: colors.textSecondary,
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.bold,
+  },
   exerciseRow: {
     flexDirection: "row",
     borderRadius: 8,
@@ -68,7 +88,12 @@ const styles = StyleSheet.create({
   exerciseNameRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.xs,
+    gap: spacing.sm,
+  },
+  exerciseIconsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.lg,
   },
   exerciseName: {
     fontWeight: fontWeights.semibold,
@@ -123,6 +148,53 @@ const styles = StyleSheet.create({
   previousSetValue: {
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.semibold,
+  },
+  addExerciseButton: {
+    marginTop: spacing.sm,
+    paddingVertical: 10,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: colors.primaryBlue,
+    borderRadius: 8,
+    borderStyle: "dashed",
+  },
+  addExerciseText: {
+    color: colors.primaryBlue,
+    fontWeight: fontWeights.semibold,
+  },
+  addExerciseFieldRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  addExerciseFieldLabel: {
+    width: 70,
+    fontSize: fontSizes.sm,
+    color: colors.textSecondary,
+  },
+  addExerciseInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.borderGray,
+    borderRadius: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    fontSize: fontSizes.sm,
+  },
+  addExerciseSubmitButton: {
+    marginTop: spacing.md,
+    paddingVertical: 10,
+    alignItems: "center",
+    backgroundColor: colors.primaryBlue,
+    borderRadius: 8,
+  },
+  addExerciseSubmitButtonDisabled: {
+    backgroundColor: colors.borderGray,
+  },
+  addExerciseSubmitText: {
+    color: "white",
+    fontWeight: fontWeights.bold,
   },
 });
 

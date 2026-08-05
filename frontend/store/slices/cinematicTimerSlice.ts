@@ -12,11 +12,19 @@ interface CinematicTimerState {
   // "RESUME" instead of "START" and lets cinematic-mode jump back to
   // where the user left off.
   currentIndexBySession: Record<string, number>;
+  // Apple Health samples accumulated during a session (same session key as
+  // above), so they survive closing/reopening cinematic-mode and are ready
+  // to show on the recap screen once the session ends.
+  healthMetricsBySession: Record<
+    string,
+    { heartRateSamples: number[]; caloriesBurned: number }
+  >;
 }
 
 const initialState: CinematicTimerState = {
   startedAtByExerciseId: {},
   currentIndexBySession: {},
+  healthMetricsBySession: {},
 };
 
 const cinematicTimerSlice = createSlice({
@@ -41,6 +49,33 @@ const cinematicTimerSlice = createSlice({
     },
     clearSession: (state, action: PayloadAction<string>) => {
       delete state.currentIndexBySession[action.payload];
+      delete state.healthMetricsBySession[action.payload];
+    },
+    recordHeartRateSample: (
+      state,
+      action: PayloadAction<{ sessionKey: string; bpm: number }>,
+    ) => {
+      const { sessionKey, bpm } = action.payload;
+      if (!state.healthMetricsBySession[sessionKey]) {
+        state.healthMetricsBySession[sessionKey] = {
+          heartRateSamples: [],
+          caloriesBurned: 0,
+        };
+      }
+      state.healthMetricsBySession[sessionKey].heartRateSamples.push(bpm);
+    },
+    setCaloriesBurned: (
+      state,
+      action: PayloadAction<{ sessionKey: string; calories: number }>,
+    ) => {
+      const { sessionKey, calories } = action.payload;
+      if (!state.healthMetricsBySession[sessionKey]) {
+        state.healthMetricsBySession[sessionKey] = {
+          heartRateSamples: [],
+          caloriesBurned: 0,
+        };
+      }
+      state.healthMetricsBySession[sessionKey].caloriesBurned = calories;
     },
   },
 });
@@ -50,5 +85,7 @@ export const {
   clearTimer,
   setSessionIndex,
   clearSession,
+  recordHeartRateSample,
+  setCaloriesBurned,
 } = cinematicTimerSlice.actions;
 export default cinematicTimerSlice.reducer;

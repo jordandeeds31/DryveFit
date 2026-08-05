@@ -389,6 +389,11 @@ ${performanceHistoryText}
 DAY-BY-DAY PLAN (follow exactly — each day trains only its assigned body part(s)):
 ${dayPlanLines}
 
+EXERCISE COUNT AND SELECTION REQUIREMENTS:
+- Every training day must include AT LEAST 2 exercises for EACH assigned body part on that day, and NEVER fewer than 4 total exercises on any training day — a 3-exercise (or shorter) session is not acceptable, regardless of fitness level, session length, or training goal.
+- For any day that trains "quads", "hamstrings", "glutes", "chest", "back", or "shoulders", you MUST include at least one primary compound/foundational lift for that body part from the ALLOWED EXERCISES list before adding any isolation or accessory work for it — e.g. a squat-pattern lift for quads, a hip-hinge lift for hamstrings/glutes, a bench/press variation for chest, a row or pulldown/pull-up for back, an overhead press for shoulders. Do not substitute an isolation exercise for this foundational lift just because one also appears in the allowed list — isolation work should supplement it, not replace it.
+- This applies at every fitness level and training goal, including "strength" — "fewer total exercises" for strength/advanced training means fewer isolation add-ons, never dropping below the minimums above or skipping the body part's foundational lift.
+
 Respond ONLY with valid JSON — no markdown, no explanation, no code blocks. Structure:
 {
   "days": [

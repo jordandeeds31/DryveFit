@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -7,12 +7,14 @@ import {
   Switch,
   ScrollView,
   TouchableOpacity,
+  Platform,
 } from "react-native";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import Feather from "@expo/vector-icons/Feather";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import Button from "@/components/shared/Button/Button";
 import Input from "@/components/shared/TextInput/TextInput";
 import CityPicker from "@/components/shared/CityPicker/CityPicker";
@@ -25,6 +27,11 @@ import {
   useDeleteProfileImage,
 } from "@/hooks/useUsers";
 import { useAuthImageHeaders } from "@/hooks/useAuthImageHeaders";
+import {
+  isHealthKitAvailable,
+  isHealthKitAuthorized,
+  requestHealthKitAuthorization,
+} from "@/lib/health/healthkit";
 import { colors } from "@/constants/colors";
 import { spacing } from "@/constants/spacing";
 import { fontSizes, fontWeights } from "@/constants/typography";
@@ -47,6 +54,10 @@ const Profile = () => {
   const [city, setCity] = useState<string | null>(null);
   const [isLeaderboardVisible, setIsLeaderboardVisible] = useState(true);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [healthKitStatus, setHealthKitStatus] = useState<
+    "unavailable" | "not_connected" | "connected"
+  >("not_connected");
+  const [isConnectingHealthKit, setIsConnectingHealthKit] = useState(false);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -54,6 +65,35 @@ const Profile = () => {
     setCity(currentUser.city);
     setIsLeaderboardVisible(currentUser.isLeaderboardVisible);
   }, [currentUser]);
+
+  // Re-checks on every focus (not just mount) — the actual authorization
+  // decision happens in a native iOS sheet outside our control, so this is
+  // the only reliable way to pick up the true status if the user answered
+  // it after we'd already given up waiting (see the timeout in
+  // requestHealthKitAuthorization).
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== "ios") {
+        setHealthKitStatus("unavailable");
+        return;
+      }
+      let cancelled = false;
+      (async () => {
+        const available = await isHealthKitAvailable();
+        if (cancelled) return;
+        if (!available) {
+          setHealthKitStatus("unavailable");
+          return;
+        }
+        const authorized = await isHealthKitAuthorized();
+        if (cancelled) return;
+        setHealthKitStatus(authorized ? "connected" : "not_connected");
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, []),
+  );
 
   const usernameError =
     saveError && (saveError as { status?: number }).status === 409
@@ -104,6 +144,22 @@ const Profile = () => {
         },
       },
     );
+  };
+
+  const handleConnectHealthKit = async () => {
+    setIsConnectingHealthKit(true);
+    const granted = await requestHealthKitAuthorization();
+    setIsConnectingHealthKit(false);
+
+    if (!granted) {
+      Alert.alert(
+        "Couldn't connect",
+        "Apple Health didn't respond. If a permission prompt appeared, try answering it again, or check Settings > Health > Data Access & Devices > Dryve.",
+      );
+      return;
+    }
+    setHealthKitStatus("connected");
+    setToastMessage("Apple Health connected");
   };
 
   const handleSignOut = () => {
@@ -204,6 +260,35 @@ const Profile = () => {
             thumbColor="white"
           />
         </View>
+
+        {healthKitStatus !== "unavailable" && (
+          <View style={styles.switchRow}>
+            <View style={styles.switchTextGroup}>
+              <Text style={styles.switchLabel}>Connect Apple Health</Text>
+              <Text style={styles.switchSubtext}>
+                {healthKitStatus === "connected"
+                  ? "Dryve can read your heart rate and calories burned during Cinematic Mode workouts. Manage access in the Health app."
+                  : "Let Dryve read your heart rate and calories burned from Apple Health during Cinematic Mode workouts."}
+              </Text>
+            </View>
+            {healthKitStatus === "connected" ? (
+              <Feather
+                name="check-circle"
+                size={22}
+                color={colors.primaryBlue}
+              />
+            ) : (
+              <TouchableOpacity
+                onPress={handleConnectHealthKit}
+                disabled={isConnectingHealthKit}
+              >
+                <Text style={styles.avatarActionText}>
+                  {isConnectingHealthKit ? "Connecting..." : "Connect"}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
 
         <Button
           title={isSaving ? "SAVING..." : "SAVE"}

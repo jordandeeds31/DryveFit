@@ -84,19 +84,24 @@ model ProgramDay {
 }
 
 model ProgramExercise {
-  id                String        @id @default(uuid())
-  dayId             String
-  exerciseName      String
-  muscleGroup       String
-  sets              Int
-  reps              Int
-  restSeconds       Int
-  notes             String?
-  order             Int
-  isCompleted       Boolean       @default(false)
-  recommendedWeight Float?
-  day               ProgramDay    @relation(fields: [dayId], references: [id], onDelete: Cascade)
-  exerciseLogs      ExerciseLog[]
+  id                   String        @id @default(uuid())
+  dayId                String
+  exerciseName         String
+  muscleGroup          String
+  sets                 Int
+  reps                 Int
+  restSeconds          Int
+  notes                String?
+  order                Int
+  isCompleted          Boolean       @default(false)
+  recommendedWeight    Float?
+  // Snapshot of exerciseName/muscleGroup taken the first time this row is
+  // swapped, so it can be reverted back to what was originally prescribed
+  // even after multiple swaps. Null means this exercise has never been swapped.
+  originalExerciseName String?
+  originalMuscleGroup  String?
+  day                  ProgramDay    @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  exerciseLogs         ExerciseLog[]
 
   @@map("program_exercises")
 }

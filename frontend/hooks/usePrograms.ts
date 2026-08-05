@@ -8,6 +8,10 @@ import {
   logExercisePerformance,
   deleteExercisePerformance,
   deleteProgram,
+  swapProgramExercise,
+  addProgramExercise,
+  revertDaySwaps,
+  deleteProgramExercise,
 } from "@/lib/api/programs.api";
 
 export const usePrograms = () => {
@@ -91,6 +95,72 @@ export const useDeleteExercisePerformance = () => {
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
       queryClient.invalidateQueries({ queryKey: ["programDay"] });
       queryClient.invalidateQueries({ queryKey: ["workingOutCount"] });
+    },
+  });
+};
+
+export const useSwapProgramExercise = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      programExerciseId,
+      newExerciseId,
+    }: {
+      programExerciseId: string;
+      newExerciseId: string;
+    }) => swapProgramExercise(programExerciseId, newExerciseId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["programDay"] });
+    },
+  });
+};
+
+export const useAddProgramExercise = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      dayId,
+      payload,
+    }: {
+      dayId: string;
+      payload: {
+        exerciseId: string;
+        sets: number;
+        reps: number;
+        restSeconds: number;
+        notes?: string;
+      };
+    }) => addProgramExercise(dayId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["programDay"] });
+      queryClient.invalidateQueries({ queryKey: ["schedule"] });
+    },
+  });
+};
+
+export const useDeleteProgramExercise = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (programExerciseId: string) =>
+      deleteProgramExercise(programExerciseId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["programDay"] });
+      queryClient.invalidateQueries({ queryKey: ["schedule"] });
+    },
+  });
+};
+
+export const useRevertDaySwaps = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (dayId: string) => revertDaySwaps(dayId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["programDay"] });
+      queryClient.invalidateQueries({ queryKey: ["schedule"] });
     },
   });
 };

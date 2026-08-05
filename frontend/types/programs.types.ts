@@ -86,6 +86,7 @@ export interface ProgramExerciseLogSet {
   setNumber: number;
   weight: number | null;
   reps: number | null;
+  durationSecs: number | null;
 }
 
 export interface ProgramExerciseLog {
@@ -104,6 +105,8 @@ export interface ProgramExercise {
   order: number;
   isCompleted: boolean;
   recommendedWeight: number | null;
+  originalExerciseName: string | null;
+  originalMuscleGroup: string | null;
   imageUrl: string | null;
   equipment: string | null;
   exerciseLogs: ProgramExerciseLog[];

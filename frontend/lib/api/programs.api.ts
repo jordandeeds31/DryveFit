@@ -51,6 +51,48 @@ export const deleteExercisePerformance = async (programExerciseId: string) => {
   return data;
 };
 
+export const swapProgramExercise = async (
+  programExerciseId: string,
+  newExerciseId: string,
+) => {
+  const { data } = await apiClient.patch(
+    `/api/programs/exercises/${programExerciseId}/swap`,
+    { newExerciseId },
+  );
+  return data.result.exercise;
+};
+
+export const addProgramExercise = async (
+  dayId: string,
+  payload: {
+    exerciseId: string;
+    sets: number;
+    reps: number;
+    restSeconds: number;
+    notes?: string;
+  },
+) => {
+  const { data } = await apiClient.post(
+    `/api/programs/days/${dayId}/exercises`,
+    payload,
+  );
+  return data.result.exercise;
+};
+
+export const deleteProgramExercise = async (programExerciseId: string) => {
+  const { data } = await apiClient.delete(
+    `/api/programs/exercises/${programExerciseId}`,
+  );
+  return data;
+};
+
+export const revertDaySwaps = async (dayId: string) => {
+  const { data } = await apiClient.post(
+    `/api/programs/days/${dayId}/revert-swaps`,
+  );
+  return data;
+};
+
 export const deleteProgram = async (programId: string) => {
   const { data } = await apiClient.delete(`/api/programs/${programId}`);
   return data;

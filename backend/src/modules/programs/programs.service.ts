@@ -1075,6 +1075,163 @@ export const deleteExercisePerformance = async (
   });
 };
 
+export const deleteProgramExercise = async (
+  userId: string,
+  programExerciseId: string,
+) => {
+  const programExercise = await prisma.programExercise.findFirst({
+    where: {
+      id: programExerciseId,
+      day: { week: { program: { userId } } },
+    },
+  });
+
+  if (!programExercise) {
+    throw new AppError(404, "Exercise not found");
+  }
+
+  // Any ExerciseLog tied to this exact exercise has its programExerciseId
+  // set null (onDelete: SetNull, schema.prisma) rather than being deleted —
+  // it keeps its own exerciseName/muscleGroup snapshot, so history logged
+  // under it stays intact even though the prescribed slot is gone.
+  await prisma.programExercise.delete({ where: { id: programExerciseId } });
+};
+
+export const swapProgramExercise = async (
+  userId: string,
+  programExerciseId: string,
+  newExerciseId: string,
+) => {
+  const programExercise = await prisma.programExercise.findFirst({
+    where: {
+      id: programExerciseId,
+      day: { week: { program: { userId } } },
+    },
+  });
+
+  if (!programExercise) {
+    throw new AppError(404, "Exercise not found");
+  }
+
+  const newExercise = await prisma.exercise.findUnique({
+    where: { id: newExerciseId },
+  });
+
+  if (!newExercise) {
+    throw new AppError(404, "Exercise not found in catalog");
+  }
+
+  return prisma.programExercise.update({
+    where: { id: programExerciseId },
+    data: {
+      exerciseName: newExercise.name,
+      muscleGroup: newExercise.muscleGroup,
+      // Reset so getProgramDayByDate's existing recommendation backfill
+      // re-derives it from history under the new exercise name, rather
+      // than keeping a weight that was recommended for a different lift.
+      recommendedWeight: null,
+      isCompleted: false,
+      // Only snapshot on the *first* swap — a second swap must still be
+      // revertible back to what was originally prescribed, not to the
+      // exercise it was most recently swapped from.
+      ...(programExercise.originalExerciseName == null
+        ? {
+            originalExerciseName: programExercise.exerciseName,
+            originalMuscleGroup: programExercise.muscleGroup,
+          }
+        : {}),
+    },
+  });
+};
+
+export const revertDaySwaps = async (userId: string, dayId: string) => {
+  const day = await prisma.programDay.findFirst({
+    where: { id: dayId, week: { program: { userId } } },
+    include: { exercises: true },
+  });
+
+  if (!day) {
+    throw new AppError(404, "Day not found");
+  }
+
+  const swappedExercises = day.exercises.filter(
+    (exercise) => exercise.originalExerciseName != null,
+  );
+
+  if (swappedExercises.length === 0) {
+    throw new AppError(400, "No swapped exercises to revert on this day");
+  }
+
+  await prisma.$transaction(
+    swappedExercises.map((exercise) =>
+      prisma.programExercise.update({
+        where: { id: exercise.id },
+        data: {
+          exerciseName: exercise.originalExerciseName!,
+          muscleGroup: exercise.originalMuscleGroup!,
+          originalExerciseName: null,
+          originalMuscleGroup: null,
+          recommendedWeight: null,
+          isCompleted: false,
+        },
+      }),
+    ),
+  );
+};
+
+export const addProgramExercise = async (
+  userId: string,
+  dayId: string,
+  input: {
+    exerciseId: string;
+    sets: number;
+    reps: number;
+    restSeconds: number;
+    notes?: string;
+  },
+) => {
+  const day = await prisma.programDay.findFirst({
+    where: { id: dayId, week: { program: { userId } } },
+    include: { exercises: true },
+  });
+
+  if (!day) {
+    throw new AppError(404, "Day not found");
+  }
+
+  const exercise = await prisma.exercise.findUnique({
+    where: { id: input.exerciseId },
+  });
+
+  if (!exercise) {
+    throw new AppError(404, "Exercise not found in catalog");
+  }
+
+  if (day.isRestDay) {
+    await prisma.programDay.update({
+      where: { id: dayId },
+      data: { isRestDay: false },
+    });
+  }
+
+  const nextOrder =
+    Math.max(0, ...day.exercises.map((existing) => existing.order)) + 1;
+
+  return prisma.programExercise.create({
+    data: {
+      dayId,
+      exerciseName: exercise.name,
+      muscleGroup: exercise.muscleGroup,
+      sets: input.sets,
+      reps: input.reps,
+      restSeconds: input.restSeconds,
+      notes: input.notes ?? null,
+      order: nextOrder,
+      recommendedWeight: null,
+    },
+  });
+};
+
 const stripCodeFences = (text: string): string => {
   return text
     .trim()

@@ -37,6 +37,10 @@ const RootNavigator = () => {
                 name="cinematic-mode"
                 options={{ presentation: "fullScreenModal", headerShown: false }}
             />
+            <Stack.Screen
+                name="workout-recap"
+                options={{ presentation: "fullScreenModal", headerShown: false }}
+            />
         </Stack>
     );
 };

@@ -6,6 +6,8 @@ import {
   Image,
   ActivityIndicator,
   TouchableOpacity,
+  TextInput,
+  Alert,
 } from "react-native";
 import Feather from "@expo/vector-icons/Feather";
 import { router } from "expo-router";
@@ -14,10 +16,18 @@ import { WorkoutDetailProps } from "./WorkoutDetail.types";
 import type { RootState } from "@/store";
 import Button from "@/components/shared/Button/Button";
 import Modal from "@/components/shared/Modal/Modal";
+import DropdownExerciseSelect from "@/components/shared/DropdownExerciseSelect/DropdownExerciseSelect";
 import LogExerciseModal from "../LogExerciseModal/LogExerciseModal";
 import { SetEntry } from "../LogExerciseModal/LogExercise.types";
 import { ProgramExercise } from "@/types/programs.types";
+import { Exercise } from "@/types/exercise.types";
 import { useExercises, usePreviousSession } from "@/hooks/useExercises";
+import {
+  useSwapProgramExercise,
+  useAddProgramExercise,
+  useRevertDaySwaps,
+  useDeleteProgramExercise,
+} from "@/hooks/usePrograms";
 import { colors } from "@/constants/colors";
 import { formatCalendarDate } from "@/lib/utils/date.utils";
 import { useAuthImageHeaders } from "@/hooks/useAuthImageHeaders";
@@ -119,6 +129,23 @@ const WorkoutDetail = ({
   const [firstTimeNoticeExerciseId, setFirstTimeNoticeExerciseId] = useState<
     string | null
   >(null);
+  const [swapExerciseId, setSwapExerciseId] = useState<string | null>(null);
+  const [swapTargetExercise, setSwapTargetExercise] = useState<Exercise | null>(
+    null,
+  );
+  const [isAddExerciseModalVisible, setIsAddExerciseModalVisible] =
+    useState(false);
+  const [newExercise, setNewExercise] = useState<Exercise | null>(null);
+  const [newExerciseSets, setNewExerciseSets] = useState("3");
+  const [newExerciseReps, setNewExerciseReps] = useState("10");
+  const [newExerciseRestSeconds, setNewExerciseRestSeconds] = useState("60");
+
+  const { mutate: swapExercise, isPending: isSwappingExercise } =
+    useSwapProgramExercise();
+  const { mutate: addExercise, isPending: isAddingExercise } =
+    useAddProgramExercise();
+  const { mutate: revertSwaps, isPending: isReverting } = useRevertDaySwaps();
+  const { mutate: deleteExercise } = useDeleteProgramExercise();
 
   const { data: exerciseCatalog } = useExercises();
   const descriptionByName: Record<string, string | null> = {};
@@ -159,6 +186,79 @@ const WorkoutDetail = ({
     setSetsByExercise((prev) => ({ ...prev, [exerciseId]: sets }));
   };
 
+  const handleDeleteExercise = (exercise: ProgramExercise) => {
+    Alert.alert(
+      "Delete this exercise?",
+      `"${exercise.exerciseName}" will be removed from this workout.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            deleteExercise(exercise.id, {
+              onError: (error) => {
+                console.log("Delete exercise failed:", JSON.stringify(error, null, 2));
+                Alert.alert("Couldn't delete exercise", "Please try again.");
+              },
+            });
+          },
+        },
+      ],
+    );
+  };
+
+  const handleCloseSwapModal = () => {
+    setSwapExerciseId(null);
+    setSwapTargetExercise(null);
+  };
+
+  const handleConfirmSwapExercise = () => {
+    if (!swapTargetExercise || !swapExerciseId) return;
+
+    swapExercise(
+      { programExerciseId: swapExerciseId, newExerciseId: swapTargetExercise.id },
+      {
+        onSuccess: handleCloseSwapModal,
+        onError: (error) => {
+          console.log("Swap exercise failed:", JSON.stringify(error, null, 2));
+          Alert.alert("Couldn't swap exercise", "Please try again.");
+        },
+      },
+    );
+  };
+
+  const handleCloseAddExerciseModal = () => {
+    setIsAddExerciseModalVisible(false);
+    setNewExercise(null);
+    setNewExerciseSets("3");
+    setNewExerciseReps("10");
+    setNewExerciseRestSeconds("60");
+  };
+
+  const handleSubmitAddExercise = () => {
+    if (!newExercise || !dayDetail) return;
+
+    const sets = parseInt(newExerciseSets, 10);
+    const reps = parseInt(newExerciseReps, 10);
+    const restSeconds = parseInt(newExerciseRestSeconds, 10);
+    if (isNaN(sets) || isNaN(reps) || isNaN(restSeconds)) return;
+
+    addExercise(
+      {
+        dayId: dayDetail.id,
+        payload: { exerciseId: newExercise.id, sets, reps, restSeconds },
+      },
+      {
+        onSuccess: handleCloseAddExerciseModal,
+        onError: (error) => {
+          console.log("Add exercise failed:", JSON.stringify(error, null, 2));
+          Alert.alert("Couldn't add exercise", "Please try again.");
+        },
+      },
+    );
+  };
+
   const selectedExercise = dayDetail?.exercises.find(
     (exercise) => exercise.id === selectedExerciseId,
   );
@@ -177,6 +277,33 @@ const WorkoutDetail = ({
       dayDetail?.date,
       !!previousExerciseId,
     );
+
+  const hasSwappedExercise = !!dayDetail?.exercises.some(
+    (exercise) => exercise.originalExerciseName != null,
+  );
+
+  const handleRevertSwaps = () => {
+    if (!dayDetail) return;
+    Alert.alert(
+      "Revert all swaps?",
+      "Every exercise you've swapped today will go back to what was originally prescribed.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Revert",
+          style: "destructive",
+          onPress: () => {
+            revertSwaps(dayDetail.id, {
+              onError: (error) => {
+                console.log("Revert swaps failed:", JSON.stringify(error, null, 2));
+                Alert.alert("Couldn't revert swaps", "Please try again.");
+              },
+            });
+          },
+        },
+      ],
+    );
+  };
 
   const canStartCinematicMode =
     !!dayDetail &&
@@ -211,17 +338,31 @@ const WorkoutDetail = ({
     <View style={styles.container}>
       <View style={styles.focusRow}>
         <Text style={styles.focus}>{dayDetail?.focus}</Text>
-        {canStartCinematicMode && (
-          <TouchableOpacity
-            style={styles.startButton}
-            onPress={handleStartCinematicMode}
-          >
-            <Feather name="play" size={12} color="white" />
-            <Text style={styles.startButtonText}>
-              {isResumingCinematicMode ? "RESUME" : "START"}
-            </Text>
-          </TouchableOpacity>
-        )}
+        <View style={styles.focusActionsRow}>
+          {hasSwappedExercise && (
+            <TouchableOpacity
+              style={styles.revertButton}
+              onPress={handleRevertSwaps}
+              disabled={isReverting}
+            >
+              <Feather name="rotate-ccw" size={12} color={colors.textSecondary} />
+              <Text style={styles.revertButtonText}>
+                {isReverting ? "REVERTING..." : "REVERT ALL SWAPS"}
+              </Text>
+            </TouchableOpacity>
+          )}
+          {canStartCinematicMode && (
+            <TouchableOpacity
+              style={styles.startButton}
+              onPress={handleStartCinematicMode}
+            >
+              <Feather name="play" size={12} color="white" />
+              <Text style={styles.startButtonText}>
+                {isResumingCinematicMode ? "RESUME" : "START"}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
       {dayDetail?.exercises.map((exercise) => {
         const logButtonState = getLogButtonState(exercise);
@@ -231,33 +372,57 @@ const WorkoutDetail = ({
             <View style={styles.exerciseContent}>
               <View style={styles.exerciseNameRow}>
                 <Text style={styles.exerciseName}>{exercise.exerciseName}</Text>
-                {descriptionByName[exercise.exerciseName] && (
+                <View style={styles.exerciseIconsRow}>
+                  {descriptionByName[exercise.exerciseName] && (
+                    <TouchableOpacity
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      onPress={() =>
+                        setDescriptionExerciseName(exercise.exerciseName)
+                      }
+                    >
+                      <Feather
+                        name="info"
+                        size={16}
+                        color={colors.textSecondary}
+                      />
+                    </TouchableOpacity>
+                  )}
+                  {exercise.equipment !== "bodyweight" &&
+                    exercise.recommendedWeight == null && (
+                      <TouchableOpacity
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        onPress={() =>
+                          setFirstTimeNoticeExerciseId(exercise.id)
+                        }
+                      >
+                        <Feather
+                          name="alert-circle"
+                          size={16}
+                          color={colors.primaryBlue}
+                        />
+                      </TouchableOpacity>
+                    )}
                   <TouchableOpacity
-                    onPress={() =>
-                      setDescriptionExerciseName(exercise.exerciseName)
-                    }
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    onPress={() => setSwapExerciseId(exercise.id)}
                   >
                     <Feather
-                      name="info"
+                      name="repeat"
                       size={16}
                       color={colors.textSecondary}
                     />
                   </TouchableOpacity>
-                )}
-                {exercise.equipment !== "bodyweight" &&
-                  exercise.recommendedWeight == null && (
-                    <TouchableOpacity
-                      onPress={() =>
-                        setFirstTimeNoticeExerciseId(exercise.id)
-                      }
-                    >
-                      <Feather
-                        name="alert-circle"
-                        size={16}
-                        color={colors.primaryBlue}
-                      />
-                    </TouchableOpacity>
-                  )}
+                  <TouchableOpacity
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    onPress={() => handleDeleteExercise(exercise)}
+                  >
+                    <Feather
+                      name="trash-2"
+                      size={16}
+                      color={colors.dangerRed}
+                    />
+                  </TouchableOpacity>
+                </View>
               </View>
               <Text style={styles.exerciseMeta}>
                 {exercise.sets} sets x {exercise.reps} reps
@@ -308,6 +473,14 @@ const WorkoutDetail = ({
           </View>
         );
       })}
+      {dayDetail && (
+        <TouchableOpacity
+          style={styles.addExerciseButton}
+          onPress={() => setIsAddExerciseModalVisible(true)}
+        >
+          <Text style={styles.addExerciseText}>+ ADD EXERCISE</Text>
+        </TouchableOpacity>
+      )}
       {selectedExercise && (
         <LogExerciseModal
           visible={logModalVisible}
@@ -373,6 +546,76 @@ const WorkoutDetail = ({
             ? descriptionByName[descriptionExerciseName]
             : null}
         </Text>
+      </Modal>
+      <Modal visible={!!swapExerciseId} onClose={handleCloseSwapModal}>
+        <Text style={styles.descriptionModalTitle}>Swap Exercise</Text>
+        <DropdownExerciseSelect
+          selectedExercise={swapTargetExercise}
+          setSelectedExercise={setSwapTargetExercise}
+        />
+        <TouchableOpacity
+          style={[
+            styles.addExerciseSubmitButton,
+            (!swapTargetExercise || isSwappingExercise) &&
+              styles.addExerciseSubmitButtonDisabled,
+          ]}
+          disabled={!swapTargetExercise || isSwappingExercise}
+          onPress={handleConfirmSwapExercise}
+        >
+          <Text style={styles.addExerciseSubmitText}>
+            {isSwappingExercise ? "SWAPPING..." : "SWAP"}
+          </Text>
+        </TouchableOpacity>
+      </Modal>
+      <Modal
+        visible={isAddExerciseModalVisible}
+        onClose={handleCloseAddExerciseModal}
+      >
+        <Text style={styles.descriptionModalTitle}>Add Exercise</Text>
+        <DropdownExerciseSelect
+          selectedExercise={newExercise}
+          setSelectedExercise={setNewExercise}
+        />
+        <View style={styles.addExerciseFieldRow}>
+          <Text style={styles.addExerciseFieldLabel}>Sets</Text>
+          <TextInput
+            style={styles.addExerciseInput}
+            keyboardType="numeric"
+            value={newExerciseSets}
+            onChangeText={setNewExerciseSets}
+          />
+        </View>
+        <View style={styles.addExerciseFieldRow}>
+          <Text style={styles.addExerciseFieldLabel}>Reps</Text>
+          <TextInput
+            style={styles.addExerciseInput}
+            keyboardType="numeric"
+            value={newExerciseReps}
+            onChangeText={setNewExerciseReps}
+          />
+        </View>
+        <View style={styles.addExerciseFieldRow}>
+          <Text style={styles.addExerciseFieldLabel}>Rest (sec)</Text>
+          <TextInput
+            style={styles.addExerciseInput}
+            keyboardType="numeric"
+            value={newExerciseRestSeconds}
+            onChangeText={setNewExerciseRestSeconds}
+          />
+        </View>
+        <TouchableOpacity
+          style={[
+            styles.addExerciseSubmitButton,
+            (!newExercise || isAddingExercise) &&
+              styles.addExerciseSubmitButtonDisabled,
+          ]}
+          disabled={!newExercise || isAddingExercise}
+          onPress={handleSubmitAddExercise}
+        >
+          <Text style={styles.addExerciseSubmitText}>
+            {isAddingExercise ? "ADDING..." : "ADD"}
+          </Text>
+        </TouchableOpacity>
       </Modal>
     </View>
   );

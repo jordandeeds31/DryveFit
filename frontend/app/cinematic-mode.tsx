@@ -18,27 +18,29 @@ import { useAuthImageHeaders } from "@/hooks/useAuthImageHeaders";
 import { ProgramExercise } from "@/types/programs.types";
 import { spacing } from "@/constants/spacing";
 import { fontSizes, fontWeights } from "@/constants/typography";
+import { formatElapsed } from "@/lib/utils/duration.utils";
 import type { AppDispatch, RootState } from "@/store";
 import {
   startTimerIfNeeded,
   clearTimer,
   setSessionIndex,
   clearSession,
+  recordHeartRateSample,
+  setCaloriesBurned,
 } from "@/store/slices/cinematicTimerSlice";
+import {
+  isHealthKitAvailable,
+  isHealthKitAuthorized,
+  queryRecentHeartRateAndEnergy,
+} from "@/lib/health/healthkit";
+
+const HEALTH_POLL_INTERVAL_MS = 30_000;
 
 interface SetEntry {
   id: string;
   weight: string;
   reps: string;
 }
-
-const formatElapsed = (totalSeconds: number): string => {
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes.toString().padStart(2, "0")}:${seconds
-    .toString()
-    .padStart(2, "0")}`;
-};
 
 const buildDefaultSets = (exercise: ProgramExercise): SetEntry[] => {
   // Resuming a session: if this exercise was already saved (e.g. via a
@@ -92,7 +94,7 @@ const CinematicMode = () => {
   // timestamp in Redux, not this counter itself.
   const [, forceTick] = useState(0);
 
-  const exercises = dayDetail?.exercises ?? [];
+  const exercises: ProgramExercise[] = dayDetail?.exercises ?? [];
   const exercise = exercises[currentIndex];
   const isLastExercise = currentIndex === exercises.length - 1;
   const isBodyweight = exercise?.equipment === "bodyweight";
@@ -109,6 +111,64 @@ const CinematicMode = () => {
   const elapsedSeconds = startedAt
     ? Math.floor((Date.now() - startedAt) / 1000)
     : 0;
+
+  // Approximates when this whole session began (not just the current
+  // exercise) as the earliest per-exercise start time recorded so far —
+  // there's no separate session-level timestamp in Redux, and this is
+  // accurate enough for "since the workout started" HealthKit queries and
+  // the recap's total-duration figure.
+  const sessionStartedAt = useSelector((state: RootState) => {
+    const timestamps = exercises
+      .map((ex) => state.cinematicTimer.startedAtByExerciseId[ex.id])
+      .filter((t): t is number => t != null);
+    return timestamps.length > 0 ? Math.min(...timestamps) : Date.now();
+  });
+
+  const healthMetrics = useSelector(
+    (state: RootState) =>
+      state.cinematicTimer.healthMetricsBySession[sessionKey],
+  );
+
+  const [isHealthKitConnected, setIsHealthKitConnected] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const available = await isHealthKitAvailable();
+      if (!available) return;
+      const authorized = await isHealthKitAuthorized();
+      if (!cancelled) setIsHealthKitConnected(authorized);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Polls HealthKit roughly every 30s while a session is active — there's
+  // no native Watch app here, so a fresh Watch → Health sync (and thus a
+  // new sample) can lag by anywhere from a few seconds to about a minute.
+  // This is "most recent reading," not real-time streaming.
+  useEffect(() => {
+    if (!isHealthKitConnected) return;
+
+    let cancelled = false;
+    const poll = async () => {
+      const { latestHeartRate, caloriesBurned } =
+        await queryRecentHeartRateAndEnergy(new Date(sessionStartedAt));
+      if (cancelled) return;
+      if (latestHeartRate != null) {
+        dispatch(recordHeartRateSample({ sessionKey, bpm: latestHeartRate }));
+      }
+      dispatch(setCaloriesBurned({ sessionKey, calories: caloriesBurned }));
+    };
+
+    poll();
+    const interval = setInterval(poll, HEALTH_POLL_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [isHealthKitConnected, sessionKey, sessionStartedAt, dispatch]);
 
   useEffect(() => {
     if (exercise) dispatch(startTimerIfNeeded(exercise.id));
@@ -239,6 +299,41 @@ const CinematicMode = () => {
     setSets((prev) => prev.filter((set) => set.id !== setId));
   };
 
+  const buildRecapParams = () => {
+    const heartRateSamples = healthMetrics?.heartRateSamples ?? [];
+    const avgHeartRate =
+      heartRateSamples.length > 0
+        ? Math.round(
+            heartRateSamples.reduce((sum, bpm) => sum + bpm, 0) /
+              heartRateSamples.length,
+          )
+        : null;
+    const maxHeartRate =
+      heartRateSamples.length > 0 ? Math.max(...heartRateSamples) : null;
+
+    // For every exercise except the one finishing right now, pull the
+    // duration already saved by its own DONE action. For the one finishing
+    // now, use the elapsed time computed here directly — the mutation that
+    // persists it hasn't round-tripped through the programDay query yet.
+    const perExercise = exercises.map((ex, index) => ({
+      exerciseName: ex.exerciseName,
+      durationSecs:
+        index === currentIndex
+          ? elapsedSeconds
+          : (ex.exerciseLogs?.[0]?.sets?.[0]?.durationSecs ?? null),
+    }));
+
+    return {
+      totalDurationSecs: String(
+        Math.floor((Date.now() - sessionStartedAt) / 1000),
+      ),
+      caloriesBurned: String(Math.round(healthMetrics?.caloriesBurned ?? 0)),
+      avgHeartRate: avgHeartRate != null ? String(avgHeartRate) : "",
+      maxHeartRate: maxHeartRate != null ? String(maxHeartRate) : "",
+      perExercise: JSON.stringify(perExercise),
+    };
+  };
+
   const handleDone = () => {
     if (!exercise) return;
 
@@ -247,8 +342,9 @@ const CinematicMode = () => {
     const advance = () => {
       dispatch(clearTimer(exercise.id));
       if (isLastExercise) {
+        const recapParams = buildRecapParams();
         dispatch(clearSession(sessionKey));
-        router.back();
+        router.replace({ pathname: "/workout-recap", params: recapParams });
       } else {
         setCurrentIndex((prev) => prev + 1);
       }

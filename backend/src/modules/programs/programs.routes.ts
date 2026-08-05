@@ -10,6 +10,10 @@ import {
   getProgramDayHandler,
   logExercisePerformanceHandler,
   deleteExercisePerformanceHandler,
+  swapProgramExerciseHandler,
+  addProgramExerciseHandler,
+  revertDaySwapsHandler,
+  deleteProgramExerciseHandler,
 } from "./programs.controller";
 
 const router = Router();
@@ -24,6 +28,10 @@ router.get("/:id", getProgramHandler);
 
 router.post("/exercises/:exerciseId/log", logExercisePerformanceHandler);
 router.delete("/exercises/:exerciseId/log", deleteExercisePerformanceHandler);
+router.patch("/exercises/:exerciseId/swap", swapProgramExerciseHandler);
+router.delete("/exercises/:exerciseId", deleteProgramExerciseHandler);
+router.post("/days/:dayId/exercises", addProgramExerciseHandler);
+router.post("/days/:dayId/revert-swaps", revertDaySwapsHandler);
 router.patch("/:id/deactivate", deactivateProgramHandler);
 router.delete("/:id", deleteProgramHandler);
 

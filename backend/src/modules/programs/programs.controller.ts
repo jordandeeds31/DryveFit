@@ -13,6 +13,10 @@ import {
   getProgramDayByDate,
   logExercisePerformance,
   deleteExercisePerformance,
+  swapProgramExercise,
+  addProgramExercise,
+  revertDaySwaps,
+  deleteProgramExercise,
 } from "./programs.service";
 import {
   TrainingSplit,
@@ -129,6 +133,71 @@ export const deleteExercisePerformanceHandler = catchAsync(
     const programExerciseId = getParam(req.params.exerciseId);
     await deleteExercisePerformance(req.userId!, programExerciseId);
     sendSuccess(res, 200, "EXERCISE_LOG_DELETED", {});
+  },
+);
+
+export const deleteProgramExerciseHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const programExerciseId = getParam(req.params.exerciseId);
+    await deleteProgramExercise(req.userId!, programExerciseId);
+    sendSuccess(res, 200, "EXERCISE_DELETED", {});
+  },
+);
+
+export const swapProgramExerciseHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const programExerciseId = getParam(req.params.exerciseId);
+    const { newExerciseId } = req.body;
+
+    if (!newExerciseId || typeof newExerciseId !== "string") {
+      throw new AppError(400, "newExerciseId is required");
+    }
+
+    const exercise = await swapProgramExercise(
+      req.userId!,
+      programExerciseId,
+      newExerciseId,
+    );
+
+    sendSuccess(res, 200, "EXERCISE_SWAPPED", { exercise });
+  },
+);
+
+export const addProgramExerciseHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const dayId = getParam(req.params.dayId);
+    const { exerciseId, sets, reps, restSeconds, notes } = req.body;
+
+    if (!exerciseId || typeof exerciseId !== "string") {
+      throw new AppError(400, "exerciseId is required");
+    }
+    if (typeof sets !== "number" || typeof reps !== "number") {
+      throw new AppError(400, "sets and reps must be numbers");
+    }
+    if (typeof restSeconds !== "number") {
+      throw new AppError(400, "restSeconds must be a number");
+    }
+    if (notes !== undefined && typeof notes !== "string") {
+      throw new AppError(400, "notes must be a string");
+    }
+
+    const exercise = await addProgramExercise(req.userId!, dayId, {
+      exerciseId,
+      sets,
+      reps,
+      restSeconds,
+      notes,
+    });
+
+    sendSuccess(res, 201, "EXERCISE_ADDED", { exercise });
+  },
+);
+
+export const revertDaySwapsHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const dayId = getParam(req.params.dayId);
+    await revertDaySwaps(req.userId!, dayId);
+    sendSuccess(res, 200, "DAY_SWAPS_REVERTED", {});
   },
 );
 
