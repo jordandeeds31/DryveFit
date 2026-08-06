@@ -227,20 +227,32 @@ export const assignSplitToDays = (
 // A single true/false "did they meet every set" check treats a session
 // that fell one rep short on the last, most fatigued set identically to a
 // session that collapsed across multiple sets — those call for opposite
-// coaching responses. This four-tier classification distinguishes them:
-//   full_success      — every set met or exceeded prescription.
+// coaching responses. This five-tier classification distinguishes them:
+//   full_success      — every prescribed set was logged, all at or above
+//                        the prescribed weight and reps.
+//   partial_success    — FEWER sets were logged than prescribed, but every
+//                        set that WAS logged met or exceeded the prescribed
+//                        weight and reps. Logging fewer sets is ambiguous
+//                        on its own (time, fatigue, or just doing fewer
+//                        heavier sets) — it is not, by itself, evidence of
+//                        overreach the way an attempted-and-failed set is.
+//                        Progresses, just more conservatively than a full
+//                        success, since it's one set count short of full
+//                        proof.
 //   near_miss         — only the final set fell short, by a small margin —
 //                        classic end-of-session fatigue, not overreach.
 //   moderate_miss     — a single non-final set missed by a small margin
 //                        (final set otherwise fine), or the final set
 //                        missed by a larger margin without collapsing
 //                        (still completed a meaningful number of reps).
-//   significant_miss  — a set was skipped outright, weight itself was
-//                        reduced, more than one set missed meaningfully,
-//                        or a set collapsed to well under half its target
-//                        — genuine evidence the load is too heavy.
+//   significant_miss  — a set was attempted and skipped outright, weight
+//                        itself was reduced, more than one set missed
+//                        meaningfully, or a set collapsed to well under
+//                        half its target — genuine evidence the load is
+//                        too heavy.
 export type SessionClassification =
   | "full_success"
+  | "partial_success"
   | "near_miss"
   | "moderate_miss"
   | "significant_miss";
@@ -357,6 +369,8 @@ export const buildWeekPrompt = (input: WeekPromptInput): string => {
             const targetStatus =
               perf.weightClassification === "full_success"
                 ? "FULL SUCCESS — they completed every prescribed set at or above the prescribed weight and reps. Apply an upward progression increase (see IMPORTANT RULES below for how much)."
+                : perf.weightClassification === "partial_success"
+                  ? `PARTIAL SUCCESS — they logged FEWER sets than prescribed, but every set they DID log met or exceeded the prescribed weight and reps (best set: ${perf.weight} lbs x ${perf.reps} reps). This is real evidence they can handle more, just from fewer sets than a full session would prove — apply a smaller upward progression than a full success would get (roughly half the usual increase), not a hold and not a decrease.`
                 : perf.weightClassification === "near_miss"
                   ? `NEAR MISS — they attempted every set at the full prescribed weight and fell only slightly short on reps, usually just on the last, most fatigued set. This is normal session-to-session variance, not evidence the weight is too heavy. Recommend ${heldWeight} lbs — the SAME weight as last time, giving them another attempt. Do NOT increase, and do NOT decrease.`
                   : perf.weightClassification === "moderate_miss"

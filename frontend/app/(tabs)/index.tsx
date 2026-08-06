@@ -41,6 +41,7 @@ const HomeScreen = () => {
   const weekDates = getWeekDates(referenceDate);
 
   const activeProgram = programs?.find((program) => program.isActive) ?? null;
+  const hasPrograms = !!programs && programs.length > 0;
 
   // Nothing exists before the user's earliest program, so there's no reason
   // to let them page back past the week it starts in.
@@ -56,8 +57,9 @@ const HomeScreen = () => {
     : null;
 
   const canGoToPreviousWeek =
-    !earliestWeekStart ||
-    startOfDay(weekDates[0]).getTime() > earliestWeekStart.getTime();
+    hasPrograms &&
+    (!earliestWeekStart ||
+      startOfDay(weekDates[0]).getTime() > earliestWeekStart.getTime());
 
   // Mirror of the above: nothing exists after the user's latest program
   // ends, so there's no reason to let them page forward past its week.
@@ -73,8 +75,9 @@ const HomeScreen = () => {
     : null;
 
   const canGoToNextWeek =
-    !latestWeekStart ||
-    startOfDay(weekDates[0]).getTime() < latestWeekStart.getTime();
+    hasPrograms &&
+    (!latestWeekStart ||
+      startOfDay(weekDates[0]).getTime() < latestWeekStart.getTime());
 
   const isCurrentProgramWeek =
     !!activeProgram &&
@@ -109,7 +112,6 @@ const HomeScreen = () => {
   const { data: workoutLogs, isLoading: isWorkoutLogsLoading } =
     useWorkoutLogsForDate(selectedDateKey);
 
-  const hasPrograms = !!programs && programs.length > 0;
   const hasLoggedStandaloneWorkout = (workoutLogs ?? []).length > 0;
 
   // Combined flag — true while EITHER query is refetching for the newly

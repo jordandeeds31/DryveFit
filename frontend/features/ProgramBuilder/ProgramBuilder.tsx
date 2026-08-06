@@ -106,6 +106,11 @@ const ProgramBuilder = ({ onCreated, onGeneratingChange }: ProgramBuilderProps) 
 
   return (
     <View style={styles.container}>
+      <Text style={styles.title}>Build Your Program</Text>
+      <Text style={styles.subtitle}>
+        Answer a few questions and we'll generate a personalized training
+        program for you.
+      </Text>
       <View style={styles.programFormContainer}>
         <View style={styles.section}>
           <StartDate startDate={startDate} setStartDate={setStartDate} />

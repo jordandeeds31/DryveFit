@@ -222,6 +222,33 @@ const calculateWorkingWeightForPrescription = (
   );
 };
 
+// Progression for a partial_success session: fewer sets were logged than
+// prescribed, but every logged set met or exceeded the prescription — real
+// evidence of capability, just from less volume than a full session would
+// prove. Splits the difference between estimateRecommendedWeight's
+// confident curve (85%→70%) and calculateWorkingWeightForPrescription's
+// conservative one (80%→65%): progress, but by less than a full success
+// would earn.
+const estimatePartialSuccessWeight = (
+  estimated1RM: number,
+  prescribedReps: number,
+  equipment: string | null | undefined,
+): number => {
+  const LOW_REPS = 6;
+  const HIGH_REPS = 12;
+  const LOW_REPS_PERCENT = 0.825;
+  const HIGH_REPS_PERCENT = 0.675;
+
+  const clampedReps = Math.min(Math.max(prescribedReps, LOW_REPS), HIGH_REPS);
+  const t = (clampedReps - LOW_REPS) / (HIGH_REPS - LOW_REPS);
+  const percent = LOW_REPS_PERCENT - t * (LOW_REPS_PERCENT - HIGH_REPS_PERCENT);
+
+  return roundToNearestIncrement(
+    estimated1RM * percent,
+    getWeightIncrement(equipment),
+  );
+};
+
 interface SetOutcome {
   reps: number;
   weight: number | null;
@@ -237,9 +264,23 @@ const classifyWeightedSession = (
   prescribedWeight: number | null,
   achievedSets: SetOutcome[],
 ): SessionClassification => {
-  // Didn't even attempt every prescribed set — a stronger signal of
-  // overreach than falling short on reps within a set they did attempt.
-  if (achievedSets.length < prescribedSets) return "significant_miss";
+  // Fewer sets logged than prescribed is ambiguous on its own — it could
+  // mean fatigue or a cut-short workout, but could just as easily mean
+  // fewer, heavier-than-required sets. That's very different from a set
+  // that was actually attempted and fell short, so it must not be lumped
+  // in with genuine failure below. If every logged set still met or
+  // exceeded both the prescribed weight and reps, that's real (if
+  // incomplete) evidence of capability — partial_success. Only treat the
+  // missing sets as a true failure signal if what WAS logged also fell
+  // short.
+  if (achievedSets.length < prescribedSets) {
+    const everyLoggedSetMetTarget = achievedSets.every(
+      (set) =>
+        set.reps >= prescribedReps &&
+        (prescribedWeight == null || (set.weight ?? 0) >= prescribedWeight),
+    );
+    return everyLoggedSetMetTarget ? "partial_success" : "significant_miss";
+  }
 
   if (prescribedWeight != null) {
     const weightShortfalls = achievedSets.map((set) =>
@@ -457,7 +498,7 @@ const getRecentPerformanceByExerciseName = async (
     // of overreach. Full regression is reserved for a genuinely failed
     // session: skipped sets, reduced weight, or a larger rep shortfall.
     // (This coarser check still backs the bodyweight path below — the
-    // weighted path uses the full four-tier weightClassification instead.)
+    // weighted path uses the full five-tier weightClassification instead.)
     const NEAR_MISS_MAX_TOTAL_SHORTFALL = 2;
     const NEAR_MISS_MAX_SINGLE_SET_SHORTFALL = 2;
     const attemptedEverySet = prescription
@@ -888,6 +929,13 @@ export const getProgramDayByDate = async (
       switch (performance.weightClassification) {
         case "full_success":
           recommendedWeight = estimateRecommendedWeight(
+            performance.estimated1RM,
+            exercise.reps,
+            equipment,
+          );
+          break;
+        case "partial_success":
+          recommendedWeight = estimatePartialSuccessWeight(
             performance.estimated1RM,
             exercise.reps,
             equipment,
