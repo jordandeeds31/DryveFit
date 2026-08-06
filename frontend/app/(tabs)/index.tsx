@@ -5,6 +5,8 @@ import {
   StyleSheet,
   ActivityIndicator,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import ProgramBuilder from "@/features/ProgramBuilder/ProgramBuilder";
@@ -148,6 +150,7 @@ const HomeScreen = () => {
   }
 
   return (
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
     <SafeAreaView style={styles.container} edges={["bottom", "left", "right"]}>
       <ScrollView
         style={styles.scrollView}
@@ -226,6 +229,7 @@ const HomeScreen = () => {
         )}
       </ScrollView>
     </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 };
 

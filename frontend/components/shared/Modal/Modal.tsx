@@ -5,6 +5,8 @@ import {
   StyleSheet,
   TouchableOpacity,
   TouchableWithoutFeedback,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import Feather from "@expo/vector-icons/Feather";
 import { colors } from "@/constants/colors";
@@ -25,7 +27,10 @@ const Modal = ({ visible, onClose, children, closable = true }: ModalProps) => {
       animationType="fade"
       onRequestClose={handleClose}
     >
-      <View style={styles.overlay}>
+      <KeyboardAvoidingView
+        style={styles.overlay}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
         {/* Absolutely-positioned sibling behind the card, not a wrapper
             around it — a wrapper would sit as a touch-responder ancestor
             of the ScrollView below and swallow scroll gestures before they
@@ -54,7 +59,7 @@ const Modal = ({ visible, onClose, children, closable = true }: ModalProps) => {
             {children}
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </RNModal>
   );
 };

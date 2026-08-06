@@ -7,6 +7,8 @@ import {
   TextInput,
   ScrollView,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -387,6 +389,7 @@ const CinematicMode = () => {
   }
 
   return (
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
     <SafeAreaView style={styles.container}>
       <View style={styles.topRow}>
         <TouchableOpacity onPress={handleStop}>
@@ -481,6 +484,7 @@ const CinematicMode = () => {
         </Text>
       </TouchableOpacity>
     </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 };
 

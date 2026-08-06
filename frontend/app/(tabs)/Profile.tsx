@@ -8,6 +8,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Platform,
+  KeyboardAvoidingView,
 } from "react-native";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
@@ -177,12 +178,13 @@ const Profile = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={["bottom", "left", "right"]}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-      >
-        <Text style={styles.title}>Profile</Text>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <SafeAreaView style={styles.container} edges={["bottom", "left", "right"]}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Text style={styles.title}>Profile</Text>
 
         <View style={styles.avatarSection}>
           {currentUser?.profileImageUrl ? (
@@ -305,13 +307,14 @@ const Profile = () => {
             disabled={isLoading}
           />
         </View>
-      </ScrollView>
-      <Toast
-        visible={!!toastMessage}
-        message={toastMessage ?? ""}
-        onHide={() => setToastMessage(null)}
-      />
-    </SafeAreaView>
+        </ScrollView>
+        <Toast
+          visible={!!toastMessage}
+          message={toastMessage ?? ""}
+          onHide={() => setToastMessage(null)}
+        />
+      </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 };
 

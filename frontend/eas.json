@@ -9,12 +9,18 @@
       "distribution": "internal"
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://fitness-vioh.onrender.com"
+      }
     },
     "production": {
       "autoIncrement": true,
       "ios": {
         "image": "latest"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://fitness-vioh.onrender.com"
       }
     }
   },
