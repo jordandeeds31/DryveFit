@@ -10,6 +10,7 @@ import leaderboardRoutes from "./modules/leaderboard/leaderboard.routes";
 import citiesRoutes from "./modules/cities/cities.routes";
 import activityRoutes from "./modules/activity/activity.routes";
 import PRIVACY_POLICY_HTML from "./privacyPolicy";
+import SUPPORT_PAGE_HTML from "./supportPage";
 
 const app = express();
 
@@ -18,6 +19,10 @@ app.use(express.json());
 
 app.get("/privacy", (_req, res) => {
   res.type("html").send(PRIVACY_POLICY_HTML);
+});
+
+app.get("/support", (_req, res) => {
+  res.type("html").send(SUPPORT_PAGE_HTML);
 });
 
 app.use("/api/auth", authRoutes);
