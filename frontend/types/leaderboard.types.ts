@@ -9,6 +9,7 @@ export interface LeaderboardEntry {
 export interface Leaderboard {
   scope: "city" | "global";
   city: string | null;
+  gender: "male" | "female";
   exerciseName: string;
   entries: LeaderboardEntry[];
 }

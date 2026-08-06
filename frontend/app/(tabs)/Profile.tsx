@@ -27,6 +27,7 @@ import {
   useUploadProfileImage,
   useDeleteProfileImage,
 } from "@/hooks/useUsers";
+import { Gender } from "@/types/user.types";
 import { useAuthImageHeaders } from "@/hooks/useAuthImageHeaders";
 import {
   isHealthKitAvailable,
@@ -53,6 +54,7 @@ const Profile = () => {
 
   const [username, setUsername] = useState("");
   const [city, setCity] = useState<string | null>(null);
+  const [gender, setGender] = useState<Gender | null>(null);
   const [isLeaderboardVisible, setIsLeaderboardVisible] = useState(true);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [healthKitStatus, setHealthKitStatus] = useState<
@@ -64,6 +66,7 @@ const Profile = () => {
     if (!currentUser) return;
     setUsername(currentUser.username ?? "");
     setCity(currentUser.city);
+    setGender(currentUser.gender);
     setIsLeaderboardVisible(currentUser.isLeaderboardVisible);
   }, [currentUser]);
 
@@ -137,6 +140,7 @@ const Profile = () => {
       {
         username: trimmedUsername.length > 0 ? trimmedUsername : undefined,
         city: city ?? undefined,
+        gender: gender ?? undefined,
         isLeaderboardVisible,
       },
       {
@@ -245,6 +249,47 @@ const Profile = () => {
         <View style={styles.fieldSpacer}>
           <Text style={styles.fieldLabel}>City</Text>
           <CityPicker selectedCity={city} setSelectedCity={setCity} />
+        </View>
+
+        <View style={styles.fieldSpacer}>
+          <Text style={styles.fieldLabel}>Gender</Text>
+          <Text style={styles.fieldHint}>
+            Used to show you on the Men's or Women's leaderboard.
+          </Text>
+          <View style={styles.genderRow}>
+            <TouchableOpacity
+              style={[
+                styles.genderOption,
+                gender === "male" && styles.genderOptionActive,
+              ]}
+              onPress={() => setGender("male")}
+            >
+              <Text
+                style={[
+                  styles.genderOptionText,
+                  gender === "male" && styles.genderOptionTextActive,
+                ]}
+              >
+                Male
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.genderOption,
+                gender === "female" && styles.genderOptionActive,
+              ]}
+              onPress={() => setGender("female")}
+            >
+              <Text
+                style={[
+                  styles.genderOptionText,
+                  gender === "female" && styles.genderOptionTextActive,
+                ]}
+              >
+                Female
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.switchRow}>
@@ -389,6 +434,34 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.semibold,
     color: colors.textSecondary,
+  },
+  fieldHint: {
+    fontSize: fontSizes.xs,
+    color: colors.textSecondary,
+  },
+  genderRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  genderOption: {
+    flex: 1,
+    paddingVertical: spacing.sm,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: colors.borderGray,
+    borderRadius: 8,
+  },
+  genderOptionActive: {
+    backgroundColor: colors.surfaceBlueLight,
+    borderColor: colors.borderBlueLight,
+  },
+  genderOptionText: {
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.semibold,
+    color: colors.textSecondary,
+  },
+  genderOptionTextActive: {
+    color: colors.primaryBlue,
   },
   switchRow: {
     flexDirection: "row",

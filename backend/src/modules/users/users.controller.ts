@@ -20,10 +20,11 @@ export const getMeHandler = catchAsync(
 
 export const updateMeHandler = catchAsync(
   async (req: AuthRequest, res: Response) => {
-    const { username, city, isLeaderboardVisible } = req.body;
+    const { username, city, gender, isLeaderboardVisible } = req.body;
     const user = await updateUserProfile(req.userId!, {
       username,
       city,
+      gender,
       isLeaderboardVisible,
     });
     sendSuccess(res, 200, "USER_PROFILE_UPDATED", { user });

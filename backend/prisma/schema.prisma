@@ -13,6 +13,7 @@ model User {
   password             String
   username             String?      @unique
   city                 String?
+  gender               String?
   isLeaderboardVisible Boolean      @default(true)
   profileImage         Bytes?
   profileImageMimeType String?

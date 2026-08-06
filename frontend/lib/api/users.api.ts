@@ -8,7 +8,7 @@ export const getCurrentUser = async (): Promise<UserProfile> => {
 
 export const updateProfile = async (
   input: Partial<
-    Pick<UserProfile, "username" | "city" | "isLeaderboardVisible">
+    Pick<UserProfile, "username" | "city" | "gender" | "isLeaderboardVisible">
   >,
 ): Promise<UserProfile> => {
   const { data } = await apiClient.patch("/api/users/me", input);

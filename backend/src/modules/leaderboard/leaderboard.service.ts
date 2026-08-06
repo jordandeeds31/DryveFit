@@ -3,6 +3,7 @@ import { Prisma } from "../../generated/prisma/client";
 import AppError from "../../utils/AppError";
 
 type Scope = "city" | "global";
+type Gender = "male" | "female";
 
 interface LeaderboardRow {
   id: string;
@@ -15,6 +16,7 @@ export const getLeaderboard = async (
   userId: string,
   exerciseName: string,
   scope: Scope,
+  gender: Gender,
 ) => {
   let city: string | null = null;
 
@@ -35,6 +37,9 @@ export const getLeaderboard = async (
   }
 
   const cityFilter = city ? Prisma.sql`AND u.city = ${city}` : Prisma.sql``;
+  // Rankings are always split by gender — strength benchmarks differ enough
+  // between men and women that mixing them wouldn't produce a fair ranking.
+  const genderFilter = Prisma.sql`AND u.gender = ${gender}`;
 
   // Same Epley estimate as getExercise1RMHistory
   // (Math.round(weight * (1 + reps / 30))), but takes each user's single
@@ -54,6 +59,7 @@ export const getLeaderboard = async (
       AND u."isLeaderboardVisible" = true
       AND u.username IS NOT NULL
       ${cityFilter}
+      ${genderFilter}
     GROUP BY u.id, u.username, u."profileImageMimeType"
     ORDER BY "estimated1RM" DESC
     LIMIT 200
@@ -62,6 +68,7 @@ export const getLeaderboard = async (
   return {
     scope,
     city,
+    gender,
     exerciseName,
     entries: rows.map((row, index) => ({
       rank: index + 1,

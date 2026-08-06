@@ -4,10 +4,11 @@ import { getLeaderboard } from "@/lib/api/leaderboard.api";
 export const useLeaderboard = (
   exerciseName: string | null,
   scope: "city" | "global",
+  gender: "male" | "female",
 ) => {
   return useQuery({
-    queryKey: ["leaderboard", exerciseName, scope],
-    queryFn: () => getLeaderboard(exerciseName!, scope),
+    queryKey: ["leaderboard", exerciseName, scope, gender],
+    queryFn: () => getLeaderboard(exerciseName!, scope, gender),
     enabled: !!exerciseName,
     // Rankings change any time someone (else) logs or deletes a set —
     // the global 5-min staleTime is too stale for this screen. Always

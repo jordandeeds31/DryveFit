@@ -5,11 +5,16 @@ import { isValidCity } from "../../constants/cities";
 
 const USERNAME_REGEX = /^[a-zA-Z0-9_]{3,20}$/;
 
+// Kept deliberately narrow to exactly what the leaderboard's Men/Women
+// split needs — not a general identity field elsewhere in the app.
+const VALID_GENDERS = ["male", "female"] as const;
+
 const PROFILE_SELECT = {
   id: true,
   email: true,
   username: true,
   city: true,
+  gender: true,
   isLeaderboardVisible: true,
   profileImageMimeType: true,
   createdAt: true,
@@ -20,6 +25,7 @@ type RawProfile = {
   email: string;
   username: string | null;
   city: string | null;
+  gender: string | null;
   isLeaderboardVisible: boolean;
   profileImageMimeType: string | null;
   createdAt: Date;
@@ -49,12 +55,13 @@ export const getUserProfile = async (userId: string) => {
 interface UpdateProfileInput {
   username?: string;
   city?: string;
+  gender?: string;
   isLeaderboardVisible?: boolean;
 }
 
 export const updateUserProfile = async (
   userId: string,
-  { username, city, isLeaderboardVisible }: UpdateProfileInput,
+  { username, city, gender, isLeaderboardVisible }: UpdateProfileInput,
 ) => {
   if (username !== undefined && !USERNAME_REGEX.test(username)) {
     throw new AppError(
@@ -67,10 +74,17 @@ export const updateUserProfile = async (
     throw new AppError(400, "Invalid city");
   }
 
+  if (
+    gender !== undefined &&
+    !VALID_GENDERS.includes(gender as (typeof VALID_GENDERS)[number])
+  ) {
+    throw new AppError(400, "Invalid gender");
+  }
+
   try {
     const user = await prisma.user.update({
       where: { id: userId },
-      data: { username, city, isLeaderboardVisible },
+      data: { username, city, gender, isLeaderboardVisible },
       select: PROFILE_SELECT,
     });
     return toProfileResponse(user);

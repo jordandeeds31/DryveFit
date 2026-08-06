@@ -22,6 +22,7 @@ import { useLeaderboard } from "@/hooks/useLeaderboard";
 import { useAuthImageHeaders } from "@/hooks/useAuthImageHeaders";
 
 type Scope = "city" | "global";
+type Gender = "male" | "female";
 
 const PAGE_SIZE = 20;
 
@@ -30,6 +31,10 @@ const LeaderboardScreen = () => {
     null,
   );
   const [scope, setScope] = useState<Scope>("global");
+  // Strength benchmarks differ enough between men and women that rankings
+  // are always split by gender — defaults to the viewer's own gender once
+  // their profile loads, rather than starting on an arbitrary choice.
+  const [gender, setGender] = useState<Gender>("male");
   const [page, setPage] = useState(0);
 
   const { data: currentUser } = useCurrentUser();
@@ -37,14 +42,19 @@ const LeaderboardScreen = () => {
   const { data: leaderboard, isLoading, error } = useLeaderboard(
     selectedExercise?.name ?? null,
     scope,
+    gender,
   );
 
-  // A new exercise/scope means a whole new results set — always start
-  // back at the top rather than stranding the user on a page that may no
-  // longer exist.
+  useEffect(() => {
+    if (currentUser?.gender) setGender(currentUser.gender);
+  }, [currentUser?.gender]);
+
+  // A new exercise/scope/gender means a whole new results set — always
+  // start back at the top rather than stranding the user on a page that
+  // may no longer exist.
   useEffect(() => {
     setPage(0);
-  }, [selectedExercise?.name, scope]);
+  }, [selectedExercise?.name, scope, gender]);
 
   const totalPages = leaderboard
     ? Math.max(1, Math.ceil(leaderboard.entries.length / PAGE_SIZE))
@@ -55,6 +65,7 @@ const LeaderboardScreen = () => {
 
   const hasCity = !!currentUser?.city;
   const hasUsername = !!currentUser?.username;
+  const hasGender = !!currentUser?.gender;
 
   const scopeLabel = !selectedExercise
     ? null
@@ -129,6 +140,53 @@ const LeaderboardScreen = () => {
           <Text style={styles.hintText}>
             Set your city in Profile to use the city leaderboard.
           </Text>
+        )}
+
+        <View style={[styles.segmentedControl, styles.genderSegmentedControl]}>
+          <TouchableOpacity
+            style={[
+              styles.segment,
+              gender === "male" && styles.segmentActive,
+            ]}
+            onPress={() => setGender("male")}
+          >
+            <Text
+              style={[
+                styles.segmentText,
+                gender === "male" && styles.segmentTextActive,
+              ]}
+            >
+              Men
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.segment,
+              gender === "female" && styles.segmentActive,
+            ]}
+            onPress={() => setGender("female")}
+          >
+            <Text
+              style={[
+                styles.segmentText,
+                gender === "female" && styles.segmentTextActive,
+              ]}
+            >
+              Women
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {!hasGender && (
+          <TouchableOpacity
+            style={styles.banner}
+            onPress={() => router.push("/(tabs)/Profile")}
+          >
+            <Text style={styles.bannerText}>
+              Set your gender in Profile to appear on the Men's or Women's
+              leaderboard.
+            </Text>
+          </TouchableOpacity>
         )}
 
         {!hasUsername && (
@@ -311,6 +369,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginTop: spacing.md,
     overflow: "hidden",
+  },
+  genderSegmentedControl: {
+    marginTop: spacing.sm,
   },
   segment: {
     flex: 1,

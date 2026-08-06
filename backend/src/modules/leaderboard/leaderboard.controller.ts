@@ -9,6 +9,7 @@ export const getLeaderboardHandler = catchAsync(
   async (req: AuthRequest, res: Response) => {
     const exerciseName = req.query.exerciseName;
     const scope = req.query.scope ?? "global";
+    const gender = req.query.gender;
 
     if (typeof exerciseName !== "string" || exerciseName.trim() === "") {
       throw new AppError(400, "exerciseName query parameter is required");
@@ -16,11 +17,15 @@ export const getLeaderboardHandler = catchAsync(
     if (scope !== "city" && scope !== "global") {
       throw new AppError(400, "scope must be 'city' or 'global'");
     }
+    if (gender !== "male" && gender !== "female") {
+      throw new AppError(400, "gender must be 'male' or 'female'");
+    }
 
     const leaderboard = await getLeaderboard(
       req.userId!,
       exerciseName,
       scope,
+      gender,
     );
     sendSuccess(res, 200, "LEADERBOARD_FETCHED", { leaderboard });
   },
