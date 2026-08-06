@@ -9,11 +9,16 @@ import usersRoutes from "./modules/users/users.routes";
 import leaderboardRoutes from "./modules/leaderboard/leaderboard.routes";
 import citiesRoutes from "./modules/cities/cities.routes";
 import activityRoutes from "./modules/activity/activity.routes";
+import PRIVACY_POLICY_HTML from "./privacyPolicy";
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+app.get("/privacy", (_req, res) => {
+  res.type("html").send(PRIVACY_POLICY_HTML);
+});
 
 app.use("/api/auth", authRoutes);
 app.use("/api/programs", programsRoutes);
