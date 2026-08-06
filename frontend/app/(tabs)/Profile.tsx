@@ -187,7 +187,7 @@ const Profile = () => {
           <Text style={styles.title}>Profile</Text>
 
         <View style={styles.avatarSection}>
-          {currentUser?.profileImageUrl ? (
+          {currentUser?.profileImageUrl && authImageHeaders ? (
             <Image
               source={{
                 uri: `${process.env.EXPO_PUBLIC_API_URL}${currentUser.profileImageUrl}`,

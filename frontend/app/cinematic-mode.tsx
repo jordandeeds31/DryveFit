@@ -11,7 +11,10 @@ import {
   Platform,
 } from "react-native";
 import { Image } from "expo-image";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { useDispatch, useSelector } from "react-redux";
 import Feather from "@expo/vector-icons/Feather";
@@ -78,6 +81,11 @@ const CinematicMode = () => {
   );
   const { mutate: logExercise, isPending } = useLogExercisePerformance();
   const authImageHeaders = useAuthImageHeaders();
+  // SafeAreaView's automatic inset detection is unreliable on this screen's
+  // fullScreenModal presentation, leaving the top row rendered under the
+  // status bar/notch (and untappable there) — insets are applied explicitly
+  // instead, with an added margin so the buttons sit comfortably below it.
+  const insets = useSafeAreaInsets();
   const dispatch = useDispatch<AppDispatch>();
 
   const sessionKey = `${programId}:${date}`;
@@ -370,7 +378,11 @@ const CinematicMode = () => {
   if (isLoading || isError || !exercise) {
     return (
       <SafeAreaView style={styles.container}>
-        <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
+        <TouchableOpacity
+          style={[styles.closeButton, { marginTop: insets.top + spacing.sm }]}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          onPress={handleClose}
+        >
           <Feather name="x" size={24} color="white" />
         </TouchableOpacity>
         <View style={styles.loadingContainer}>
@@ -391,11 +403,17 @@ const CinematicMode = () => {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
     <SafeAreaView style={styles.container}>
-      <View style={styles.topRow}>
-        <TouchableOpacity onPress={handleStop}>
+      <View style={[styles.topRow, { paddingTop: insets.top + spacing.sm }]}>
+        <TouchableOpacity
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          onPress={handleStop}
+        >
           <Text style={styles.stopText}>STOP</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={handleClose}>
+        <TouchableOpacity
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          onPress={handleClose}
+        >
           <Feather name="x" size={24} color="white" />
         </TouchableOpacity>
       </View>
@@ -419,7 +437,7 @@ const CinematicMode = () => {
         contentContainerStyle={styles.bodyContent}
         keyboardShouldPersistTaps="handled"
       >
-        {exercise.imageUrl ? (
+        {exercise.imageUrl && authImageHeaders ? (
           <Image
             source={{
               uri: `${process.env.EXPO_PUBLIC_API_URL}${exercise.imageUrl}`,

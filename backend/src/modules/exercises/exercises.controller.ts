@@ -55,7 +55,8 @@ export const getExerciseImageHandler = catchAsync(
       throw new AppError(400, "name query parameter is required");
     }
 
-    const image = await getExerciseImage(exerciseName);
+    const animated = req.query.animated === "true";
+    const image = await getExerciseImage(exerciseName, animated);
 
     if (!image) {
       throw new AppError(404, "Image not found");

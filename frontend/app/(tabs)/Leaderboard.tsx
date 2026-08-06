@@ -182,7 +182,7 @@ const LeaderboardScreen = () => {
                   >
                     #{entry.rank}
                   </Text>
-                  {entry.profileImageUrl ? (
+                  {entry.profileImageUrl && authImageHeaders ? (
                     <Image
                       source={{
                         uri: `${process.env.EXPO_PUBLIC_API_URL}${entry.profileImageUrl}`,

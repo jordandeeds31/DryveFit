@@ -35,6 +35,7 @@ export const getAllExercises = async () => {
 // exposed to the client — the frontend hits our own /image proxy instead.
 export const getExerciseImage = async (
   exerciseName: string,
+  animated: boolean = false,
 ): Promise<{ buffer: Buffer; contentType: string } | null> => {
   if (!env.WORKOUTX_API_KEY) return null;
 
@@ -53,9 +54,18 @@ export const getExerciseImage = async (
 
   const arrayBuffer = await response.arrayBuffer();
 
+  if (animated) {
+    // Pass the original animated GIF through untouched.
+    return {
+      buffer: Buffer.from(arrayBuffer),
+      contentType: "image/gif",
+    };
+  }
+
   // WorkoutX only serves animated GIFs — sharp defaults to reading just the
   // first frame of a multi-frame input, so this gives us a static image
-  // instead of an animation.
+  // instead of an animation. Used for the small list thumbnail, where a
+  // static frame is enough and keeps payload size down.
   const pngBuffer = await sharp(Buffer.from(arrayBuffer)).png().toBuffer();
 
   return {

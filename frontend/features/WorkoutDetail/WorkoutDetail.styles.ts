@@ -9,12 +9,14 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   focus: {
+    flex: 1,
+    marginRight: spacing.sm,
     fontSize: fontSizes.md,
     fontWeight: fontWeights.bold,
   },
   focusRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
   },
   startButton: {
@@ -35,6 +37,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
+    marginRight: spacing.sm,
   },
   revertButton: {
     flexDirection: "row",
@@ -85,6 +88,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  enlargedImage: {
+    width: "100%",
+    height: 320,
+    borderRadius: 8,
+    marginTop: spacing.sm,
+  },
   exerciseNameRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -96,6 +105,7 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
   },
   exerciseName: {
+    flex: 1,
     fontWeight: fontWeights.semibold,
   },
   exerciseMeta: {

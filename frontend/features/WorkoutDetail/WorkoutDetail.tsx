@@ -3,12 +3,12 @@ import styles from "./WorkoutDetail.styles";
 import {
   View,
   Text,
-  Image,
   ActivityIndicator,
   TouchableOpacity,
   TextInput,
   Alert,
 } from "react-native";
+import { Image } from "expo-image";
 import Feather from "@expo/vector-icons/Feather";
 import { router } from "expo-router";
 import { useSelector } from "react-redux";
@@ -130,6 +130,10 @@ const WorkoutDetail = ({
     string | null
   >(null);
   const [swapExerciseId, setSwapExerciseId] = useState<string | null>(null);
+  const [enlargedImage, setEnlargedImage] = useState<{
+    url: string;
+    name: string;
+  } | null>(null);
   const [swapTargetExercise, setSwapTargetExercise] = useState<Exercise | null>(
     null,
   );
@@ -452,15 +456,24 @@ const WorkoutDetail = ({
                 />
               </View>
             </View>
-            {exercise.imageUrl ? (
-              <Image
-                source={{
-                  uri: `${process.env.EXPO_PUBLIC_API_URL}${exercise.imageUrl}`,
-                  headers: authImageHeaders,
-                }}
-                style={styles.exerciseImage}
-                resizeMode="cover"
-              />
+            {exercise.imageUrl && authImageHeaders ? (
+              <TouchableOpacity
+                onPress={() =>
+                  setEnlargedImage({
+                    url: exercise.imageUrl!,
+                    name: exercise.exerciseName,
+                  })
+                }
+              >
+                <Image
+                  source={{
+                    uri: `${process.env.EXPO_PUBLIC_API_URL}${exercise.imageUrl}`,
+                    headers: authImageHeaders,
+                  }}
+                  style={styles.exerciseImage}
+                  contentFit="cover"
+                />
+              </TouchableOpacity>
             ) : (
               <View style={styles.exerciseImagePlaceholder}>
                 <Feather
@@ -616,6 +629,27 @@ const WorkoutDetail = ({
             {isAddingExercise ? "ADDING..." : "ADD"}
           </Text>
         </TouchableOpacity>
+      </Modal>
+      <Modal
+        visible={!!enlargedImage}
+        onClose={() => setEnlargedImage(null)}
+      >
+        <Text style={styles.descriptionModalTitle}>{enlargedImage?.name}</Text>
+        {enlargedImage && authImageHeaders && (
+          <Image
+            source={{
+              // The list thumbnail's URL points at a static-PNG conversion
+              // of the exercise GIF (see backend exercises.service.ts) —
+              // appending animated=true here fetches the original animated
+              // GIF instead, since seeing the motion is the point of
+              // viewing it enlarged.
+              uri: `${process.env.EXPO_PUBLIC_API_URL}${enlargedImage.url}&animated=true`,
+              headers: authImageHeaders,
+            }}
+            style={styles.enlargedImage}
+            contentFit="contain"
+          />
+        )}
       </Modal>
     </View>
   );
