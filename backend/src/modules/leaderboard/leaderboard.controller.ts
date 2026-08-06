@@ -3,7 +3,7 @@ import catchAsync from "../../utils/catchAsync";
 import { sendSuccess } from "../../utils/apiResponse";
 import { AuthRequest } from "../../middleware/authMiddleware";
 import AppError from "../../utils/AppError";
-import { getLeaderboard } from "./leaderboard.service";
+import { getLeaderboard, getMostPopularExercise } from "./leaderboard.service";
 
 export const getLeaderboardHandler = catchAsync(
   async (req: AuthRequest, res: Response) => {
@@ -28,5 +28,12 @@ export const getLeaderboardHandler = catchAsync(
       gender,
     );
     sendSuccess(res, 200, "LEADERBOARD_FETCHED", { leaderboard });
+  },
+);
+
+export const getPopularExerciseHandler = catchAsync(
+  async (_req: AuthRequest, res: Response) => {
+    const exercise = await getMostPopularExercise();
+    sendSuccess(res, 200, "POPULAR_EXERCISE_FETCHED", { exercise });
   },
 );

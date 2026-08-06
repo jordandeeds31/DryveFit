@@ -1,9 +1,27 @@
 import apiClient from "./client";
-import { UserProfile } from "@/types/user.types";
+import {
+  UserProfile,
+  PublicProfile,
+  PublicWorkoutLog,
+} from "@/types/user.types";
 
 export const getCurrentUser = async (): Promise<UserProfile> => {
   const { data } = await apiClient.get("/api/users/me");
   return data.result.user;
+};
+
+export const getPublicProfile = async (
+  userId: string,
+): Promise<PublicProfile> => {
+  const { data } = await apiClient.get(`/api/users/${userId}/public-profile`);
+  return data.result.user;
+};
+
+export const getPublicWorkoutHistory = async (
+  userId: string,
+): Promise<PublicWorkoutLog[]> => {
+  const { data } = await apiClient.get(`/api/users/${userId}/workouts`);
+  return data.result.workoutLogs;
 };
 
 export const updateProfile = async (

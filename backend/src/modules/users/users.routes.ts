@@ -7,6 +7,8 @@ import {
   uploadProfileImageHandler,
   deleteProfileImageHandler,
   getProfileImageHandler,
+  getPublicProfileHandler,
+  getPublicWorkoutHistoryHandler,
 } from "./users.controller";
 
 const upload = multer({
@@ -23,5 +25,7 @@ router.patch("/me", updateMeHandler);
 router.post("/me/profile-image", upload.single("image"), uploadProfileImageHandler);
 router.delete("/me/profile-image", deleteProfileImageHandler);
 router.get("/:userId/profile-image", getProfileImageHandler);
+router.get("/:userId/public-profile", getPublicProfileHandler);
+router.get("/:userId/workouts", getPublicWorkoutHistoryHandler);
 
 export default router;

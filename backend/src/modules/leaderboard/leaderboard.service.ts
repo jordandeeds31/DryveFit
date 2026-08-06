@@ -71,6 +71,7 @@ export const getLeaderboard = async (
     gender,
     exerciseName,
     entries: rows.map((row, index) => ({
+      id: row.id,
       rank: index + 1,
       username: row.username,
       estimated1RM: row.estimated1RM,
@@ -78,4 +79,39 @@ export const getLeaderboard = async (
       profileImageUrl: row.hasImage ? `/api/users/${row.id}/profile-image` : null,
     })),
   };
+};
+
+interface PopularExerciseRow {
+  exerciseName: string;
+}
+
+// Picks a sensible default exercise for the leaderboard screen to open on,
+// so the user always sees a populated ranking instead of an empty "pick an
+// exercise" state. "Popular" = most distinct leaderboard-eligible users who
+// have logged a qualifying set for it, ignoring gender/scope — good enough
+// for a default since it just needs to be *some* well-populated exercise.
+export const getMostPopularExercise = async () => {
+  const rows = await prisma.$queryRaw<PopularExerciseRow[]>`
+    SELECT el."exerciseName" AS "exerciseName"
+    FROM exercise_sets es
+    JOIN exercise_logs el ON es."exerciseLogId" = el.id
+    JOIN workout_logs wl ON el."workoutLogId" = wl.id
+    JOIN users u ON wl."userId" = u.id
+    WHERE es.weight IS NOT NULL
+      AND es.reps IS NOT NULL
+      AND u."isLeaderboardVisible" = true
+      AND u.username IS NOT NULL
+    GROUP BY el."exerciseName"
+    ORDER BY COUNT(DISTINCT u.id) DESC
+    LIMIT 1
+  `;
+
+  const exerciseName = rows[0]?.exerciseName ?? null;
+  if (!exerciseName) return null;
+
+  const exercise = await prisma.exercise.findUnique({
+    where: { name: exerciseName },
+  });
+
+  return exercise;
 };

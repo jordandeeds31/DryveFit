@@ -169,3 +169,46 @@ export const getWorkoutLogsForDate = async (
     })),
   }));
 };
+
+const PUBLIC_WORKOUT_HISTORY_LIMIT = 20;
+
+// Shown on another user's public profile (reached from the leaderboard) —
+// gated by the same isLeaderboardVisible/username eligibility as
+// getPublicProfile, and includes every logged workout (program-based or
+// standalone), not just standalone ones like getWorkoutLogsForDate above.
+export const getPublicWorkoutHistory = async (targetUserId: string) => {
+  const user = await prisma.user.findFirst({
+    where: {
+      id: targetUserId,
+      isLeaderboardVisible: true,
+      username: { not: null },
+    },
+    select: { id: true },
+  });
+
+  if (!user) {
+    throw new AppError(404, "Profile not found");
+  }
+
+  const workoutLogs = await prisma.workoutLog.findMany({
+    where: { userId: targetUserId },
+    include: { exercises: { include: { sets: true } } },
+    orderBy: { loggedAt: "desc" },
+    take: PUBLIC_WORKOUT_HISTORY_LIMIT,
+  });
+
+  return workoutLogs.map((log) => ({
+    id: log.id,
+    loggedAt: log.loggedAt,
+    exercises: log.exercises.map((exercise) => ({
+      id: exercise.id,
+      exerciseName: exercise.exerciseName,
+      muscleGroup: exercise.muscleGroup,
+      sets: exercise.sets.map((set) => ({
+        setNumber: set.setNumber,
+        weight: set.weight,
+        reps: set.reps,
+      })),
+    })),
+  }));
+};

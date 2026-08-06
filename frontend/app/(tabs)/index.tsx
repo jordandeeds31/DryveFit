@@ -154,7 +154,13 @@ const HomeScreen = () => {
     <SafeAreaView style={styles.container} edges={["bottom", "left", "right"]}>
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          !hasPrograms &&
+            !isWorkoutLoggerOpen &&
+            !hasLoggedStandaloneWorkout &&
+            styles.scrollContentGrow,
+        ]}
         keyboardShouldPersistTaps="handled"
       >
         <ActiveWorkoutBanner />
@@ -245,6 +251,9 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: spacing.sm,
+    paddingBottom: spacing.xl,
+  },
+  scrollContentGrow: {
     flexGrow: 1,
   },
   buttonContainer: {

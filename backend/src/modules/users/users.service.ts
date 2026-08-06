@@ -52,6 +52,38 @@ export const getUserProfile = async (userId: string) => {
   return toProfileResponse(user);
 };
 
+// Deliberately excludes email (and anything else PROFILE_SELECT/
+// toProfileResponse would include) — this is shown to OTHER users, not the
+// account owner, unlike getUserProfile above.
+export const getPublicProfile = async (targetUserId: string) => {
+  const user = await prisma.user.findFirst({
+    // Same eligibility gate as the leaderboard query — appearing there is
+    // the only thing that makes a profile viewable by other users.
+    where: {
+      id: targetUserId,
+      isLeaderboardVisible: true,
+      username: { not: null },
+    },
+    select: {
+      id: true,
+      username: true,
+      profileImageMimeType: true,
+    },
+  });
+
+  if (!user) {
+    throw new AppError(404, "Profile not found");
+  }
+
+  return {
+    id: user.id,
+    username: user.username,
+    profileImageUrl: user.profileImageMimeType
+      ? `/api/users/${user.id}/profile-image`
+      : null,
+  };
+};
+
 interface UpdateProfileInput {
   username?: string;
   city?: string;

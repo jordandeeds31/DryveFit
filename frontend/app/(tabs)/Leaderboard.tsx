@@ -18,7 +18,7 @@ import DropdownExerciseSelect from "@/components/shared/DropdownExerciseSelect/D
 import { Exercise } from "@/types/exercise.types";
 import { LeaderboardEntry } from "@/types/leaderboard.types";
 import { useCurrentUser } from "@/hooks/useUsers";
-import { useLeaderboard } from "@/hooks/useLeaderboard";
+import { useLeaderboard, usePopularExercise } from "@/hooks/useLeaderboard";
 import { useAuthImageHeaders } from "@/hooks/useAuthImageHeaders";
 
 type Scope = "city" | "global";
@@ -39,6 +39,7 @@ const LeaderboardScreen = () => {
 
   const { data: currentUser } = useCurrentUser();
   const authImageHeaders = useAuthImageHeaders();
+  const { data: popularExercise } = usePopularExercise();
   const { data: leaderboard, isLoading, error } = useLeaderboard(
     selectedExercise?.name ?? null,
     scope,
@@ -48,6 +49,14 @@ const LeaderboardScreen = () => {
   useEffect(() => {
     if (currentUser?.gender) setGender(currentUser.gender);
   }, [currentUser?.gender]);
+
+  // Nobody manually picks an exercise on first visit — default to whichever
+  // one has the most rankings so the screen never opens on an empty state.
+  useEffect(() => {
+    if (!selectedExercise && popularExercise) {
+      setSelectedExercise(popularExercise);
+    }
+  }, [selectedExercise, popularExercise]);
 
   // A new exercise/scope/gender means a whole new results set — always
   // start back at the top rather than stranding the user on a page that
@@ -225,12 +234,17 @@ const LeaderboardScreen = () => {
           leaderboard.entries.length > 0 && (
             <View style={styles.list}>
               {paginatedEntries.map((entry: LeaderboardEntry) => (
-                <View
+                <TouchableOpacity
                   key={entry.rank}
                   style={[
                     styles.row,
                     entry.isCurrentUser && styles.rowCurrentUser,
                   ]}
+                  onPress={() =>
+                    !entry.isCurrentUser &&
+                    router.push(`/user/${entry.id}`)
+                  }
+                  disabled={entry.isCurrentUser}
                 >
                   <Text
                     style={[
@@ -273,7 +287,7 @@ const LeaderboardScreen = () => {
                   >
                     {entry.estimated1RM} lbs
                   </Text>
-                </View>
+                </TouchableOpacity>
               ))}
             </View>
           )}

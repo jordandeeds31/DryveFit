@@ -4,12 +4,30 @@ import {
   updateProfile,
   uploadProfileImage,
   deleteProfileImage,
+  getPublicProfile,
+  getPublicWorkoutHistory,
 } from "@/lib/api/users.api";
 
 export const useCurrentUser = () => {
   return useQuery({
     queryKey: ["currentUser"],
     queryFn: getCurrentUser,
+  });
+};
+
+export const usePublicProfile = (userId: string | null) => {
+  return useQuery({
+    queryKey: ["publicProfile", userId],
+    queryFn: () => getPublicProfile(userId!),
+    enabled: !!userId,
+  });
+};
+
+export const usePublicWorkoutHistory = (userId: string | null) => {
+  return useQuery({
+    queryKey: ["publicWorkoutHistory", userId],
+    queryFn: () => getPublicWorkoutHistory(userId!),
+    enabled: !!userId,
   });
 };
 

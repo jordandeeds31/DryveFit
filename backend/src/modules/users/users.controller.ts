@@ -9,7 +9,9 @@ import {
   uploadProfileImage,
   deleteProfileImage,
   getProfileImage,
+  getPublicProfile,
 } from "./users.service";
+import { getPublicWorkoutHistory } from "../workoutLogs/workoutLogs.service";
 
 export const getMeHandler = catchAsync(
   async (req: AuthRequest, res: Response) => {
@@ -51,6 +53,32 @@ export const deleteProfileImageHandler = catchAsync(
   async (req: AuthRequest, res: Response) => {
     const user = await deleteProfileImage(req.userId!);
     sendSuccess(res, 200, "PROFILE_IMAGE_DELETED", { user });
+  },
+);
+
+export const getPublicProfileHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const { userId } = req.params;
+
+    if (typeof userId !== "string") {
+      throw new AppError(400, "userId is required");
+    }
+
+    const user = await getPublicProfile(userId);
+    sendSuccess(res, 200, "PUBLIC_PROFILE_FETCHED", { user });
+  },
+);
+
+export const getPublicWorkoutHistoryHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const { userId } = req.params;
+
+    if (typeof userId !== "string") {
+      throw new AppError(400, "userId is required");
+    }
+
+    const workoutLogs = await getPublicWorkoutHistory(userId);
+    sendSuccess(res, 200, "PUBLIC_WORKOUT_HISTORY_FETCHED", { workoutLogs });
   },
 );
 

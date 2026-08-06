@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getLeaderboard } from "@/lib/api/leaderboard.api";
+import { getLeaderboard, getPopularExercise } from "@/lib/api/leaderboard.api";
 
 export const useLeaderboard = (
   exerciseName: string | null,
@@ -17,5 +17,14 @@ export const useLeaderboard = (
     // whenever this exact combination was last viewed.
     staleTime: 0,
     refetchOnMount: "always",
+  });
+};
+
+// Backs the Leaderboard screen's default exercise selection so it always
+// opens on a populated ranking instead of an empty "pick an exercise" state.
+export const usePopularExercise = () => {
+  return useQuery({
+    queryKey: ["popularExercise"],
+    queryFn: getPopularExercise,
   });
 };
