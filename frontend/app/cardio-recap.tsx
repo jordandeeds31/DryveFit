@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import Feather from "@expo/vector-icons/Feather";
 import { spacing } from "@/constants/spacing";
 import { colors } from "@/constants/colors";
+import { neonGlow, neonShadow } from "@/constants/cyberpunk";
 import { fontSizes, fontWeights } from "@/constants/typography";
 import { formatElapsed } from "@/lib/utils/duration.utils";
 import { CardioActivityType } from "@/types/cardio.types";
@@ -104,7 +105,7 @@ export default CardioRecap;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "white",
+    backgroundColor: "#000",
   },
   content: {
     alignItems: "center",
@@ -123,19 +124,19 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   title: {
-    color: "#000",
+    color: "white",
     fontSize: fontSizes.xl,
     fontWeight: fontWeights.extrabold,
   },
   totalTime: {
-    color: "#000",
+    color: "white",
     fontSize: fontSizes["4xl"],
     fontWeight: fontWeights.extrabold,
     marginTop: spacing.lg,
     fontVariant: ["tabular-nums"],
   },
   totalTimeLabel: {
-    color: colors.textSecondary,
+    color: colors.textMuted,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.semibold,
   },
@@ -148,7 +149,7 @@ const styles = StyleSheet.create({
   },
   statBox: {
     borderWidth: 1,
-    borderColor: colors.borderGray,
+    borderColor: "#222",
     borderRadius: 12,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
@@ -156,15 +157,17 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   statValue: {
-    color: colors.primaryBlue,
+    color: "white",
     fontSize: fontSizes.xl,
     fontWeight: fontWeights.bold,
   },
   statLabel: {
-    color: colors.textSecondary,
+    color: colors.textMuted,
     fontSize: fontSizes.xs,
     fontWeight: fontWeights.semibold,
   },
+  // The one cyberpunk-blue accent on this screen — same blue as the rest
+  // of the app (colors.primaryBlue), just lit up with a neon glow.
   doneButton: {
     backgroundColor: colors.primaryBlue,
     marginHorizontal: spacing.lg,
@@ -172,10 +175,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: spacing.md,
     alignItems: "center",
+    ...neonShadow(colors.primaryBlue, 14),
   },
   doneButtonText: {
     color: "white",
     fontSize: fontSizes.md,
     fontWeight: fontWeights.extrabold,
+    ...neonGlow(colors.primaryBlue, 8),
   },
 });
