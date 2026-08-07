@@ -7,7 +7,7 @@ import {
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import MapView, { Polyline } from "react-native-maps";
 import Feather from "@expo/vector-icons/Feather";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -16,6 +16,7 @@ import { colors } from "@/constants/colors";
 import { cyberpunk } from "@/constants/cyberpunk";
 import { fontSizes, fontWeights } from "@/constants/typography";
 import { formatCalendarDate } from "@/lib/utils/date.utils";
+import { safeGoBack } from "@/lib/utils/navigation.utils";
 import { useCardioSession, useDeleteCardioSession } from "@/hooks/useCardio";
 import { CardioActivityType, CardioRoutePoint } from "@/types/cardio.types";
 
@@ -54,7 +55,7 @@ const CardioSessionDetailScreen = () => {
           style: "destructive",
           onPress: () => {
             deleteSession(id, {
-              onSuccess: () => router.back(),
+              onSuccess: () => safeGoBack(),
               onError: () => Alert.alert("Couldn't delete activity", "Please try again."),
             });
           },
@@ -68,9 +69,9 @@ const CardioSessionDetailScreen = () => {
       <View style={styles.header}>
         <TouchableOpacity
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          onPress={() => router.back()}
+          onPress={safeGoBack}
         >
-          <Feather name="chevron-left" size={26} color="#000" />
+          <Feather name="chevron-left" size={26} color="white" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Activity</Text>
         <TouchableOpacity
@@ -82,7 +83,9 @@ const CardioSessionDetailScreen = () => {
         </TouchableOpacity>
       </View>
 
-      {isLoading && <ActivityIndicator style={{ marginTop: spacing.xl }} />}
+      {isLoading && (
+        <ActivityIndicator style={{ marginTop: spacing.xl }} color="white" />
+      )}
 
       {!isLoading && (error || !session) && (
         <Text style={styles.emptyText}>Couldn't load this activity.</Text>
@@ -123,7 +126,7 @@ const CardioSessionDetailScreen = () => {
               </MapView>
             ) : (
               <View style={styles.noRoute}>
-                <Ionicons name="map-outline" size={28} color={colors.textSecondary} />
+                <Ionicons name="map-outline" size={28} color={colors.textMuted} />
                 <Text style={styles.emptyText}>No route recorded.</Text>
               </View>
             )}
@@ -190,7 +193,7 @@ export default CardioSessionDetailScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "white",
+    backgroundColor: "#000",
   },
   header: {
     flexDirection: "row",
@@ -199,15 +202,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderGray,
+    borderBottomColor: "#222",
   },
   headerTitle: {
     fontSize: fontSizes.md,
     fontWeight: fontWeights.bold,
+    color: "white",
   },
   emptyText: {
     fontSize: fontSizes.sm,
-    color: colors.textSecondary,
+    color: colors.textMuted,
     marginTop: spacing.md,
     textAlign: "center",
   },
@@ -219,7 +223,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: spacing.sm,
-    backgroundColor: colors.lightGraySoft,
+    backgroundColor: "#111",
   },
   statsSection: {
     padding: spacing.md,
@@ -227,10 +231,11 @@ const styles = StyleSheet.create({
   activityTitle: {
     fontSize: fontSizes.xl,
     fontWeight: fontWeights.bold,
+    color: "white",
   },
   dateText: {
     fontSize: fontSizes.sm,
-    color: colors.textSecondary,
+    color: colors.textMuted,
     marginTop: 2,
     marginBottom: spacing.md,
   },
@@ -241,7 +246,7 @@ const styles = StyleSheet.create({
   },
   statBox: {
     borderWidth: 1,
-    borderColor: colors.borderGray,
+    borderColor: "#222",
     borderRadius: 12,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
@@ -251,11 +256,11 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: fontSizes.xl,
     fontWeight: fontWeights.bold,
-    color: colors.primaryBlue,
+    color: "white",
   },
   statLabel: {
     fontSize: fontSizes.xs,
-    color: colors.textSecondary,
+    color: colors.textMuted,
     fontWeight: fontWeights.semibold,
   },
 });

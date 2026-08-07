@@ -24,6 +24,7 @@ import { ProgramExercise } from "@/types/programs.types";
 import { spacing } from "@/constants/spacing";
 import { fontSizes, fontWeights } from "@/constants/typography";
 import { formatElapsed } from "@/lib/utils/duration.utils";
+import { safeGoBack } from "@/lib/utils/navigation.utils";
 import type { AppDispatch, RootState } from "@/store";
 import {
   startTimerIfNeeded,
@@ -212,20 +213,6 @@ const CinematicMode = () => {
         weight: isBodyweight ? null : parseFloat(set.weight),
         reps: parseInt(set.reps, 10),
       }));
-
-  // router.back() throws/warns ("GO_BACK not handled") if this screen ever
-  // ends up as the root of the navigation stack with no history to pop —
-  // e.g. a full reload while this screen happened to be open during
-  // development, or any other case where it wasn't reached via a normal
-  // push. Falling back to the home tab keeps the close button always
-  // working regardless of how the screen was entered.
-  const safeGoBack = () => {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace("/(tabs)");
-    }
-  };
 
   const handleClose = () => {
     if (!exercise) {
