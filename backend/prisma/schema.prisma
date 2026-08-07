@@ -21,6 +21,7 @@ model User {
   updatedAt            DateTime     @updatedAt
   programs             Program[]
   workoutLogs          WorkoutLog[]
+  cardioSessions       CardioSession[]
   trainer              Trainer?
 
   @@index([city])
@@ -146,6 +147,28 @@ model ExerciseSet {
   exerciseLog   ExerciseLog @relation(fields: [exerciseLogId], references: [id], onDelete: Cascade)
 
   @@map("exercise_sets")
+}
+
+model CardioSession {
+  id              String   @id @default(uuid())
+  userId          String
+  activityType    String   // "walk" | "run" | "bike"
+  startedAt       DateTime
+  endedAt         DateTime
+  durationSeconds Int
+  distanceMeters  Float
+  caloriesBurned  Int?
+  avgHeartRate    Int?
+  maxHeartRate    Int?
+  // Array<{ lat: number; lng: number; timestamp: number }> — the recorded
+  // GPS route, omitted from list queries and only fetched for the detail/
+  // map view since it can get large for a long run.
+  route           Json
+  createdAt       DateTime @default(now())
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, startedAt])
+  @@map("cardio_sessions")
 }
 
 model Exercise {
