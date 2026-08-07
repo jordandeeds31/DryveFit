@@ -80,6 +80,19 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="Cardio"
+        options={{
+          title: "Cardio",
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons
+              name={focused ? "walk" : "walk-outline"}
+              size={24}
+              color={color}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="Profile"
         options={{
           title: "Profile",

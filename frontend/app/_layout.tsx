@@ -41,6 +41,14 @@ const RootNavigator = () => {
                 name="workout-recap"
                 options={{ presentation: "fullScreenModal", headerShown: false }}
             />
+            <Stack.Screen
+                name="cardio-session"
+                options={{ presentation: "fullScreenModal", headerShown: false }}
+            />
+            <Stack.Screen
+                name="cardio-recap"
+                options={{ presentation: "fullScreenModal", headerShown: false }}
+            />
         </Stack>
     );
 };

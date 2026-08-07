@@ -1,0 +1,522 @@
+import { useEffect, useRef, useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator,
+  Linking,
+} from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { router, useLocalSearchParams } from "expo-router";
+import { useDispatch, useSelector } from "react-redux";
+import * as Location from "expo-location";
+import MapView, { Polyline } from "react-native-maps";
+import Feather from "@expo/vector-icons/Feather";
+import type { AppDispatch, RootState } from "@/store";
+import {
+  startSession,
+  addRoutePoint,
+  pauseSession,
+  resumeSession,
+  recordHeartRateSample,
+  setCaloriesBurned,
+  clearSession,
+} from "@/store/slices/cardioSessionSlice";
+import { useCreateCardioSession } from "@/hooks/useCardio";
+import { CardioActivityType } from "@/types/cardio.types";
+import { spacing } from "@/constants/spacing";
+import { colors } from "@/constants/colors";
+import { fontSizes, fontWeights } from "@/constants/typography";
+import { formatElapsed } from "@/lib/utils/duration.utils";
+import {
+  isHealthKitAvailable,
+  isHealthKitAuthorized,
+  queryRecentHeartRateAndEnergy,
+} from "@/lib/health/healthkit";
+import { cyberpunk, neonGlow, neonShadow } from "@/constants/cyberpunk";
+
+const HEALTH_POLL_INTERVAL_MS = 30_000;
+const METERS_PER_MILE = 1609.344;
+const MAP_DELTA = 0.005;
+
+const ACTIVITY_LABELS: Record<CardioActivityType, string> = {
+  walk: "Walk",
+  run: "Run",
+  bike: "Bike Ride",
+};
+
+const formatMiles = (meters: number): string => (meters / METERS_PER_MILE).toFixed(2);
+
+const formatPace = (meters: number, elapsedSeconds: number): string => {
+  const miles = meters / METERS_PER_MILE;
+  if (miles < 0.05 || elapsedSeconds < 10) return "--:--";
+  const paceSecondsPerMile = elapsedSeconds / miles;
+  const minutes = Math.floor(paceSecondsPerMile / 60);
+  const seconds = Math.round(paceSecondsPerMile % 60);
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+};
+
+const CardioSessionScreen = () => {
+  const { activityType } = useLocalSearchParams<{
+    activityType: CardioActivityType;
+  }>();
+  const insets = useSafeAreaInsets();
+  const dispatch = useDispatch<AppDispatch>();
+  const { mutate: createSession, isPending: isSaving } =
+    useCreateCardioSession();
+
+  const active = useSelector((state: RootState) => state.cardioSession.active);
+  const isPaused = active?.pausedAt != null;
+
+  const [permissionDenied, setPermissionDenied] = useState(false);
+  const [isHealthKitConnected, setIsHealthKitConnected] = useState(false);
+  // Forces a re-render every second so elapsed time ticks — the real value
+  // is always derived from the startedAt timestamp in Redux, same pattern
+  // as cinematic-mode's timer.
+  const [, forceTick] = useState(0);
+
+  const watchSubscription = useRef<Location.LocationSubscription | null>(null);
+
+  // Starts (or resumes into) a session exactly once on mount — a real
+  // activityType param always starts fresh unless one was already active
+  // (e.g. screen remounted after a background/foreground cycle).
+  useEffect(() => {
+    if (!active && activityType) {
+      dispatch(startSession(activityType));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => forceTick((t) => t + 1), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (cancelled) return;
+
+      if (status !== "granted") {
+        setPermissionDenied(true);
+        return;
+      }
+
+      watchSubscription.current = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.BestForNavigation,
+          distanceInterval: 5,
+          timeInterval: 3000,
+        },
+        (location) => {
+          dispatch(
+            addRoutePoint({
+              lat: location.coords.latitude,
+              lng: location.coords.longitude,
+              timestamp: location.timestamp,
+            }),
+          );
+        },
+      );
+    })();
+
+    return () => {
+      cancelled = true;
+      watchSubscription.current?.remove();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const available = await isHealthKitAvailable();
+      if (!available) return;
+      const authorized = await isHealthKitAuthorized();
+      if (!cancelled) setIsHealthKitConnected(authorized);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Same 30s-poll pattern as cinematic-mode: no live streaming API here,
+  // just "most recent Watch-synced reading" pulled from HealthKit
+  // periodically. Samples/calories are dispatched into Redux (not local
+  // state) so they survive the screen remounting mid-session, and so an
+  // average/max heart rate can be computed from the full history at Finish.
+  useEffect(() => {
+    if (!isHealthKitConnected || !active) return;
+
+    let cancelled = false;
+    const poll = async () => {
+      const { latestHeartRate, caloriesBurned: calories } =
+        await queryRecentHeartRateAndEnergy(new Date(active.startedAt));
+      if (cancelled) return;
+      if (latestHeartRate != null) {
+        dispatch(recordHeartRateSample(latestHeartRate));
+      }
+      dispatch(setCaloriesBurned(Math.round(calories)));
+    };
+
+    poll();
+    const interval = setInterval(poll, HEALTH_POLL_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isHealthKitConnected, active?.startedAt]);
+
+  if (!active) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ActivityIndicator style={{ flex: 1 }} color="white" />
+      </SafeAreaView>
+    );
+  }
+
+  const elapsedSeconds = Math.max(
+    0,
+    Math.floor(
+      ((isPaused ? active.pausedAt! : Date.now()) -
+        active.startedAt -
+        active.totalPausedMs) /
+        1000,
+    ),
+  );
+
+  const latestPoint = active.routePoints[active.routePoints.length - 1];
+
+  const handleTogglePause = () => {
+    dispatch(isPaused ? resumeSession() : pauseSession());
+  };
+
+  const handleDiscard = () => {
+    Alert.alert(
+      "Discard this activity?",
+      "Your route and distance for this session will not be saved.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Discard",
+          style: "destructive",
+          onPress: () => {
+            watchSubscription.current?.remove();
+            dispatch(clearSession());
+            router.back();
+          },
+        },
+      ],
+    );
+  };
+
+  const handleFinish = () => {
+    watchSubscription.current?.remove();
+
+    if (active.routePoints.length < 2) {
+      dispatch(clearSession());
+      router.back();
+      return;
+    }
+
+    const startedAtIso = new Date(active.startedAt).toISOString();
+    const endedAtIso = new Date().toISOString();
+    const distanceMeters = active.distanceMeters;
+    const durationSecs = elapsedSeconds;
+    const caloriesBurned = active.caloriesBurned > 0 ? active.caloriesBurned : null;
+    const avgHeartRate =
+      active.heartRateSamples.length > 0
+        ? Math.round(
+            active.heartRateSamples.reduce((sum, bpm) => sum + bpm, 0) /
+              active.heartRateSamples.length,
+          )
+        : null;
+    const maxHeartRate =
+      active.heartRateSamples.length > 0
+        ? Math.max(...active.heartRateSamples)
+        : null;
+
+    createSession(
+      {
+        activityType: active.activityType,
+        startedAt: startedAtIso,
+        endedAt: endedAtIso,
+        distanceMeters,
+        caloriesBurned,
+        avgHeartRate,
+        maxHeartRate,
+        route: active.routePoints,
+      },
+      {
+        onSuccess: () => {
+          dispatch(clearSession());
+          router.replace({
+            pathname: "/cardio-recap",
+            params: {
+              activityType: active.activityType,
+              durationSecs: String(durationSecs),
+              distanceMeters: String(distanceMeters),
+              caloriesBurned: caloriesBurned != null ? String(caloriesBurned) : "",
+              avgHeartRate: avgHeartRate != null ? String(avgHeartRate) : "",
+              maxHeartRate: maxHeartRate != null ? String(maxHeartRate) : "",
+            },
+          });
+        },
+        onError: () => {
+          Alert.alert("Couldn't save activity", "Please try again.");
+        },
+      },
+    );
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={[styles.topRow, { paddingTop: insets.top + spacing.sm }]}>
+        <TouchableOpacity
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          onPress={handleDiscard}
+        >
+          <Feather name="x" size={24} color={colors.dangerRed} />
+        </TouchableOpacity>
+        <Text style={styles.activityLabel}>
+          {ACTIVITY_LABELS[active.activityType]}
+        </Text>
+        <View style={{ width: 24 }} />
+      </View>
+
+      <View style={styles.mapContainer}>
+        {permissionDenied ? (
+          <View style={styles.permissionDenied}>
+            <Feather name="map-pin" size={28} color={colors.textMuted} />
+            <Text style={styles.permissionDeniedText}>
+              Location access is required to track your route. Enable it in
+              Settings to continue.
+            </Text>
+            <TouchableOpacity
+              style={styles.openSettingsButton}
+              onPress={() => Linking.openSettings()}
+            >
+              <Text style={styles.openSettingsButtonText}>Open Settings</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <MapView
+            style={StyleSheet.absoluteFill}
+            showsUserLocation
+            userInterfaceStyle="dark"
+            region={
+              latestPoint
+                ? {
+                    latitude: latestPoint.lat,
+                    longitude: latestPoint.lng,
+                    latitudeDelta: MAP_DELTA,
+                    longitudeDelta: MAP_DELTA,
+                  }
+                : undefined
+            }
+          >
+            {active.routePoints.length > 1 && (
+              <>
+                {/* Wide, translucent under-layer simulates a neon glow —
+                    RN has no real blur filter for map overlays. */}
+                <Polyline
+                  coordinates={active.routePoints.map((p) => ({
+                    latitude: p.lat,
+                    longitude: p.lng,
+                  }))}
+                  strokeColor="rgba(0, 246, 255, 0.35)"
+                  strokeWidth={14}
+                />
+                <Polyline
+                  coordinates={active.routePoints.map((p) => ({
+                    latitude: p.lat,
+                    longitude: p.lng,
+                  }))}
+                  strokeColor={cyberpunk.neonCyan}
+                  strokeWidth={4}
+                />
+              </>
+            )}
+          </MapView>
+        )}
+      </View>
+
+      <View style={styles.statsBar}>
+        <View style={styles.statBox}>
+          <Text style={styles.statValue}>{formatElapsed(elapsedSeconds)}</Text>
+          <Text style={styles.statLabel}>time</Text>
+        </View>
+        <View style={styles.statBox}>
+          <Text style={styles.statValue}>{formatMiles(active.distanceMeters)}</Text>
+          <Text style={styles.statLabel}>miles</Text>
+        </View>
+        <View style={styles.statBox}>
+          <Text style={styles.statValue}>
+            {formatPace(active.distanceMeters, elapsedSeconds)}
+          </Text>
+          <Text style={styles.statLabel}>pace /mi</Text>
+        </View>
+        {active.caloriesBurned > 0 && (
+          <View style={styles.statBox}>
+            <Text style={styles.statValue}>{active.caloriesBurned}</Text>
+            <Text style={styles.statLabel}>calories</Text>
+          </View>
+        )}
+        {active.heartRateSamples.length > 0 && (
+          <View style={styles.statBox}>
+            <Text style={styles.statValue}>
+              {active.heartRateSamples[active.heartRateSamples.length - 1]}
+            </Text>
+            <Text style={styles.statLabel}>bpm</Text>
+          </View>
+        )}
+      </View>
+
+      <View style={styles.controlsRow}>
+        <TouchableOpacity
+          style={styles.pauseButton}
+          onPress={handleTogglePause}
+        >
+          <Feather
+            name={isPaused ? "play" : "pause"}
+            size={22}
+            color={colors.primaryBlue}
+          />
+          <Text style={styles.pauseButtonText}>
+            {isPaused ? "Resume" : "Pause"}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.finishButton}
+          onPress={handleFinish}
+          disabled={isSaving}
+        >
+          <Text style={styles.finishButtonText}>
+            {isSaving ? "Saving..." : "Finish"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+};
+
+export default CardioSessionScreen;
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#000",
+  },
+  topRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
+  },
+  activityLabel: {
+    color: "white",
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.extrabold,
+  },
+  mapContainer: {
+    flex: 1,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: "#222",
+  },
+  permissionDenied: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: spacing.xl,
+    gap: spacing.sm,
+    backgroundColor: "#111",
+  },
+  permissionDeniedText: {
+    color: colors.textMuted,
+    fontSize: fontSizes.sm,
+    textAlign: "center",
+  },
+  openSettingsButton: {
+    marginTop: spacing.sm,
+    backgroundColor: colors.primaryBlue,
+    borderRadius: 8,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+  },
+  openSettingsButtonText: {
+    color: "white",
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extrabold,
+  },
+  statsBar: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    paddingVertical: spacing.md,
+    backgroundColor: "#000",
+    borderTopWidth: 1,
+    borderTopColor: "#222",
+  },
+  statBox: {
+    alignItems: "center",
+    gap: 2,
+  },
+  statValue: {
+    color: "white",
+    fontSize: fontSizes.xl,
+    fontWeight: fontWeights.extrabold,
+    fontVariant: ["tabular-nums"],
+  },
+  statLabel: {
+    color: colors.textMuted,
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.semibold,
+  },
+  controlsRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.lg,
+    backgroundColor: "#000",
+  },
+  pauseButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+    borderWidth: 1,
+    borderColor: "#333",
+    borderRadius: 12,
+    paddingVertical: spacing.md,
+    backgroundColor: "#111",
+  },
+  pauseButtonText: {
+    color: colors.textMuted,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
+  },
+  // The one cyberpunk-blue accent on this screen — same blue as the rest
+  // of the app (colors.primaryBlue), just lit up with a neon glow.
+  finishButton: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primaryBlue,
+    borderRadius: 12,
+    paddingVertical: spacing.md,
+    ...neonShadow(colors.primaryBlue, 14),
+  },
+  finishButtonText: {
+    color: "white",
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extrabold,
+    ...neonGlow(colors.primaryBlue, 8),
+  },
+});

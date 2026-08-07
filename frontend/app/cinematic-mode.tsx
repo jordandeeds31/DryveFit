@@ -213,9 +213,23 @@ const CinematicMode = () => {
         reps: parseInt(set.reps, 10),
       }));
 
+  // router.back() throws/warns ("GO_BACK not handled") if this screen ever
+  // ends up as the root of the navigation stack with no history to pop —
+  // e.g. a full reload while this screen happened to be open during
+  // development, or any other case where it wasn't reached via a normal
+  // push. Falling back to the home tab keeps the close button always
+  // working regardless of how the screen was entered.
+  const safeGoBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/(tabs)");
+    }
+  };
+
   const handleClose = () => {
     if (!exercise) {
-      router.back();
+      safeGoBack();
       return;
     }
 
@@ -226,7 +240,7 @@ const CinematicMode = () => {
     const validSets = buildValidSets();
 
     if (validSets.length === 0) {
-      router.back();
+      safeGoBack();
       return;
     }
 
@@ -243,7 +257,7 @@ const CinematicMode = () => {
       },
       {
         onSuccess: () => {
-          router.back();
+          safeGoBack();
         },
       },
     );
@@ -251,7 +265,7 @@ const CinematicMode = () => {
 
   const handleStop = () => {
     if (!exercise) {
-      router.back();
+      safeGoBack();
       return;
     }
 
@@ -263,7 +277,7 @@ const CinematicMode = () => {
     const endSession = () => {
       dispatch(clearTimer(exercise.id));
       dispatch(clearSession(sessionKey));
-      router.back();
+      safeGoBack();
     };
 
     const validSets = buildValidSets();

@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "dryve",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.jordandeeds.dryve",
@@ -56,6 +56,12 @@
         {
           "healthSharePermission": "Allow Dryve to read your heart rate and calories burned during workouts.",
           "healthUpdatePermission": "Dryve does not write data to Health."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Dryve uses your location to track the distance and route of your walks, runs, and rides."
         }
       ],
       "./plugins/withFmtCxx17Fix.js",
