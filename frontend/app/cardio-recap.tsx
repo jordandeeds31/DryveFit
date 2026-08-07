@@ -34,6 +34,7 @@ const CardioRecap = () => {
     caloriesBurned,
     avgHeartRate,
     maxHeartRate,
+    stepCount,
   } = useLocalSearchParams<{
     activityType: CardioActivityType;
     durationSecs: string;
@@ -41,6 +42,7 @@ const CardioRecap = () => {
     caloriesBurned: string;
     avgHeartRate: string;
     maxHeartRate: string;
+    stepCount: string;
   }>();
 
   const duration = Number(durationSecs ?? "0");
@@ -76,6 +78,12 @@ const CardioRecap = () => {
             <View style={styles.statBox}>
               <Text style={styles.statValue}>{caloriesBurned}</Text>
               <Text style={styles.statLabel}>calories</Text>
+            </View>
+          )}
+          {!!stepCount && (
+            <View style={styles.statBox}>
+              <Text style={styles.statValue}>{stepCount}</Text>
+              <Text style={styles.statLabel}>steps</Text>
             </View>
           )}
           {!!avgHeartRate && (

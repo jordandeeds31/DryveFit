@@ -160,6 +160,7 @@ model CardioSession {
   caloriesBurned  Int?
   avgHeartRate    Int?
   maxHeartRate    Int?
+  stepCount       Int?
   // Array<{ lat: number; lng: number; timestamp: number }> — the recorded
   // GPS route, omitted from list queries and only fetched for the detail/
   // map view since it can get large for a long run.

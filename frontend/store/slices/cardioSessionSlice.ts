@@ -19,6 +19,7 @@ interface ActiveCardioSession {
   // only the most recent reading.
   heartRateSamples: number[];
   caloriesBurned: number;
+  stepCount: number;
 }
 
 interface CardioSessionState {
@@ -43,6 +44,7 @@ const cardioSessionSlice = createSlice({
         distanceMeters: 0,
         heartRateSamples: [],
         caloriesBurned: 0,
+        stepCount: 0,
       };
     },
     addRoutePoint: (state, action: PayloadAction<CardioRoutePoint>) => {
@@ -80,6 +82,11 @@ const cardioSessionSlice = createSlice({
         state.active.caloriesBurned = action.payload;
       }
     },
+    setStepCount: (state, action: PayloadAction<number>) => {
+      if (state.active) {
+        state.active.stepCount = action.payload;
+      }
+    },
     clearSession: (state) => {
       state.active = null;
     },
@@ -93,6 +100,7 @@ export const {
   resumeSession,
   recordHeartRateSample,
   setCaloriesBurned,
+  setStepCount,
   clearSession,
 } = cardioSessionSlice.actions;
 export default cardioSessionSlice.reducer;

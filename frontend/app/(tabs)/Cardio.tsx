@@ -49,6 +49,17 @@ const CardioScreen = () => {
           Track a walk, run, or ride — distance, route, and calories.
         </Text>
 
+        <TouchableOpacity
+          style={styles.watchBanner}
+          onPress={() => router.push("/(tabs)/Profile")}
+        >
+          <Ionicons name="watch-outline" size={16} color={colors.primaryBlue} />
+          <Text style={styles.watchBannerText}>
+            For live heart rate, calories, and step count, connect Apple
+            Health (in Profile) and start a workout on your Apple Watch too.
+          </Text>
+        </TouchableOpacity>
+
         <View style={styles.startRow}>
           {ACTIVITY_OPTIONS.map((option) => (
             <TouchableOpacity
@@ -148,6 +159,22 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: spacing.xs,
     marginBottom: spacing.md,
+  },
+  watchBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.xs,
+    backgroundColor: colors.surfaceBlueLight,
+    borderWidth: 1,
+    borderColor: colors.borderBlueLight,
+    borderRadius: 8,
+    padding: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  watchBannerText: {
+    flex: 1,
+    fontSize: fontSizes.xs,
+    color: colors.primaryBlue,
   },
   startRow: {
     flexDirection: "row",

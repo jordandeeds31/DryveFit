@@ -10,6 +10,7 @@ import leaderboardRoutes from "./modules/leaderboard/leaderboard.routes";
 import citiesRoutes from "./modules/cities/cities.routes";
 import activityRoutes from "./modules/activity/activity.routes";
 import cardioRoutes from "./modules/cardio/cardio.routes";
+import cardioLeaderboardRoutes from "./modules/cardio-leaderboard/cardioLeaderboard.routes";
 import PRIVACY_POLICY_HTML from "./privacyPolicy";
 import SUPPORT_PAGE_HTML from "./supportPage";
 
@@ -35,6 +36,7 @@ app.use("/api/leaderboard", leaderboardRoutes);
 app.use("/api/cities", citiesRoutes);
 app.use("/api/activity", activityRoutes);
 app.use("/api/cardio", cardioRoutes);
+app.use("/api/cardio-leaderboard", cardioLeaderboardRoutes);
 
 app.use(errorHandler);
 

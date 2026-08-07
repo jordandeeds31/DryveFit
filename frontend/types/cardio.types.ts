@@ -16,6 +16,7 @@ export interface CardioSessionSummary {
   caloriesBurned: number | null;
   avgHeartRate: number | null;
   maxHeartRate: number | null;
+  stepCount: number | null;
   createdAt: string;
 }
 
@@ -31,5 +32,6 @@ export interface CreateCardioSessionInput {
   caloriesBurned: number | null;
   avgHeartRate: number | null;
   maxHeartRate: number | null;
+  stepCount: number | null;
   route: CardioRoutePoint[];
 }

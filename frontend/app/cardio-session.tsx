@@ -22,6 +22,7 @@ import {
   resumeSession,
   recordHeartRateSample,
   setCaloriesBurned,
+  setStepCount,
   clearSession,
 } from "@/store/slices/cardioSessionSlice";
 import { useCreateCardioSession } from "@/hooks/useCardio";
@@ -71,7 +72,10 @@ const CardioSessionScreen = () => {
   const isPaused = active?.pausedAt != null;
 
   const [permissionDenied, setPermissionDenied] = useState(false);
-  const [isHealthKitConnected, setIsHealthKitConnected] = useState(false);
+  const [healthKitStatus, setHealthKitStatus] = useState<
+    "checking" | "unavailable" | "not_connected" | "connected"
+  >("checking");
+  const isHealthKitConnected = healthKitStatus === "connected";
   // Forces a re-render every second so elapsed time ticks — the real value
   // is always derived from the startedAt timestamp in Redux, same pattern
   // as cinematic-mode's timer.
@@ -135,9 +139,15 @@ const CardioSessionScreen = () => {
     let cancelled = false;
     (async () => {
       const available = await isHealthKitAvailable();
-      if (!available) return;
+      if (cancelled) return;
+      if (!available) {
+        setHealthKitStatus("unavailable");
+        return;
+      }
       const authorized = await isHealthKitAuthorized();
-      if (!cancelled) setIsHealthKitConnected(authorized);
+      if (!cancelled) {
+        setHealthKitStatus(authorized ? "connected" : "not_connected");
+      }
     })();
     return () => {
       cancelled = true;
@@ -154,13 +164,14 @@ const CardioSessionScreen = () => {
 
     let cancelled = false;
     const poll = async () => {
-      const { latestHeartRate, caloriesBurned: calories } =
+      const { latestHeartRate, caloriesBurned: calories, stepCount } =
         await queryRecentHeartRateAndEnergy(new Date(active.startedAt));
       if (cancelled) return;
       if (latestHeartRate != null) {
         dispatch(recordHeartRateSample(latestHeartRate));
       }
       dispatch(setCaloriesBurned(Math.round(calories)));
+      dispatch(setStepCount(stepCount));
     };
 
     poll();
@@ -229,6 +240,7 @@ const CardioSessionScreen = () => {
     const distanceMeters = active.distanceMeters;
     const durationSecs = elapsedSeconds;
     const caloriesBurned = active.caloriesBurned > 0 ? active.caloriesBurned : null;
+    const stepCount = active.stepCount > 0 ? active.stepCount : null;
     const avgHeartRate =
       active.heartRateSamples.length > 0
         ? Math.round(
@@ -250,6 +262,7 @@ const CardioSessionScreen = () => {
         caloriesBurned,
         avgHeartRate,
         maxHeartRate,
+        stepCount,
         route: active.routePoints,
       },
       {
@@ -264,6 +277,7 @@ const CardioSessionScreen = () => {
               caloriesBurned: caloriesBurned != null ? String(caloriesBurned) : "",
               avgHeartRate: avgHeartRate != null ? String(avgHeartRate) : "",
               maxHeartRate: maxHeartRate != null ? String(maxHeartRate) : "",
+              stepCount: stepCount != null ? String(stepCount) : "",
             },
           });
         },
@@ -288,6 +302,37 @@ const CardioSessionScreen = () => {
         </Text>
         <View style={{ width: 24 }} />
       </View>
+
+      {healthKitStatus === "not_connected" && (
+        <TouchableOpacity
+          style={styles.watchHint}
+          onPress={() => router.push("/(tabs)/Profile")}
+        >
+          <Feather name="heart" size={14} color={colors.textMuted} />
+          <Text style={styles.watchHintText}>
+            Connect Apple Health in Profile to track heart rate, calories,
+            and steps.
+          </Text>
+          <Feather name="chevron-right" size={14} color={colors.textMuted} />
+        </TouchableOpacity>
+      )}
+
+      {/* HealthKit only samples heart rate/calories/steps sparsely in the
+          background — an active Watch workout is what makes those readings
+          near-continuous. Hidden once real data starts coming in, since the
+          nudge is only useful before that happens. */}
+      {isHealthKitConnected &&
+        active.heartRateSamples.length === 0 &&
+        active.caloriesBurned === 0 &&
+        active.stepCount === 0 && (
+          <View style={styles.watchHint}>
+            <Feather name="watch" size={14} color={colors.textMuted} />
+            <Text style={styles.watchHintText}>
+              For live heart rate, calories, and steps, start a workout on
+              your Apple Watch too.
+            </Text>
+          </View>
+        )}
 
       <View style={styles.mapContainer}>
         {permissionDenied ? (
@@ -367,6 +412,12 @@ const CardioSessionScreen = () => {
             <Text style={styles.statLabel}>calories</Text>
           </View>
         )}
+        {active.stepCount > 0 && (
+          <View style={styles.statBox}>
+            <Text style={styles.statValue}>{active.stepCount}</Text>
+            <Text style={styles.statLabel}>steps</Text>
+          </View>
+        )}
         {active.heartRateSamples.length > 0 && (
           <View style={styles.statBox}>
             <Text style={styles.statValue}>
@@ -423,6 +474,19 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: fontSizes.md,
     fontWeight: fontWeights.extrabold,
+  },
+  watchHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    backgroundColor: "#111",
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+  },
+  watchHintText: {
+    flex: 1,
+    color: colors.textMuted,
+    fontSize: fontSizes.xs,
   },
   mapContainer: {
     flex: 1,

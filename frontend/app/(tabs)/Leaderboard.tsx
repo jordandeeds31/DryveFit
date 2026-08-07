@@ -15,6 +15,7 @@ import { spacing } from "@/constants/spacing";
 import { colors } from "@/constants/colors";
 import { fontSizes, fontWeights } from "@/constants/typography";
 import DropdownExerciseSelect from "@/components/shared/DropdownExerciseSelect/DropdownExerciseSelect";
+import CardioLeaderboard from "@/features/CardioLeaderboard/CardioLeaderboard";
 import { Exercise } from "@/types/exercise.types";
 import { LeaderboardEntry } from "@/types/leaderboard.types";
 import { useCurrentUser } from "@/hooks/useUsers";
@@ -23,10 +24,12 @@ import { useAuthImageHeaders } from "@/hooks/useAuthImageHeaders";
 
 type Scope = "city" | "global";
 type Gender = "male" | "female";
+type LeaderboardMode = "lifting" | "cardio";
 
 const PAGE_SIZE = 20;
 
 const LeaderboardScreen = () => {
+  const [mode, setMode] = useState<LeaderboardMode>("lifting");
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(
     null,
   );
@@ -96,8 +99,42 @@ const LeaderboardScreen = () => {
         keyboardShouldPersistTaps="handled"
       >
         <Text style={styles.title}>
-          {selectedExercise?.name ?? "Leaderboard"}
+          {mode === "lifting" ? selectedExercise?.name ?? "Leaderboard" : "Cardio"}
         </Text>
+
+        <View style={styles.modeSegmentedControl}>
+          <TouchableOpacity
+            style={[styles.modeSegment, mode === "lifting" && styles.modeSegmentActive]}
+            onPress={() => setMode("lifting")}
+          >
+            <Text
+              style={[
+                styles.modeSegmentText,
+                mode === "lifting" && styles.modeSegmentTextActive,
+              ]}
+            >
+              Lifting
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.modeSegment, mode === "cardio" && styles.modeSegmentActive]}
+            onPress={() => setMode("cardio")}
+          >
+            <Text
+              style={[
+                styles.modeSegmentText,
+                mode === "cardio" && styles.modeSegmentTextActive,
+              ]}
+            >
+              Cardio
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {mode === "cardio" && <CardioLeaderboard />}
+
+        {mode === "lifting" && (
+        <>
         <Text style={styles.subtitle}>
           See how your estimated one-rep max for an exercise stacks up
           against other users. Pick an exercise below to get started.
@@ -291,9 +328,11 @@ const LeaderboardScreen = () => {
               ))}
             </View>
           )}
+        </>
+        )}
       </ScrollView>
 
-      {(totalPages > 1 || currentUserEntry) && (
+      {mode === "lifting" && (totalPages > 1 || currentUserEntry) && (
         <View style={styles.footer}>
           {totalPages > 1 && (
             <View style={styles.pagination}>
@@ -368,6 +407,35 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: spacing.xs,
     marginBottom: spacing.sm,
+  },
+  modeSegmentedControl: {
+    flexDirection: "row",
+    backgroundColor: colors.surfaceGrayLight,
+    borderRadius: 10,
+    padding: 3,
+    marginTop: spacing.sm,
+  },
+  modeSegment: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: spacing.sm,
+    borderRadius: 8,
+  },
+  modeSegmentActive: {
+    backgroundColor: "white",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  modeSegmentText: {
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.semibold,
+    color: colors.textSecondary,
+  },
+  modeSegmentTextActive: {
+    color: "#000",
   },
   scopeLabel: {
     fontSize: fontSizes.sm,

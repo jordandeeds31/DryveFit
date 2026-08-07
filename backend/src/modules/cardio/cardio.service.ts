@@ -19,6 +19,7 @@ interface CreateCardioSessionInput {
   caloriesBurned: number | null;
   avgHeartRate: number | null;
   maxHeartRate: number | null;
+  stepCount: number | null;
   route: CardioRoutePoint[];
 }
 
@@ -32,6 +33,7 @@ const CARDIO_SESSION_LIST_SELECT = {
   caloriesBurned: true,
   avgHeartRate: true,
   maxHeartRate: true,
+  stepCount: true,
   createdAt: true,
 } as const;
 
@@ -64,6 +66,7 @@ export const createCardioSession = async (
       caloriesBurned: input.caloriesBurned,
       avgHeartRate: input.avgHeartRate,
       maxHeartRate: input.maxHeartRate,
+      stepCount: input.stepCount,
       route: input.route as unknown as Prisma.InputJsonValue,
     },
     select: CARDIO_SESSION_LIST_SELECT,

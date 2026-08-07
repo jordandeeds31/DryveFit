@@ -22,6 +22,7 @@ export const createCardioSessionHandler = catchAsync(
       caloriesBurned,
       avgHeartRate,
       maxHeartRate,
+      stepCount,
       route,
     } = req.body;
 
@@ -55,6 +56,13 @@ export const createCardioSessionHandler = catchAsync(
     ) {
       throw new AppError(400, "maxHeartRate must be a number or null");
     }
+    if (
+      stepCount !== null &&
+      stepCount !== undefined &&
+      typeof stepCount !== "number"
+    ) {
+      throw new AppError(400, "stepCount must be a number or null");
+    }
     if (!Array.isArray(route)) {
       throw new AppError(400, "route must be an array of points");
     }
@@ -67,6 +75,7 @@ export const createCardioSessionHandler = catchAsync(
       caloriesBurned: caloriesBurned ?? null,
       avgHeartRate: avgHeartRate ?? null,
       maxHeartRate: maxHeartRate ?? null,
+      stepCount: stepCount ?? null,
       route: route as CardioRoutePoint[],
     });
 

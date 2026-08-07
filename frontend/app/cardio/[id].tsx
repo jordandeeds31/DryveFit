@@ -168,6 +168,12 @@ const CardioSessionDetailScreen = () => {
                   <Text style={styles.statLabel}>calories</Text>
                 </View>
               )}
+              {session.stepCount != null && (
+                <View style={styles.statBox}>
+                  <Text style={styles.statValue}>{session.stepCount}</Text>
+                  <Text style={styles.statLabel}>steps</Text>
+                </View>
+              )}
               {session.avgHeartRate != null && (
                 <View style={styles.statBox}>
                   <Text style={styles.statValue}>{session.avgHeartRate}</Text>

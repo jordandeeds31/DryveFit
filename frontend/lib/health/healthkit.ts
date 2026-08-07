@@ -11,7 +11,7 @@ import type { HealthInputOptions, HealthKitPermissions, HealthValue } from "reac
 // are used here instead, matching the type shapes without the broken import.
 const permissions: HealthKitPermissions = {
   permissions: {
-    read: ["HeartRate", "ActiveEnergyBurned", "Workout"] as HealthKitPermissions["permissions"]["read"],
+    read: ["HeartRate", "ActiveEnergyBurned", "StepCount", "Workout"] as HealthKitPermissions["permissions"]["read"],
     write: [],
   },
 };
@@ -68,6 +68,7 @@ export const isHealthKitAuthorized = (): Promise<boolean> => {
 export interface RecentHealthMetrics {
   latestHeartRate: number | null;
   caloriesBurned: number;
+  stepCount: number;
 }
 
 export const queryRecentHeartRateAndEnergy = async (
@@ -83,8 +84,16 @@ export const queryRecentHeartRateAndEnergy = async (
     startDate: sinceDate.toISOString(),
     unit: "kilocalorie" as HealthInputOptions["unit"],
   };
+  // getStepCount only ever sums a whole calendar day, so it can't be scoped
+  // to "since the session started" — getDailyStepCountSamples takes an
+  // explicit startDate/endDate range instead, bucketed by `period` minutes,
+  // which is summed below into a single session total.
+  const stepOptions: HealthInputOptions = {
+    startDate: sinceDate.toISOString(),
+    endDate: new Date().toISOString(),
+  };
 
-  const [heartRateSamples, energySamples] = await Promise.all([
+  const [heartRateSamples, energySamples, stepSamples] = await Promise.all([
     new Promise<HealthValue[]>((resolve) => {
       AppleHealthKit.getHeartRateSamples(heartRateOptions, (error, results) => {
         resolve(error ? [] : results);
@@ -92,6 +101,11 @@ export const queryRecentHeartRateAndEnergy = async (
     }),
     new Promise<HealthValue[]>((resolve) => {
       AppleHealthKit.getActiveEnergyBurned(energyOptions, (error, results) => {
+        resolve(error ? [] : results);
+      });
+    }),
+    new Promise<HealthValue[]>((resolve) => {
+      AppleHealthKit.getDailyStepCountSamples(stepOptions, (error, results) => {
         resolve(error ? [] : results);
       });
     }),
@@ -103,6 +117,9 @@ export const queryRecentHeartRateAndEnergy = async (
     (sum, sample) => sum + sample.value,
     0,
   );
+  const stepCount = Math.round(
+    stepSamples.reduce((sum, sample) => sum + sample.value, 0),
+  );
 
-  return { latestHeartRate, caloriesBurned };
+  return { latestHeartRate, caloriesBurned, stepCount };
 };
