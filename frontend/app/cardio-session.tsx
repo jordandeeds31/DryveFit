@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   Linking,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { useDispatch, useSelector } from "react-redux";
 import * as Location from "expo-location";
@@ -63,7 +63,6 @@ const CardioSessionScreen = () => {
   const { activityType } = useLocalSearchParams<{
     activityType: CardioActivityType;
   }>();
-  const insets = useSafeAreaInsets();
   const dispatch = useDispatch<AppDispatch>();
   const { mutate: createSession, isPending: isSaving } =
     useCreateCardioSession();
@@ -295,7 +294,7 @@ const CardioSessionScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={[styles.topRow, { paddingTop: insets.top + spacing.sm }]}>
+      <View style={styles.topRow}>
         <TouchableOpacity
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           onPress={handleDiscard}
@@ -476,6 +475,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
     paddingBottom: spacing.sm,
   },
   activityLabel: {
