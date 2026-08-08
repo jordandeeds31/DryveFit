@@ -2,6 +2,7 @@ import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import AppleHealthKit from "react-native-health";
 import type { HealthInputOptions, HealthKitPermissions, HealthValue } from "react-native-health";
+import { logDebug } from "@/lib/debug/debugLog";
 
 // react-native-health's index.d.ts declares `HealthPermission`, `HealthUnit`,
 // and `HealthStatusCode` as real enums, but the compiled index.js never
@@ -52,6 +53,8 @@ export const isHealthKitAvailable = (): Promise<boolean> => {
 
   return new Promise((resolve) => {
     AppleHealthKit.isAvailable((error, results) => {
+      if (error) logDebug(`isAvailable error: ${error}`);
+      logDebug(`isAvailable -> ${!error && results}`);
       resolve(!error && results);
     });
   });
@@ -63,12 +66,17 @@ export const requestHealthKitAuthorization = (): Promise<boolean> => {
   const request = new Promise<boolean>((resolve) => {
     AppleHealthKit.initHealthKit(permissions, async (error) => {
       const success = !error;
+      if (error) logDebug(`initHealthKit error: ${error}`);
+      else logDebug("initHealthKit success");
       if (success) await markHealthKitConnected();
       resolve(success);
     });
   });
 
-  return withTimeout(request, 20_000, false);
+  return withTimeout(request, 20_000, false).then((result) => {
+    logDebug(`requestHealthKitAuthorization -> ${result} (timeout fallback if false without an error above)`);
+    return result;
+  });
 };
 
 export interface RecentHealthMetrics {
@@ -102,16 +110,19 @@ export const queryRecentHeartRateAndEnergy = async (
   const [heartRateSamples, energySamples, stepSamples] = await Promise.all([
     new Promise<HealthValue[]>((resolve) => {
       AppleHealthKit.getHeartRateSamples(heartRateOptions, (error, results) => {
+        if (error) logDebug(`getHeartRateSamples error: ${error}`);
         resolve(error ? [] : results);
       });
     }),
     new Promise<HealthValue[]>((resolve) => {
       AppleHealthKit.getActiveEnergyBurned(energyOptions, (error, results) => {
+        if (error) logDebug(`getActiveEnergyBurned error: ${error}`);
         resolve(error ? [] : results);
       });
     }),
     new Promise<HealthValue[]>((resolve) => {
       AppleHealthKit.getDailyStepCountSamples(stepOptions, (error, results) => {
+        if (error) logDebug(`getDailyStepCountSamples error: ${error}`);
         resolve(error ? [] : results);
       });
     }),
@@ -125,6 +136,12 @@ export const queryRecentHeartRateAndEnergy = async (
   );
   const stepCount = Math.round(
     stepSamples.reduce((sum, sample) => sum + sample.value, 0),
+  );
+
+  logDebug(
+    `poll since ${sinceDate.toISOString()}: ${heartRateSamples.length} hr samples (latest ${latestHeartRate}), ` +
+      `${energySamples.length} energy samples (${caloriesBurned} kcal), ` +
+      `${stepSamples.length} step buckets (${stepCount} steps)`,
   );
 
   return { latestHeartRate, caloriesBurned, stepCount };

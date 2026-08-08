@@ -34,6 +34,7 @@ import {
   hasCompletedHealthKitConnect,
   requestHealthKitAuthorization,
 } from "@/lib/health/healthkit";
+import DebugOverlay from "@/components/shared/DebugOverlay/DebugOverlay";
 import { colors } from "@/constants/colors";
 import { spacing } from "@/constants/spacing";
 import { fontSizes, fontWeights } from "@/constants/typography";
@@ -361,6 +362,7 @@ const Profile = () => {
           message={toastMessage ?? ""}
           onHide={() => setToastMessage(null)}
         />
+        <DebugOverlay />
       </SafeAreaView>
     </KeyboardAvoidingView>
   );
