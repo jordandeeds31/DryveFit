@@ -1,3 +1,4 @@
+import { useCallback, useState } from "react";
 import {
   View,
   Text,
@@ -5,9 +6,11 @@ import {
   ScrollView,
   ActivityIndicator,
   TouchableOpacity,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { spacing } from "@/constants/spacing";
 import { colors } from "@/constants/colors";
@@ -15,6 +18,10 @@ import { fontSizes, fontWeights } from "@/constants/typography";
 import { formatCalendarDate } from "@/lib/utils/date.utils";
 import { useCardioSessions } from "@/hooks/useCardio";
 import { useCurrentUser } from "@/hooks/useUsers";
+import {
+  isHealthKitAvailable,
+  hasCompletedHealthKitConnect,
+} from "@/lib/health/healthkit";
 import { CardioActivityType, CardioSessionSummary } from "@/types/cardio.types";
 
 const METERS_PER_MILE = 1609.344;
@@ -40,6 +47,32 @@ const CardioScreen = () => {
   const { data: currentUser } = useCurrentUser();
   const needsLeaderboardIdentity = !currentUser?.username || !currentUser?.city;
 
+  const [needsHealthKitConnect, setNeedsHealthKitConnect] = useState(false);
+
+  // Re-checks on every focus, not just mount, so coming back from Profile
+  // after tapping "Connect" makes the banner disappear immediately.
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== "ios") {
+        setNeedsHealthKitConnect(false);
+        return;
+      }
+      let cancelled = false;
+      (async () => {
+        const available = await isHealthKitAvailable();
+        if (!available) {
+          if (!cancelled) setNeedsHealthKitConnect(false);
+          return;
+        }
+        const connected = await hasCompletedHealthKitConnect();
+        if (!cancelled) setNeedsHealthKitConnect(!connected);
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, []),
+  );
+
   const handleStart = (activityType: CardioActivityType) => {
     router.push({ pathname: "/cardio-session", params: { activityType } });
   };
@@ -52,16 +85,18 @@ const CardioScreen = () => {
           Track a walk, run, or ride — distance, route, and calories.
         </Text>
 
-        <TouchableOpacity
-          style={styles.watchBanner}
-          onPress={() => router.push("/(tabs)/Profile")}
-        >
-          <Ionicons name="watch-outline" size={16} color={colors.primaryBlue} />
-          <Text style={styles.watchBannerText}>
-            For live heart rate, calories, and step count, connect Apple
-            Health (in Profile) and start a workout on your Apple Watch too.
-          </Text>
-        </TouchableOpacity>
+        {needsHealthKitConnect && (
+          <TouchableOpacity
+            style={styles.watchBanner}
+            onPress={() => router.push("/(tabs)/Profile")}
+          >
+            <Ionicons name="watch-outline" size={16} color={colors.primaryBlue} />
+            <Text style={styles.watchBannerText}>
+              For live heart rate, calories, and step count, connect Apple
+              Health (in Profile) and start a workout on your Apple Watch too.
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {needsLeaderboardIdentity && (
           <TouchableOpacity

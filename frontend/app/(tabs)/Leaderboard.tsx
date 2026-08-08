@@ -15,7 +15,9 @@ import { spacing } from "@/constants/spacing";
 import { colors } from "@/constants/colors";
 import { fontSizes, fontWeights } from "@/constants/typography";
 import DropdownExerciseSelect from "@/components/shared/DropdownExerciseSelect/DropdownExerciseSelect";
-import CardioLeaderboard from "@/features/CardioLeaderboard/CardioLeaderboard";
+import CardioLeaderboard, {
+  CardioYourRank,
+} from "@/features/CardioLeaderboard/CardioLeaderboard";
 import { Exercise } from "@/types/exercise.types";
 import { LeaderboardEntry } from "@/types/leaderboard.types";
 import { useCurrentUser } from "@/hooks/useUsers";
@@ -30,6 +32,9 @@ const PAGE_SIZE = 20;
 
 const LeaderboardScreen = () => {
   const [mode, setMode] = useState<LeaderboardMode>("lifting");
+  const [cardioYourRank, setCardioYourRank] = useState<CardioYourRank | null>(
+    null,
+  );
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(
     null,
   );
@@ -132,7 +137,9 @@ const LeaderboardScreen = () => {
           </TouchableOpacity>
         </View>
 
-        {mode === "cardio" && <CardioLeaderboard />}
+        {mode === "cardio" && (
+          <CardioLeaderboard onYourRankChange={setCardioYourRank} />
+        )}
 
         {mode === "lifting" && (
         <>
@@ -381,6 +388,16 @@ const LeaderboardScreen = () => {
               </Text>
             </View>
           )}
+        </View>
+      )}
+
+      {mode === "cardio" && cardioYourRank && (
+        <View style={styles.footer}>
+          <View style={styles.yourRankBar}>
+            <Text style={styles.yourRankLabel}>YOUR RANK</Text>
+            <Text style={styles.yourRankValue}>#{cardioYourRank.rank}</Text>
+            <Text style={styles.yourRankWeight}>{cardioYourRank.value}</Text>
+          </View>
         </View>
       )}
     </SafeAreaView>

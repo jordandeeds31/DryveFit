@@ -58,7 +58,19 @@ const formatEntryValue = (
   return `${Math.round(value).toLocaleString()} ${suffix}`;
 };
 
-const CardioLeaderboard = () => {
+export interface CardioYourRank {
+  rank: number;
+  value: string;
+}
+
+interface CardioLeaderboardProps {
+  // The rank bar itself is rendered by the parent screen as a fixed footer
+  // (matching the lifting leaderboard's), since this component is embedded
+  // inside that screen's ScrollView and can't pin itself to the viewport.
+  onYourRankChange?: (rank: CardioYourRank | null) => void;
+}
+
+const CardioLeaderboard = ({ onYourRankChange }: CardioLeaderboardProps) => {
   const [activityType, setActivityType] = useState<CardioActivityType>("walk");
   const [category, setCategory] = useState<CardioLeaderboardCategory>(
     "steps-best-day",
@@ -96,6 +108,20 @@ const CardioLeaderboard = () => {
     leaderboard?.entries.find(
       (entry: CardioLeaderboardEntry) => entry.isCurrentUser,
     ) ?? null;
+
+  useEffect(() => {
+    onYourRankChange?.(
+      currentUserEntry
+        ? {
+            rank: currentUserEntry.rank,
+            value: formatEntryValue(category, activityType, currentUserEntry.value),
+          }
+        : null,
+    );
+    // Clear it on unmount too, e.g. switching from Cardio back to Lifting.
+    return () => onYourRankChange?.(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUserEntry?.rank, currentUserEntry?.value, category, activityType]);
 
   return (
     <View>
@@ -306,16 +332,6 @@ const CardioLeaderboard = () => {
           </TouchableOpacity>
         </View>
       )}
-
-      {currentUserEntry && (
-        <View style={styles.yourRankBar}>
-          <Text style={styles.yourRankLabel}>YOUR RANK</Text>
-          <Text style={styles.yourRankValue}>#{currentUserEntry.rank}</Text>
-          <Text style={styles.yourRankStat}>
-            {formatEntryValue(category, activityType, currentUserEntry.value)}
-          </Text>
-        </View>
-      )}
     </View>
   );
 };
@@ -460,33 +476,5 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.semibold,
     color: colors.textSecondary,
-  },
-  yourRankBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    backgroundColor: colors.primaryBlue,
-    borderRadius: 8,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    marginTop: spacing.sm,
-    marginBottom: spacing.md,
-  },
-  yourRankLabel: {
-    fontSize: fontSizes.xs,
-    fontWeight: fontWeights.bold,
-    color: "white",
-    opacity: 0.8,
-  },
-  yourRankValue: {
-    flex: 1,
-    fontSize: fontSizes.lg,
-    fontWeight: fontWeights.extrabold,
-    color: "white",
-  },
-  yourRankStat: {
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.semibold,
-    color: "white",
   },
 });
