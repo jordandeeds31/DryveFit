@@ -33,7 +33,7 @@ import { fontSizes, fontWeights } from "@/constants/typography";
 import { formatElapsed } from "@/lib/utils/duration.utils";
 import {
   isHealthKitAvailable,
-  isHealthKitAuthorized,
+  hasCompletedHealthKitConnect,
   queryRecentHeartRateAndEnergy,
 } from "@/lib/health/healthkit";
 import { cyberpunk, neonGlow, neonShadow } from "@/constants/cyberpunk";
@@ -72,10 +72,15 @@ const CardioSessionScreen = () => {
   const isPaused = active?.pausedAt != null;
 
   const [permissionDenied, setPermissionDenied] = useState(false);
+  // "authorized" here is a best-effort hint, not a hard fact — HealthKit
+  // deliberately never tells an app whether read access (heart rate,
+  // active energy) was actually granted, only write access. A false
+  // "not_connected" reading must never block the poll below, or real data
+  // silently never gets queried even though it's actually there.
   const [healthKitStatus, setHealthKitStatus] = useState<
     "checking" | "unavailable" | "not_connected" | "connected"
   >("checking");
-  const isHealthKitConnected = healthKitStatus === "connected";
+  const isHealthKitAvailableOnDevice = healthKitStatus !== "unavailable";
   // Forces a re-render every second so elapsed time ticks — the real value
   // is always derived from the startedAt timestamp in Redux, same pattern
   // as cinematic-mode's timer.
@@ -144,9 +149,9 @@ const CardioSessionScreen = () => {
         setHealthKitStatus("unavailable");
         return;
       }
-      const authorized = await isHealthKitAuthorized();
+      const connected = await hasCompletedHealthKitConnect();
       if (!cancelled) {
-        setHealthKitStatus(authorized ? "connected" : "not_connected");
+        setHealthKitStatus(connected ? "connected" : "not_connected");
       }
     })();
     return () => {
@@ -160,7 +165,7 @@ const CardioSessionScreen = () => {
   // state) so they survive the screen remounting mid-session, and so an
   // average/max heart rate can be computed from the full history at Finish.
   useEffect(() => {
-    if (!isHealthKitConnected || !active) return;
+    if (!isHealthKitAvailableOnDevice || !active) return;
 
     let cancelled = false;
     const poll = async () => {
@@ -181,7 +186,7 @@ const CardioSessionScreen = () => {
       clearInterval(interval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isHealthKitConnected, active?.startedAt]);
+  }, [isHealthKitAvailableOnDevice, active?.startedAt]);
 
   if (!active) {
     return (
@@ -320,8 +325,11 @@ const CardioSessionScreen = () => {
       {/* HealthKit only samples heart rate/calories/steps sparsely in the
           background — an active Watch workout is what makes those readings
           near-continuous. Hidden once real data starts coming in, since the
-          nudge is only useful before that happens. */}
-      {isHealthKitConnected &&
+          nudge is only useful before that happens. Shown regardless of the
+          (unreliable) "connected" hint — the poll runs either way, so this
+          stays relevant whether the real blocker is a denied permission or
+          just no Watch workout running. */}
+      {isHealthKitAvailableOnDevice &&
         active.heartRateSamples.length === 0 &&
         active.caloriesBurned === 0 &&
         active.stepCount === 0 && (

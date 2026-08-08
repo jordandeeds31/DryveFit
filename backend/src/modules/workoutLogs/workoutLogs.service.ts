@@ -170,6 +170,46 @@ export const getWorkoutLogsForDate = async (
   }));
 };
 
+// Used by the AI chat tool (get_recent_workouts) — the owner's own full
+// history, not gated by leaderboard visibility like getPublicWorkoutHistory.
+export const getRecentWorkoutLogsForUser = async (
+  userId: string,
+  limit: number,
+) => {
+  const workoutLogs = await prisma.workoutLog.findMany({
+    where: { userId },
+    include: { exercises: { include: { sets: true } } },
+    orderBy: { loggedAt: "desc" },
+    take: limit,
+  });
+
+  return workoutLogs.map((log) => ({
+    id: log.id,
+    loggedAt: log.loggedAt,
+    exercises: log.exercises.map((exercise) => ({
+      exerciseName: exercise.exerciseName,
+      muscleGroup: exercise.muscleGroup,
+      sets: exercise.sets.map((set) => ({
+        setNumber: set.setNumber,
+        weight: set.weight,
+        reps: set.reps,
+      })),
+    })),
+  }));
+};
+
+// Used by the AI chat tool to know what exercise names it can even ask
+// get_1rm_history about, without the model having to guess/hallucinate one.
+export const getDistinctExerciseNamesForUser = async (userId: string) => {
+  const logs = await prisma.exerciseLog.findMany({
+    where: { workoutLog: { userId } },
+    distinct: ["exerciseName"],
+    select: { exerciseName: true },
+  });
+
+  return logs.map((log) => log.exerciseName).sort();
+};
+
 const PUBLIC_WORKOUT_HISTORY_LIMIT = 20;
 
 // Shown on another user's public profile (reached from the leaderboard) —

@@ -17,13 +17,22 @@ const AppHeader = () => {
           resizeMode="contain"
         />
       </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.settingsButton}
-        onPress={() => router.push("/(tabs)/Profile")}
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-      >
-        <Feather name="settings" size={20} color={colors.textSecondary} />
-      </TouchableOpacity>
+      <View style={styles.headerActions}>
+        <TouchableOpacity
+          style={styles.settingsButton}
+          onPress={() => router.push("/ai-chat")}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Feather name="message-circle" size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.settingsButton}
+          onPress={() => router.push("/(tabs)/Profile")}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Feather name="settings" size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 };

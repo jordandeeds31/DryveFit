@@ -14,6 +14,7 @@ import { colors } from "@/constants/colors";
 import { fontSizes, fontWeights } from "@/constants/typography";
 import { formatCalendarDate } from "@/lib/utils/date.utils";
 import { useCardioSessions } from "@/hooks/useCardio";
+import { useCurrentUser } from "@/hooks/useUsers";
 import { CardioActivityType, CardioSessionSummary } from "@/types/cardio.types";
 
 const METERS_PER_MILE = 1609.344;
@@ -36,6 +37,8 @@ const formatSessionDate = (dateStr: string) =>
 
 const CardioScreen = () => {
   const { data: sessions, isLoading, error } = useCardioSessions();
+  const { data: currentUser } = useCurrentUser();
+  const needsLeaderboardIdentity = !currentUser?.username || !currentUser?.city;
 
   const handleStart = (activityType: CardioActivityType) => {
     router.push({ pathname: "/cardio-session", params: { activityType } });
@@ -59,6 +62,19 @@ const CardioScreen = () => {
             Health (in Profile) and start a workout on your Apple Watch too.
           </Text>
         </TouchableOpacity>
+
+        {needsLeaderboardIdentity && (
+          <TouchableOpacity
+            style={styles.leaderboardBanner}
+            onPress={() => router.push("/(tabs)/Profile")}
+          >
+            <Ionicons name="trophy-outline" size={16} color={colors.primaryBlue} />
+            <Text style={styles.leaderboardBannerText}>
+              If you want to show up on the leaderboard, set a username and
+              city in Profile.
+            </Text>
+          </TouchableOpacity>
+        )}
 
         <View style={styles.startRow}>
           {ACTIVITY_OPTIONS.map((option) => (
@@ -172,6 +188,22 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   watchBannerText: {
+    flex: 1,
+    fontSize: fontSizes.xs,
+    color: colors.primaryBlue,
+  },
+  leaderboardBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.xs,
+    backgroundColor: colors.surfaceBlueLight,
+    borderWidth: 1,
+    borderColor: colors.borderBlueLight,
+    borderRadius: 8,
+    padding: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  leaderboardBannerText: {
     flex: 1,
     fontSize: fontSizes.xs,
     color: colors.primaryBlue,

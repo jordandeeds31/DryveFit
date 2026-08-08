@@ -78,6 +78,7 @@ const LeaderboardScreen = () => {
   const hasCity = !!currentUser?.city;
   const hasUsername = !!currentUser?.username;
   const hasGender = !!currentUser?.gender;
+  const needsLeaderboardIdentity = !hasUsername || !hasCity;
 
   const scopeLabel = !selectedExercise
     ? null
@@ -235,13 +236,14 @@ const LeaderboardScreen = () => {
           </TouchableOpacity>
         )}
 
-        {!hasUsername && (
+        {needsLeaderboardIdentity && (
           <TouchableOpacity
             style={styles.banner}
             onPress={() => router.push("/(tabs)/Profile")}
           >
             <Text style={styles.bannerText}>
-              Set a username in your Profile to appear on the leaderboard.
+              If you want to show up on the leaderboard, set a username and
+              city in Profile.
             </Text>
           </TouchableOpacity>
         )}

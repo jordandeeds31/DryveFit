@@ -20,10 +20,10 @@ export const neonGlow = (color: string, radius = 8) => ({
   textShadowRadius: radius,
 });
 
-export const neonShadow = (color: string, radius = 10) => ({
+export const neonShadow = (color: string, radius = 10, opacity = 0.9) => ({
   shadowColor: color,
   shadowOffset: { width: 0, height: 0 },
-  shadowOpacity: 0.9,
+  shadowOpacity: opacity,
   shadowRadius: radius,
   elevation: 8,
 });

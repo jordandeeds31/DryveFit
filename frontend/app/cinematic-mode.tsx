@@ -36,7 +36,6 @@ import {
 } from "@/store/slices/cinematicTimerSlice";
 import {
   isHealthKitAvailable,
-  isHealthKitAuthorized,
   queryRecentHeartRateAndEnergy,
 } from "@/lib/health/healthkit";
 
@@ -140,15 +139,19 @@ const CinematicMode = () => {
       state.cinematicTimer.healthMetricsBySession[sessionKey],
   );
 
-  const [isHealthKitConnected, setIsHealthKitConnected] = useState(false);
+  const [isHealthKitAvailableOnDevice, setIsHealthKitAvailableOnDevice] =
+    useState(false);
 
+  // HealthKit deliberately never reveals true read-authorization status to
+  // apps, so gating the poll below on an "authorized" check (as this used
+  // to) can silently skip it forever even when access really was granted —
+  // only real device availability is checked here; the query itself just
+  // returns nothing if access truly was denied.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const available = await isHealthKitAvailable();
-      if (!available) return;
-      const authorized = await isHealthKitAuthorized();
-      if (!cancelled) setIsHealthKitConnected(authorized);
+      if (!cancelled) setIsHealthKitAvailableOnDevice(available);
     })();
     return () => {
       cancelled = true;
@@ -160,7 +163,7 @@ const CinematicMode = () => {
   // new sample) can lag by anywhere from a few seconds to about a minute.
   // This is "most recent reading," not real-time streaming.
   useEffect(() => {
-    if (!isHealthKitConnected) return;
+    if (!isHealthKitAvailableOnDevice) return;
 
     let cancelled = false;
     const poll = async () => {
@@ -179,7 +182,7 @@ const CinematicMode = () => {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [isHealthKitConnected, sessionKey, sessionStartedAt, dispatch]);
+  }, [isHealthKitAvailableOnDevice, sessionKey, sessionStartedAt, dispatch]);
 
   useEffect(() => {
     if (exercise) dispatch(startTimerIfNeeded(exercise.id));

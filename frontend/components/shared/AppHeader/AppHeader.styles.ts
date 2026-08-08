@@ -15,6 +15,11 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
   },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
   settingsButton: {
     padding: spacing.xs,
     backgroundColor: colors.surfaceGrayLight,

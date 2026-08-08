@@ -13,10 +13,17 @@ const Signup = () => {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [validationError, setValidationError] = useState<string | null>(null);
 
     const { register, error } = useAuth();
 
     const handleSignup = async () => {
+        if (password.length < 8) {
+            setValidationError("Password must be at least 8 characters");
+            return;
+        }
+        setValidationError(null);
+
         setIsSubmitting(true);
         try {
             const result = await register(email, password);
@@ -42,9 +49,11 @@ const Signup = () => {
                 />
                 <View style={styles.textInputContainer}>
                     <Input label="Email" placeholder="Enter email" autoCapitalize="none" value={email} onChangeText={setEmail} keyboardType="email-address" />
-                    <Input label="Password" placeholder="Enter password" autoCapitalize="none" value={password} onChangeText={setPassword} isPassword />
+                    <Input label="Password" placeholder="Enter password (min. 8 characters)" autoCapitalize="none" value={password} onChangeText={setPassword} isPassword />
                 </View>
-                {error && <Text style={styles.errorText}>{error}</Text>}
+                {(validationError || error) && (
+                    <Text style={styles.errorText}>{validationError ?? error}</Text>
+                )}
                 <View style={styles.buttonContainer}>
                     <Button title={isSubmitting ? "Signing Up..." : "Sign Up"} onPress={handleSignup} disabled={isSubmitting} />
                 </View>

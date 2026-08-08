@@ -62,7 +62,7 @@ const CheckPreviousWorkoutButton = ({
 
   return (
     <TouchableOpacity style={styles.checkPreviousButton} onPress={onPress}>
-      <Text style={styles.checkPreviousText}>CHECK PREVIOUS WORKOUT</Text>
+      <Text style={styles.checkPreviousText}>PREVIOUS WORKOUT</Text>
     </TouchableOpacity>
   );
 };

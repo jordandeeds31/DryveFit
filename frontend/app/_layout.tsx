@@ -49,6 +49,10 @@ const RootNavigator = () => {
                 name="cardio-recap"
                 options={{ presentation: "fullScreenModal", headerShown: false }}
             />
+            <Stack.Screen
+                name="ai-chat"
+                options={{ presentation: "fullScreenModal", headerShown: false }}
+            />
         </Stack>
     );
 };

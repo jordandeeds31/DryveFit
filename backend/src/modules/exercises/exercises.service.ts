@@ -164,3 +164,32 @@ export const getExercise1RMHistory = async (
     (a, b) => a.date.getTime() - b.date.getTime(),
   );
 };
+
+// Used by the AI chat tool (get_personal_records) — best-ever estimated 1RM
+// per exercise across the user's whole history, same Epley estimate as
+// getExercise1RMHistory but rolled up per exercise instead of per day.
+export const getPersonalRecordsForUser = async (userId: string) => {
+  const logs = await prisma.exerciseLog.findMany({
+    where: { workoutLog: { userId } },
+    select: {
+      exerciseName: true,
+      sets: { select: { weight: true, reps: true } },
+    },
+  });
+
+  const bestByExercise = new Map<string, number>();
+  for (const log of logs) {
+    for (const set of log.sets) {
+      if (set.weight == null || set.reps == null) continue;
+      const estimate = Math.round(set.weight * (1 + set.reps / 30));
+      const current = bestByExercise.get(log.exerciseName) ?? 0;
+      if (estimate > current) {
+        bestByExercise.set(log.exerciseName, estimate);
+      }
+    }
+  }
+
+  return Array.from(bestByExercise.entries())
+    .map(([exerciseName, estimated1RM]) => ({ exerciseName, estimated1RM }))
+    .sort((a, b) => b.estimated1RM - a.estimated1RM);
+};

@@ -644,6 +644,28 @@ export const getProgramsForUser = async (userId: string) => {
   });
 };
 
+// Used by the AI chat tool (get_active_program) — a compact summary rather
+// than the full week/day/exercise tree getProgramById returns, since the
+// model rarely needs the whole multi-week plan just to answer a question.
+export const getActiveProgramForUser = async (userId: string) => {
+  return prisma.program.findFirst({
+    where: { userId, isActive: true },
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      startDate: true,
+      endDate: true,
+      daysPerWeek: true,
+      trainingSplit: true,
+      sessionMinutes: true,
+      equipmentAccess: true,
+      trainingGoal: true,
+      fitnessLevel: true,
+    },
+  });
+};
+
 export const getProgramById = async (userId: string, programId: string) => {
   const program = await prisma.program.findFirst({
     where: { id: programId, userId },

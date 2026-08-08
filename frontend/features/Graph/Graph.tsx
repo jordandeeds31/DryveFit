@@ -7,6 +7,14 @@ import { fontSizes, fontWeights } from "@/constants/typography";
 import { formatCalendarDate } from "@/lib/utils/date.utils";
 import { GraphProps } from "./Graph.types";
 
+// Very light background — the earlier dark-mode version made the line/grid
+// hard to read at a glance, so contrast/legibility takes priority over the
+// glow effects (which only read as "glowing" on a dark surface anyway).
+const GRAPH_BG = "#f7f9fc";
+const GRID_LINE = "#e2e6ec";
+const CARD_BORDER = "#e2e6ec";
+const CHART_HEIGHT = 320;
+
 const screenWidth = Dimensions.get("window").width;
 const CARD_HORIZONTAL_PADDING = spacing.sm;
 const SCREEN_HORIZONTAL_PADDING = spacing.sm;
@@ -46,33 +54,36 @@ const Graph = ({ history }: GraphProps) => {
 
   return (
     <View style={styles.card}>
-      <Text style={styles.title}>Estimated 1-Rep Max</Text>
+      <Text style={styles.title}>ESTIMATED 1-REP MAX</Text>
       <LineChart
         data={chartData}
         width={chartWidth}
-        height={220}
+        height={CHART_HEIGHT}
         yAxisSuffix=" lbs"
         fromZero
         segments={5}
         chartConfig={{
-          backgroundColor: "white",
-          backgroundGradientFrom: "white",
-          backgroundGradientTo: "white",
+          backgroundColor: GRAPH_BG,
+          backgroundGradientFrom: GRAPH_BG,
+          backgroundGradientTo: GRAPH_BG,
           decimalPlaces: 0,
           color: (opacity = 1) => `rgba(2, 44, 250, ${opacity})`,
           labelColor: (opacity = 1) => `rgba(71, 85, 105, ${opacity})`,
+          strokeWidth: 3,
           propsForBackgroundLines: {
-            stroke: colors.borderGray,
+            stroke: GRID_LINE,
             strokeDasharray: "4",
           },
           propsForDots: {
-            r: "4",
+            r: "5",
             strokeWidth: "2",
-            stroke: colors.primaryBlue,
-            fill: "white",
+            stroke: "white",
+            fill: colors.primaryBlue,
           },
-          fillShadowGradient: colors.primaryBlue,
-          fillShadowGradientOpacity: 0.15,
+          fillShadowGradientFrom: colors.primaryBlue,
+          fillShadowGradientFromOpacity: 0.25,
+          fillShadowGradientTo: colors.primaryBlue,
+          fillShadowGradientToOpacity: 0,
         }}
         bezier
         withOuterLines={false}
@@ -91,11 +102,11 @@ const Graph = ({ history }: GraphProps) => {
         <View
           style={[
             styles.tooltip,
-            { left: selectedPoint.x - 40, top: selectedPoint.y - 10 },
+            { left: selectedPoint.x - 44, top: selectedPoint.y - 14 },
           ]}
         >
           <Text style={styles.tooltipText}>
-            {selectedPoint.value} lbs on {selectedPoint.label}
+            {selectedPoint.value} lbs · {selectedPoint.label}
           </Text>
         </View>
       )}
@@ -108,23 +119,24 @@ export default Graph;
 const styles = StyleSheet.create({
   card: {
     marginTop: spacing.md,
-    backgroundColor: "white",
-    borderRadius: 12,
+    backgroundColor: GRAPH_BG,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: colors.borderGray,
-    paddingVertical: spacing.sm,
+    borderColor: CARD_BORDER,
+    paddingVertical: spacing.md,
     paddingHorizontal: CARD_HORIZONTAL_PADDING,
-    paddingTop: spacing.md,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
     elevation: 2,
   },
   title: {
-    fontSize: fontSizes.md,
-    fontWeight: fontWeights.bold,
-    marginBottom: spacing.xs,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extrabold,
+    letterSpacing: 2,
+    color: colors.primaryBlue,
+    marginBottom: spacing.sm,
     textAlign: "center",
   },
   chart: {
@@ -132,14 +144,17 @@ const styles = StyleSheet.create({
   },
   tooltip: {
     position: "absolute",
-    backgroundColor: "rgba(0,0,0,0.8)",
+    backgroundColor: "#1c2333",
+    borderWidth: 1,
+    borderColor: colors.primaryBlue,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 6,
+    borderRadius: 8,
   },
   tooltipText: {
     color: "white",
     fontSize: 12,
-    fontWeight: "600",
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
   },
 });

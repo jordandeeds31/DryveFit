@@ -31,7 +31,7 @@ import { Gender } from "@/types/user.types";
 import { useAuthImageHeaders } from "@/hooks/useAuthImageHeaders";
 import {
   isHealthKitAvailable,
-  isHealthKitAuthorized,
+  hasCompletedHealthKitConnect,
   requestHealthKitAuthorization,
 } from "@/lib/health/healthkit";
 import { colors } from "@/constants/colors";
@@ -70,11 +70,14 @@ const Profile = () => {
     setIsLeaderboardVisible(currentUser.isLeaderboardVisible);
   }, [currentUser]);
 
-  // Re-checks on every focus (not just mount) — the actual authorization
-  // decision happens in a native iOS sheet outside our control, so this is
-  // the only reliable way to pick up the true status if the user answered
-  // it after we'd already given up waiting (see the timeout in
-  // requestHealthKitAuthorization).
+  // Re-checks on every focus (not just mount) so it picks up a connection
+  // made via handleConnectHealthKit below. Note this is NOT re-deriving
+  // "connected" from a live HealthKit query — Apple deliberately never
+  // reveals true read-authorization status to apps, so that check was
+  // unreliable and would sometimes report "not connected" even after the
+  // user had genuinely granted access, forcing them to reconnect on every
+  // app open. "Connected" is instead a locally persisted fact: has this app
+  // completed the connect flow at least once.
   useFocusEffect(
     useCallback(() => {
       if (Platform.OS !== "ios") {
@@ -89,9 +92,9 @@ const Profile = () => {
           setHealthKitStatus("unavailable");
           return;
         }
-        const authorized = await isHealthKitAuthorized();
+        const connected = await hasCompletedHealthKitConnect();
         if (cancelled) return;
-        setHealthKitStatus(authorized ? "connected" : "not_connected");
+        setHealthKitStatus(connected ? "connected" : "not_connected");
       })();
       return () => {
         cancelled = true;

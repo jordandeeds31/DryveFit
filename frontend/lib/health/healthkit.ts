@@ -1,4 +1,5 @@
 import { Platform } from "react-native";
+import * as SecureStore from "expo-secure-store";
 import AppleHealthKit from "react-native-health";
 import type { HealthInputOptions, HealthKitPermissions, HealthValue } from "react-native-health";
 
@@ -16,7 +17,24 @@ const permissions: HealthKitPermissions = {
   },
 };
 
-const SHARING_AUTHORIZED = 2;
+const HEALTHKIT_CONNECTED_KEY = "healthKitConnected";
+
+// HealthKit deliberately never reveals true read-authorization status to
+// apps (getAuthStatus is only meaningful for write/share types, and even
+// that is flaky) — re-deriving "connected" from a live query on every app
+// open/focus is exactly why the UI kept asking users to reconnect even
+// after they'd already granted access. Instead, "connected" is tracked as
+// "the user completed the connect flow at least once," a fact the app
+// actually controls, and persisted locally so it survives app restarts and
+// re-logins.
+export const hasCompletedHealthKitConnect = async (): Promise<boolean> => {
+  const value = await SecureStore.getItemAsync(HEALTHKIT_CONNECTED_KEY);
+  return value === "true";
+};
+
+const markHealthKitConnected = async (): Promise<void> => {
+  await SecureStore.setItemAsync(HEALTHKIT_CONNECTED_KEY, "true");
+};
 
 // initHealthKit's completion only fires once the user responds to iOS's
 // native permission sheet. If that sheet never appears or gets dismissed
@@ -43,26 +61,14 @@ export const requestHealthKitAuthorization = (): Promise<boolean> => {
   if (Platform.OS !== "ios") return Promise.resolve(false);
 
   const request = new Promise<boolean>((resolve) => {
-    AppleHealthKit.initHealthKit(permissions, (error) => {
-      resolve(!error);
+    AppleHealthKit.initHealthKit(permissions, async (error) => {
+      const success = !error;
+      if (success) await markHealthKitConnected();
+      resolve(success);
     });
   });
 
   return withTimeout(request, 20_000, false);
-};
-
-export const isHealthKitAuthorized = (): Promise<boolean> => {
-  if (Platform.OS !== "ios") return Promise.resolve(false);
-
-  return new Promise((resolve) => {
-    AppleHealthKit.getAuthStatus(permissions, (error, results) => {
-      if (error) {
-        resolve(false);
-        return;
-      }
-      resolve(results.permissions.read[0] === SHARING_AUTHORIZED);
-    });
-  });
 };
 
 export interface RecentHealthMetrics {

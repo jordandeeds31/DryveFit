@@ -22,6 +22,7 @@ model User {
   programs             Program[]
   workoutLogs          WorkoutLog[]
   cardioSessions       CardioSession[]
+  chatMessages         ChatMessage[]
   trainer              Trainer?
 
   @@index([city])
@@ -170,6 +171,23 @@ model CardioSession {
 
   @@index([userId, startedAt])
   @@map("cardio_sessions")
+}
+
+model ChatMessage {
+  id        String   @id @default(uuid())
+  userId    String
+  // "user" | "assistant" — only the final visible turns are persisted.
+  // Any tool calls/results the model makes mid-turn to fetch workout data
+  // are resolved within that single request and never stored, so replaying
+  // history back to OpenAI on the next message never has to reconstruct
+  // OpenAI's stricter tool-call/tool-result message pairing.
+  role      String
+  content   String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("chat_messages")
 }
 
 model Exercise {
