@@ -8,6 +8,7 @@ import { spacing } from "@/constants/spacing";
 import { colors } from "@/constants/colors";
 import { fontSizes } from "@/constants/typography";
 import { router } from "expo-router";
+import LiquidMetalBackground from "@/components/shared/LiquidMetalBackground/LiquidMetalBackground";
 
 const Signup = () => {
     const [email, setEmail] = useState("");
@@ -41,6 +42,7 @@ const Signup = () => {
 
     return (
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+            <LiquidMetalBackground />
             <SafeAreaView style={styles.container}>
                 <Image
                     source={require("@/assets/images/logo.png")}
@@ -75,7 +77,7 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: "center",
         paddingHorizontal: spacing.lg,
-        backgroundColor: "white"
+        backgroundColor: "transparent"
     },
     logo: {
         width: 96,
