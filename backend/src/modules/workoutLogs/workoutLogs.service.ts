@@ -1,5 +1,6 @@
 import prisma from "../../lib/prisma";
 import AppError from "../../utils/AppError";
+import { assertNotFutureLog } from "../../utils/futureLogGuard";
 
 export const logStandaloneWorkout = async (
   userId: string,
@@ -27,6 +28,8 @@ export const logStandaloneWorkout = async (
   const startOfDay = new Date(year, month - 1, day, 0, 0, 0, 0);
   const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
   const loggedAt = new Date(year, month - 1, day);
+
+  await assertNotFutureLog(userId, loggedAt);
 
   // Remove any existing standalone logs for this date — this call fully
   // replaces them with whatever's currently in the form.

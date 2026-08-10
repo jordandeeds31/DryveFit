@@ -1,6 +1,7 @@
 import prisma from "../../lib/prisma";
 import openai from "../../lib/openai";
 import AppError from "../../utils/AppError";
+import { assertNotFutureLog } from "../../utils/futureLogGuard";
 import {
   PROGRAM_DURATION_DAYS,
   ProgramDurationDays,
@@ -1030,6 +1031,8 @@ export const logExercisePerformance = async (
   if (!programExercise) {
     throw new AppError(404, "Exercise not found");
   }
+
+  await assertNotFutureLog(userId, programExercise.day.date);
 
   if (sets.length === 0) {
     throw new AppError(400, "At least one set is required");
