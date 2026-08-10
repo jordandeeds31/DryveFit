@@ -16,3 +16,23 @@ export const login = async (payload: SigninPayload): Promise<AuthResponse> => {
   );
   return data;
 };
+
+export const forgotPassword = async (email: string): Promise<{ message: string }> => {
+  const { data } = await apiClient.post<{ message: string }>(
+    "/api/auth/forgot-password",
+    { email },
+  );
+  return data;
+};
+
+export const resetPassword = async (payload: {
+  email: string;
+  code: string;
+  newPassword: string;
+}): Promise<{ message: string }> => {
+  const { data } = await apiClient.post<{ message: string }>(
+    "/api/auth/reset-password",
+    payload,
+  );
+  return data;
+};

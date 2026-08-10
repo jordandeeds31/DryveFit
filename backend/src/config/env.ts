@@ -18,6 +18,13 @@ const envSchema = z.object({
   // so normal app startup never hard-fails without it — the proxy just
   // 404s if it's missing.
   WORKOUTX_API_KEY: z.string().min(1).optional(),
+  // Optional so normal app startup never hard-fails without it — forgot-
+  // password requests just fail with a clear 500 until this is set.
+  RESEND_API_KEY: z.string().min(1).optional(),
+  // Resend's shared sender works with no domain verification, so
+  // forgot-password email works immediately in dev; swap in a verified
+  // sender on the real domain once one exists.
+  RESEND_FROM_EMAIL: z.string().min(1).default("Dryve <onboarding@resend.dev>"),
 });
 
 const parsed = envSchema.safeParse(process.env);

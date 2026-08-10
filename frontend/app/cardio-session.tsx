@@ -37,7 +37,6 @@ import {
   queryRecentHeartRateAndEnergy,
 } from "@/lib/health/healthkit";
 import { cyberpunk, neonGlow, neonShadow } from "@/constants/cyberpunk";
-import DebugOverlay from "@/components/shared/DebugOverlay/DebugOverlay";
 
 const HEALTH_POLL_INTERVAL_MS = 30_000;
 const METERS_PER_MILE = 1609.344;
@@ -460,7 +459,6 @@ const CardioSessionScreen = () => {
           </Text>
         </TouchableOpacity>
       </View>
-      <DebugOverlay />
     </SafeAreaView>
   );
 };

@@ -5,12 +5,12 @@ import Input from "@/components/shared/TextInput/TextInput";
 import { spacing } from "@/constants/spacing";
 import Button from "@/components/shared/Button/Button";
 import { useAuth } from "@/hooks/useAuth";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { colors } from "@/constants/colors";
 import { fontSizes } from "@/constants/typography";
-import LiquidMetalBackground from "@/components/shared/LiquidMetalBackground/LiquidMetalBackground";
 
 const Signin = () => {
+    const { passwordResetSuccess } = useLocalSearchParams<{ passwordResetSuccess?: string }>();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -35,16 +35,21 @@ const Signin = () => {
 
     return (
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-            <LiquidMetalBackground />
             <SafeAreaView style={styles.container}>
                 <Image
                     source={require("@/assets/images/logo.png")}
                     style={styles.logo}
                     resizeMode="contain"
                 />
+                {passwordResetSuccess === "1" && (
+                    <Text style={styles.successText}>Password reset — sign in with your new password.</Text>
+                )}
                 <View style={styles.textInputContainer}>
-                    <Input label="Email" placeholder="Enter email" autoCapitalize="none" value={email} onChangeText={setEmail} keyboardType="email-address" />
+                    <Input label="Email" placeholder="Enter email" autoCapitalize="none" autoCorrect={false} spellCheck={false} textContentType="emailAddress" value={email} onChangeText={setEmail} keyboardType="email-address" />
                     <Input label="Password" placeholder="Enter password" autoCapitalize="none" value={password} onChangeText={setPassword} isPassword />
+                    <TouchableOpacity onPress={() => router.push("/(auth)/forgot-password")}>
+                        <Text style={styles.forgotPasswordText}>Forgot password?</Text>
+                    </TouchableOpacity>
                 </View>
 
                 {error && <Text style={styles.errorText}>{error}</Text>}
@@ -70,7 +75,7 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: "center",
         paddingHorizontal: spacing.lg,
-        backgroundColor: "transparent"
+        backgroundColor: "white"
     },
     logo: {
         width: 96,
@@ -81,6 +86,17 @@ const styles = StyleSheet.create({
     textInputContainer: {
         gap: spacing.md,
         marginBottom: spacing.lg
+    },
+    forgotPasswordText: {
+        color: colors.primaryBlue,
+        fontSize: fontSizes.sm,
+        textAlign: "right"
+    },
+    successText: {
+        color: colors.completedGreen,
+        fontSize: fontSizes.sm,
+        textAlign: "center",
+        marginBottom: spacing.md
     },
     errorText: {
         color: "red",

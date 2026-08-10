@@ -34,7 +34,6 @@ import {
   hasCompletedHealthKitConnect,
   requestHealthKitAuthorization,
 } from "@/lib/health/healthkit";
-import DebugOverlay from "@/components/shared/DebugOverlay/DebugOverlay";
 import { colors } from "@/constants/colors";
 import { spacing } from "@/constants/spacing";
 import { fontSizes, fontWeights } from "@/constants/typography";
@@ -107,6 +106,17 @@ const Profile = () => {
     saveError && (saveError as { status?: number }).status === 409
       ? "That username is already taken"
       : null;
+
+  // Compares against currentUser (not a separate "initial values" snapshot)
+  // since the hydration effect above already keeps local state in sync
+  // with it whenever there's nothing unsaved — so this only goes true once
+  // the user has actually typed/toggled something new.
+  const isDirty =
+    !!currentUser &&
+    (username.trim() !== (currentUser.username ?? "") ||
+      city !== currentUser.city ||
+      gender !== currentUser.gender ||
+      isLeaderboardVisible !== currentUser.isLeaderboardVisible);
 
   const handlePickImage = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -341,13 +351,6 @@ const Profile = () => {
           </View>
         )}
 
-        <Button
-          title={isSaving ? "SAVING..." : "SAVE"}
-          onPress={handleSave}
-          disabled={isSaving}
-          style={styles.saveButton}
-        />
-
         <View style={styles.buttonContainer}>
           <Button
             title={isLoading ? "SIGNING OUT..." : "SIGN OUT"}
@@ -357,12 +360,22 @@ const Profile = () => {
           />
         </View>
         </ScrollView>
+        {isDirty && (
+          <TouchableOpacity
+            style={styles.savePill}
+            onPress={handleSave}
+            disabled={isSaving}
+          >
+            <Text style={styles.savePillText}>
+              {isSaving ? "Saving..." : "Save changes"}
+            </Text>
+          </TouchableOpacity>
+        )}
         <Toast
           visible={!!toastMessage}
           message={toastMessage ?? ""}
           onHide={() => setToastMessage(null)}
         />
-        <DebugOverlay />
       </SafeAreaView>
     </KeyboardAvoidingView>
   );
@@ -495,8 +508,25 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.xs,
     color: colors.textSecondary,
   },
-  saveButton: {
-    marginTop: spacing.lg,
+  savePill: {
+    position: "absolute",
+    top: spacing.sm,
+    right: spacing.md,
+    backgroundColor: colors.primaryBlue,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
+    zIndex: 998,
+  },
+  savePillText: {
+    color: "white",
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
   },
   buttonContainer: {
     marginTop: spacing.xl,

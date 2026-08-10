@@ -17,6 +17,8 @@ model User {
   isLeaderboardVisible Boolean      @default(true)
   profileImage         Bytes?
   profileImageMimeType String?
+  passwordResetCodeHash  String?
+  passwordResetExpiresAt DateTime?
   createdAt            DateTime     @default(now())
   updatedAt            DateTime     @updatedAt
   programs             Program[]

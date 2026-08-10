@@ -8,7 +8,6 @@ import { spacing } from "@/constants/spacing";
 import { colors } from "@/constants/colors";
 import { fontSizes } from "@/constants/typography";
 import { router } from "expo-router";
-import LiquidMetalBackground from "@/components/shared/LiquidMetalBackground/LiquidMetalBackground";
 
 const Signup = () => {
     const [email, setEmail] = useState("");
@@ -42,7 +41,6 @@ const Signup = () => {
 
     return (
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-            <LiquidMetalBackground />
             <SafeAreaView style={styles.container}>
                 <Image
                     source={require("@/assets/images/logo.png")}
@@ -50,7 +48,7 @@ const Signup = () => {
                     resizeMode="contain"
                 />
                 <View style={styles.textInputContainer}>
-                    <Input label="Email" placeholder="Enter email" autoCapitalize="none" value={email} onChangeText={setEmail} keyboardType="email-address" />
+                    <Input label="Email" placeholder="Enter email" autoCapitalize="none" autoCorrect={false} spellCheck={false} textContentType="emailAddress" value={email} onChangeText={setEmail} keyboardType="email-address" />
                     <Input label="Password" placeholder="Enter password (min. 8 characters)" autoCapitalize="none" value={password} onChangeText={setPassword} isPassword />
                 </View>
                 {(validationError || error) && (
@@ -77,7 +75,7 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: "center",
         paddingHorizontal: spacing.lg,
-        backgroundColor: "transparent"
+        backgroundColor: "white"
     },
     logo: {
         width: 96,

@@ -35,7 +35,6 @@ import {
   isHealthKitAvailable,
   queryRecentHeartRateAndEnergy,
 } from "@/lib/health/healthkit";
-import DebugOverlay from "@/components/shared/DebugOverlay/DebugOverlay";
 
 const HEALTH_POLL_INTERVAL_MS = 30_000;
 
@@ -393,7 +392,6 @@ const CinematicMode = () => {
             </Text>
           )}
         </View>
-        <DebugOverlay />
       </SafeAreaView>
     );
   }
@@ -499,7 +497,6 @@ const CinematicMode = () => {
           {isPending ? "SAVING..." : "DONE"}
         </Text>
       </TouchableOpacity>
-      <DebugOverlay />
     </SafeAreaView>
     </KeyboardAvoidingView>
   );
