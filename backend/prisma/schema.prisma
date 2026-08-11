@@ -233,3 +233,11 @@ model Trainer {
   @@index([latitude, longitude])
   @@map("trainers")
 }
+
+model WaitlistSignup {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+
+  @@map("waitlist_signups")
+}
