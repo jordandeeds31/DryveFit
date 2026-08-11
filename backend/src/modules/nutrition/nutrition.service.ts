@@ -428,6 +428,91 @@ export const updateNutritionGoalOverride = async (
   });
 };
 
+// Muscle protein synthesis floor independent of whatever calorie/protein
+// goal is set — roughly the low end of the range shown to support muscle
+// growth across a body of resistance-training research (Schoenfeld &
+// Aragon's meta-analyses land around 0.7-1g/lb, 1.6-2.2g/kg).
+const PROTEIN_FLOOR_G_PER_LB = 0.7;
+
+// Within this ratio of the calorie goal counts as "on target" rather than
+// meaningfully under/over — no single-day number is exact enough to treat
+// a 2% miss as a real deficit/surplus.
+const CALORIE_TARGET_TOLERANCE = 0.15;
+
+export const getDailyRecap = async (userId: string, dateStr: string) => {
+  const { startOfDay, endOfDay } = parseDateKey(dateStr);
+
+  const [workoutLogs, diary, user] = await Promise.all([
+    prisma.workoutLog.findMany({
+      where: { userId, loggedAt: { gte: startOfDay, lte: endOfDay } },
+      include: { exercises: { include: { sets: true } } },
+    }),
+    getDiaryForDate(userId, dateStr),
+    prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { weightLbs: true },
+    }),
+  ]);
+
+  const allSets = workoutLogs.flatMap((log) =>
+    log.exercises.flatMap((exercise) => exercise.sets),
+  );
+  const exerciseCount = new Set(
+    workoutLogs.flatMap((log) => log.exercises.map((ex) => ex.exerciseName)),
+  ).size;
+  const totalSets = allSets.length;
+  const totalVolume = Math.round(
+    allSets.reduce(
+      (sum, set) => sum + (set.weight ?? 0) * (set.reps ?? 0),
+      0,
+    ),
+  );
+  const trained = totalSets > 0;
+
+  const proteinActual = diary.totals.proteinG;
+  const proteinGoal = diary.goal?.proteinG ?? null;
+  const proteinPercentOfGoal =
+    proteinGoal != null ? Math.round((proteinActual / proteinGoal) * 100) : null;
+  const meetsProteinGoal = proteinGoal != null && proteinActual >= proteinGoal * 0.9;
+
+  const proteinFloor = user.weightLbs != null ? user.weightLbs * PROTEIN_FLOOR_G_PER_LB : null;
+  const meetsProteinFloor = proteinFloor != null && proteinActual >= proteinFloor;
+
+  const calorieActual = diary.totals.calories;
+  const calorieGoal = diary.goal?.calories ?? null;
+  let calorieStatus: "under" | "on_target" | "over" | "unknown" = "unknown";
+  if (calorieGoal != null) {
+    const ratio = calorieActual / calorieGoal;
+    calorieStatus =
+      ratio < 1 - CALORIE_TARGET_TOLERANCE
+        ? "under"
+        : ratio > 1 + CALORIE_TARGET_TOLERANCE
+          ? "over"
+          : "on_target";
+  }
+
+  // A same-day training/nutrition alignment check, not a claim that
+  // muscle tissue was actually gained today — that's only observable over
+  // weeks, and only via real body-composition measurement, not diary data.
+  const supportsMuscleGain =
+    trained &&
+    (meetsProteinGoal || meetsProteinFloor) &&
+    calorieStatus !== "under";
+
+  return {
+    training: { trained, exerciseCount, totalSets, totalVolume },
+    protein: {
+      actualG: Math.round(proteinActual * 10) / 10,
+      goalG: proteinGoal,
+      percentOfGoal: proteinPercentOfGoal,
+      floorG: proteinFloor != null ? Math.round(proteinFloor) : null,
+      meetsFloor: meetsProteinFloor,
+    },
+    calories: { actual: calorieActual, goal: calorieGoal, status: calorieStatus },
+    supportsMuscleGain,
+  };
+};
+
 export const getNutritionProfile = async (userId: string) => {
   return prisma.user.findUniqueOrThrow({
     where: { id: userId },

@@ -1,6 +1,7 @@
 import apiClient from "./client";
 import {
   DiaryResponse,
+  DailyRecap,
   FoodDetail,
   FoodSearchResults,
   FoodLogEntry,
@@ -50,6 +51,13 @@ export const deleteFoodLogEntry = async (entryId: string): Promise<void> => {
 
 export const getDiary = async (date: string): Promise<DiaryResponse> => {
   const { data } = await apiClient.get("/api/nutrition/diary", {
+    params: { date },
+  });
+  return data.result;
+};
+
+export const getDailyRecap = async (date: string): Promise<DailyRecap> => {
+  const { data } = await apiClient.get("/api/nutrition/recap", {
     params: { date },
   });
   return data.result;

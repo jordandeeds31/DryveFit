@@ -70,6 +70,28 @@ export interface NutritionGoal {
   fatG: number;
 }
 
+export interface DailyRecap {
+  training: {
+    trained: boolean;
+    exerciseCount: number;
+    totalSets: number;
+    totalVolume: number;
+  };
+  protein: {
+    actualG: number;
+    goalG: number | null;
+    percentOfGoal: number | null;
+    floorG: number | null;
+    meetsFloor: boolean;
+  };
+  calories: {
+    actual: number;
+    goal: number | null;
+    status: "under" | "on_target" | "over" | "unknown";
+  };
+  supportsMuscleGain: boolean;
+}
+
 export interface DiaryResponse {
   meals: Record<MealType, FoodLogEntry[]>;
   totals: NutritionTotals;

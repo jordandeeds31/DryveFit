@@ -10,6 +10,7 @@ import {
   deleteFoodLogEntry,
   getDiaryForDate,
   getLoggedDateKeys,
+  getDailyRecap,
   updateNutritionProfile,
   updateNutritionGoalOverride,
   getNutritionProfile,
@@ -119,6 +120,18 @@ export const getDiaryHandler = catchAsync(
 
     const diary = await getDiaryForDate(req.userId!, date);
     sendSuccess(res, 200, "DIARY_FETCHED", diary);
+  },
+);
+
+export const getDailyRecapHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const { date } = req.query;
+    if (typeof date !== "string") {
+      throw new AppError(400, "date query parameter is required");
+    }
+
+    const recap = await getDailyRecap(req.userId!, date);
+    sendSuccess(res, 200, "DAILY_RECAP_FETCHED", recap);
   },
 );
 

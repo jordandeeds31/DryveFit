@@ -16,15 +16,17 @@ import NutritionSetup from "@/features/NutritionSetup/NutritionSetup";
 import {
   useNutritionProfile,
   useDiary,
+  useDailyRecap,
   useLoggedDateKeys,
   useDeleteFoodLogEntry,
 } from "@/hooks/useNutrition";
-import { getWeekDates, toDateKey } from "@/lib/utils/date.utils";
+import { getWeekDates, toDateKey, isSameDay } from "@/lib/utils/date.utils";
 import {
   MEAL_TYPES,
   MEAL_TYPE_LABELS,
   MealType,
   FoodLogEntry,
+  DailyRecap,
 } from "@/types/nutrition.types";
 import { colors } from "@/constants/colors";
 import { spacing } from "@/constants/spacing";
@@ -69,6 +71,36 @@ const MacroBar = ({
   );
 };
 
+const CALORIE_STATUS_LABELS: Record<DailyRecap["calories"]["status"], string> = {
+  under: "under target",
+  on_target: "on target",
+  over: "over target",
+  unknown: "no goal set",
+};
+
+// Mirrors exactly what the backend's `supportsMuscleGain` boolean checks,
+// in the same order, so whichever condition this returns first is
+// guaranteed to be the actual reason it's false — never a text that
+// contradicts the badge above it.
+const buildRecapVerdict = (recap: DailyRecap): string => {
+  if (!recap.training.trained) {
+    return "No workout logged today — training is what creates the stimulus for muscle growth in the first place.";
+  }
+  const meetsProteinGoal =
+    recap.protein.percentOfGoal != null && recap.protein.percentOfGoal >= 90;
+  if (!meetsProteinGoal && !recap.protein.meetsFloor) {
+    return `Protein came in low${
+      recap.protein.floorG != null
+        ? ` — under the ~${recap.protein.floorG}g floor for your bodyweight`
+        : ""
+    }. That limits how much of today's training can translate into muscle.`;
+  }
+  if (recap.calories.status === "under") {
+    return "Calories were well under target — a significant deficit blunts muscle building even with good protein and training.";
+  }
+  return "Training, protein, and calories all lined up today — good conditions for muscle growth.";
+};
+
 const NutritionScreen = () => {
   const { openSetup } = useLocalSearchParams<{ openSetup?: string }>();
 
@@ -91,6 +123,8 @@ const NutritionScreen = () => {
 
   const { data: profile, isLoading: isProfileLoading } = useNutritionProfile();
   const { data: diary, isLoading: isDiaryLoading } = useDiary(selectedDateKey);
+  const { data: recapData } = useDailyRecap(selectedDateKey);
+  const recap: DailyRecap | undefined = recapData;
 
   // Covers the previous/current/next week pages the calendar can page
   // into without a refetch, same 3-page window NutritionCalendar renders.
@@ -265,6 +299,70 @@ const NutritionScreen = () => {
             );
           })
         )}
+
+        {hasGoal && recap && (
+          <View style={styles.recapCard}>
+            <Text style={styles.recapTitle}>
+              {isSameDay(selectedDate, new Date()) ? "Today's" : "Day's"} Recap
+            </Text>
+
+            <View style={styles.recapRow}>
+              <Feather name="activity" size={16} color={colors.textSecondary} />
+              <Text style={styles.recapRowText}>
+                {recap.training.trained
+                  ? `${recap.training.exerciseCount} exercise${recap.training.exerciseCount === 1 ? "" : "s"} · ${recap.training.totalSets} sets · ${recap.training.totalVolume.toLocaleString()} lbs volume`
+                  : "No workout logged"}
+              </Text>
+            </View>
+
+            <View style={styles.recapRow}>
+              <Feather name="trending-up" size={16} color={colors.textSecondary} />
+              <Text style={styles.recapRowText}>
+                {Math.round(recap.protein.actualG)}g protein
+                {recap.protein.goalG != null
+                  ? ` (${recap.protein.percentOfGoal}% of ${recap.protein.goalG}g goal)`
+                  : ""}
+              </Text>
+            </View>
+
+            <View style={styles.recapRow}>
+              <Feather name="pie-chart" size={16} color={colors.textSecondary} />
+              <Text style={styles.recapRowText}>
+                {recap.calories.actual} cal
+                {recap.calories.goal != null
+                  ? ` / ${recap.calories.goal} — ${CALORIE_STATUS_LABELS[recap.calories.status]}`
+                  : ""}
+              </Text>
+            </View>
+
+            <View
+              style={[
+                styles.verdictBanner,
+                recap.supportsMuscleGain
+                  ? styles.verdictGood
+                  : styles.verdictNeutral,
+              ]}
+            >
+              <Feather
+                name={recap.supportsMuscleGain ? "check-circle" : "info"}
+                size={18}
+                color={
+                  recap.supportsMuscleGain
+                    ? colors.completedGreen
+                    : colors.pendingAmber
+                }
+              />
+              <Text style={styles.verdictText}>{buildRecapVerdict(recap)}</Text>
+            </View>
+
+            <Text style={styles.recapDisclaimer}>
+              A same-day check on whether training and nutrition lined up —
+              not proof muscle was gained. That only shows up over weeks of
+              consistent training and eating, and only via real body
+              measurement.
+            </Text>
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -426,5 +524,53 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     color: colors.textSecondary,
     fontWeight: fontWeights.semibold,
+  },
+  recapCard: {
+    borderWidth: 1,
+    borderColor: colors.borderGray,
+    borderRadius: 12,
+    padding: spacing.md,
+    marginTop: spacing.sm,
+  },
+  recapTitle: {
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.bold,
+    marginBottom: spacing.sm,
+  },
+  recapRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  recapRowText: {
+    flex: 1,
+    fontSize: fontSizes.sm,
+    color: colors.textSecondary,
+  },
+  verdictBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    borderRadius: 8,
+    padding: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  verdictGood: {
+    backgroundColor: colors.completedGreenLight,
+  },
+  verdictNeutral: {
+    backgroundColor: "#FEF3E2",
+  },
+  verdictText: {
+    flex: 1,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.semibold,
+  },
+  recapDisclaimer: {
+    fontSize: fontSizes.xs,
+    color: colors.textMuted,
+    marginTop: spacing.sm,
+    fontStyle: "italic",
   },
 });

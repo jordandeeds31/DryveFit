@@ -5,12 +5,12 @@ import {
   logFood,
   deleteFoodLogEntry,
   getDiary,
+  getDailyRecap,
   getLoggedDateKeys,
   getNutritionProfile,
   updateNutritionProfile,
   updateNutritionGoal,
 } from "@/lib/api/nutrition.api";
-import { DiaryResponse } from "@/types/nutrition.types";
 
 export const useFoodSearch = (query: string) => {
   return useQuery({
@@ -37,6 +37,13 @@ export const useDiary = (date: string) => {
   });
 };
 
+export const useDailyRecap = (date: string) => {
+  return useQuery({
+    queryKey: ["dailyRecap", date],
+    queryFn: () => getDailyRecap(date),
+  });
+};
+
 export const useLoggedDateKeys = (startDate: string, endDate: string) => {
   return useQuery({
     queryKey: ["loggedDateKeys", startDate, endDate],
@@ -50,6 +57,7 @@ export const useLogFood = () => {
     mutationFn: logFood,
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["diary", variables.date] });
+      queryClient.invalidateQueries({ queryKey: ["dailyRecap", variables.date] });
       queryClient.invalidateQueries({ queryKey: ["loggedDateKeys"] });
     },
   });
@@ -61,9 +69,10 @@ export const useDeleteFoodLogEntry = () => {
     mutationFn: deleteFoodLogEntry,
     onSuccess: () => {
       // The entry's date isn't known here without threading it through —
-      // invalidating every cached diary day is cheap and simple given how
-      // few days are realistically cached at once.
+      // invalidating every cached diary/recap day is cheap and simple
+      // given how few days are realistically cached at once.
       queryClient.invalidateQueries({ queryKey: ["diary"] });
+      queryClient.invalidateQueries({ queryKey: ["dailyRecap"] });
       queryClient.invalidateQueries({ queryKey: ["loggedDateKeys"] });
     },
   });

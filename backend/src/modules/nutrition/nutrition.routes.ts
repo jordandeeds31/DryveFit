@@ -7,6 +7,7 @@ import {
   deleteFoodLogEntryHandler,
   getDiaryHandler,
   getLoggedDateKeysHandler,
+  getDailyRecapHandler,
   updateNutritionProfileHandler,
   updateNutritionGoalHandler,
   getNutritionProfileHandler,
@@ -21,6 +22,7 @@ router.post("/food-detail", getFoodDetailHandler);
 router.post("/log", logFoodHandler);
 router.delete("/log/:entryId", deleteFoodLogEntryHandler);
 router.get("/diary", getDiaryHandler);
+router.get("/recap", getDailyRecapHandler);
 router.get("/logged-dates", getLoggedDateKeysHandler);
 router.get("/profile", getNutritionProfileHandler);
 router.patch("/profile", updateNutritionProfileHandler);
