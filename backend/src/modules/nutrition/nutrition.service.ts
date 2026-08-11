@@ -1,11 +1,20 @@
 import prisma from "../../lib/prisma";
 import AppError from "../../utils/AppError";
 import {
-  searchInstant,
-  getCommonFoodNutrients,
-  getBrandedFoodNutrients,
-  NutritionixFoodDetail,
-} from "../../lib/nutritionix";
+  searchFoods,
+  getFoodDetail as getUsdaFoodDetail,
+  UsdaSearchNutrient,
+  UsdaDetailNutrient,
+} from "../../lib/usdaFoodData";
+
+// USDA "nutrient number" codes — stable identifiers across dataTypes and
+// across the search vs. detail response shapes, unlike nutrientId.
+const NUTRIENT_NUMBERS = {
+  calories: "208",
+  protein: "203",
+  fat: "204",
+  carbs: "205",
+};
 
 export const MEAL_TYPES = ["breakfast", "lunch", "dinner", "snacks"] as const;
 export type MealType = (typeof MEAL_TYPES)[number];
@@ -72,56 +81,99 @@ const parseDateKey = (dateStr: string) => {
 };
 
 export const searchFood = async (query: string) => {
-  const result = await searchInstant(query);
+  const hits = await searchFoods(query);
 
-  const common = result.common.slice(0, 10).map((hit) => ({
-    type: "common" as const,
-    id: hit.food_name,
-    foodName: hit.food_name,
-    brandName: null,
-    servingQty: hit.serving_qty,
-    servingUnit: hit.serving_unit,
-    photoUrl: hit.photo?.thumb ?? null,
-  }));
+  const common: Array<{
+    type: "common";
+    id: string;
+    foodName: string;
+    brandName: string | null;
+    servingQty: number;
+    servingUnit: string;
+    photoUrl: null;
+  }> = [];
+  const branded: Array<{
+    type: "branded";
+    id: string;
+    foodName: string;
+    brandName: string | null;
+    servingQty: number;
+    servingUnit: string;
+    photoUrl: null;
+  }> = [];
 
-  const branded = result.branded.slice(0, 10).map((hit) => ({
-    type: "branded" as const,
-    id: hit.nix_item_id,
-    foodName: hit.food_name,
-    brandName: hit.brand_name,
-    servingQty: hit.serving_qty,
-    servingUnit: hit.serving_unit,
-    photoUrl: hit.photo?.thumb ?? null,
-  }));
+  for (const hit of hits) {
+    // Foundation/SR Legacy/Survey entries report nutrients per 100g with
+    // no natural "1 serving" concept — 100g is an honest, functional
+    // stand-in, just less natural-language-friendly than a real serving.
+    const entry = {
+      id: String(hit.fdcId),
+      foodName: hit.description,
+      brandName: hit.brandOwner ?? hit.brandName ?? null,
+      servingQty: hit.servingSize ?? 100,
+      servingUnit: hit.servingSizeUnit ?? "g",
+      photoUrl: null,
+    };
 
-  return { common, branded };
+    if (hit.dataType === "Branded") {
+      branded.push({ type: "branded", ...entry });
+    } else {
+      common.push({ type: "common", ...entry });
+    }
+  }
+
+  return { common: common.slice(0, 10), branded: branded.slice(0, 10) };
 };
 
-const normalizeDetail = (detail: NutritionixFoodDetail) => ({
-  foodName: detail.food_name,
-  brandName: detail.brand_name,
-  servingQty: detail.serving_qty,
-  servingUnit: detail.serving_unit,
-  calories: Math.round(detail.nf_calories),
-  proteinG: Math.round(detail.nf_protein * 10) / 10,
-  carbsG: Math.round(detail.nf_total_carbohydrate * 10) / 10,
-  fatG: Math.round(detail.nf_total_fat * 10) / 10,
-});
+const findNutrientAmount = (
+  nutrients: Array<UsdaSearchNutrient | UsdaDetailNutrient>,
+  number: string,
+): number => {
+  for (const n of nutrients) {
+    if ("nutrient" in n) {
+      if (n.nutrient.number === number) return n.amount ?? 0;
+    } else if (n.nutrientNumber === number) {
+      return n.value ?? 0;
+    }
+  }
+  return 0;
+};
 
+// The `type` param is kept for API-shape compatibility with the
+// frontend/controller (which still send it from the search hit) — USDA's
+// detail endpoint looks foods up by fdcId the same way regardless of
+// common vs. branded, unlike Nutritionix's split endpoints.
 export const getFoodDetail = async (
-  type: "common" | "branded",
+  _type: "common" | "branded",
   id: string,
 ) => {
-  const detail =
-    type === "common"
-      ? await getCommonFoodNutrients(id)
-      : await getBrandedFoodNutrients(id);
+  const detail = await getUsdaFoodDetail(id).catch(() => null);
 
   if (!detail) {
     throw new AppError(404, "Couldn't find nutrition info for that food");
   }
 
-  return normalizeDetail(detail);
+  return {
+    foodName: detail.description,
+    brandName: detail.brandOwner ?? detail.brandName ?? null,
+    servingQty: detail.servingSize ?? 100,
+    servingUnit: detail.servingSizeUnit ?? "g",
+    calories: Math.round(
+      findNutrientAmount(detail.foodNutrients, NUTRIENT_NUMBERS.calories),
+    ),
+    proteinG:
+      Math.round(
+        findNutrientAmount(detail.foodNutrients, NUTRIENT_NUMBERS.protein) * 10,
+      ) / 10,
+    carbsG:
+      Math.round(
+        findNutrientAmount(detail.foodNutrients, NUTRIENT_NUMBERS.carbs) * 10,
+      ) / 10,
+    fatG:
+      Math.round(
+        findNutrientAmount(detail.foodNutrients, NUTRIENT_NUMBERS.fat) * 10,
+      ) / 10,
+  };
 };
 
 interface LogFoodInput {
