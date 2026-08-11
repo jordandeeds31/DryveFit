@@ -41,16 +41,26 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="Programs"
+        name="Nutrition"
         options={{
-          title: "Programs",
+          title: "Nutrition",
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
-              name={focused ? "clipboard" : "clipboard-outline"}
+              name={focused ? "nutrition" : "nutrition-outline"}
               size={24}
               color={color}
             />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="Programs"
+        options={{
+          title: "Programs",
+          // Reached from the AppHeader icon now instead of the tab bar —
+          // same "registered route, hidden from the tab bar" pattern
+          // Profile below already used.
+          href: null,
         }}
       />
       <Tabs.Screen

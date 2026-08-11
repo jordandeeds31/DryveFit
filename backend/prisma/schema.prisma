@@ -25,16 +25,57 @@ model User {
   // fire at 8:30pm *for them*, not 8:30pm server time.
   timezone                  String?
   lastWorkoutReminderSentAt DateTime?
+  // Nutrition-goal inputs (Mifflin-St Jeor) — kept alongside the resolved
+  // goals below so the calculator can be re-run if the user updates them,
+  // without losing whatever manual override they've made to the goals
+  // themselves in the meantime.
+  weightLbs                 Float?
+  heightInches              Float?
+  birthdate                 DateTime?
+  activityLevel             String?
+  nutritionGoalType         String?
+  dailyCalorieGoal          Int?
+  dailyProteinGoalG         Int?
+  dailyCarbGoalG            Int?
+  dailyFatGoalG             Int?
   createdAt                 DateTime        @default(now())
   updatedAt                 DateTime        @updatedAt
   programs                  Program[]
   workoutLogs               WorkoutLog[]
   cardioSessions            CardioSession[]
   chatMessages              ChatMessage[]
+  foodLogEntries            FoodLogEntry[]
   trainer                   Trainer?
 
   @@index([city])
   @@map("users")
+}
+
+model FoodLogEntry {
+  id          String   @id @default(uuid())
+  userId      String
+  // Calendar day this entry belongs to, stored as local midnight —
+  // matches the ProgramDay/WorkoutLog.loggedAt convention elsewhere in
+  // this schema, not a real timezone-aware timestamp.
+  date        DateTime
+  mealType    String
+  foodName    String
+  brandName   String?
+  servingQty  Float
+  servingUnit String
+  // A snapshot of the nutrition values at logging time (like
+  // ExerciseLog snapshotting exerciseName/muscleGroup) — not a live
+  // reference back to Nutritionix, since serving size is user-adjustable
+  // and a food's listed nutrition can change over time.
+  calories    Int
+  proteinG    Float
+  carbsG      Float
+  fatG        Float
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+  @@map("food_log_entries")
 }
 
 model Program {
