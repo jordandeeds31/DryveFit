@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
+import { useQueryClient } from "@tanstack/react-query";
 import Feather from "@expo/vector-icons/Feather";
 import Modal from "@/components/shared/Modal/Modal";
 import NutritionCalendar from "@/features/NutritionCalendar/NutritionCalendar";
@@ -104,9 +106,12 @@ const buildRecapVerdict = (recap: DailyRecap): string => {
 const NutritionScreen = () => {
   const { openSetup } = useLocalSearchParams<{ openSetup?: string }>();
 
+  const queryClient = useQueryClient();
+
   const [referenceDate, setReferenceDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isSetupOpen, setIsSetupOpen] = useState(false);
+  const [isRecapOpen, setIsRecapOpen] = useState(false);
 
   // food-search redirects here with ?openSetup=1 when someone tries to log
   // food before setting up a goal — this is what actually opens the modal
@@ -117,6 +122,19 @@ const NutritionScreen = () => {
       router.setParams({ openSetup: undefined });
     }
   }, [openSetup]);
+
+  // Workouts get logged from completely different screens (Home,
+  // Cinematic Mode) that have no reason to know this tab's cache keys
+  // exist, and tabs stay mounted across switches rather than remounting —
+  // so without this, the recap/diary silently keep showing whatever was
+  // true the last time this tab was actually focused.
+  useFocusEffect(
+    useCallback(() => {
+      queryClient.invalidateQueries({ queryKey: ["dailyRecap"] });
+      queryClient.invalidateQueries({ queryKey: ["diary"] });
+      queryClient.invalidateQueries({ queryKey: ["loggedDateKeys"] });
+    }, [queryClient]),
+  );
 
   const weekDates = getWeekDates(referenceDate);
   const selectedDateKey = toDateKey(selectedDate);
@@ -301,69 +319,82 @@ const NutritionScreen = () => {
         )}
 
         {hasGoal && recap && (
-          <View style={styles.recapCard}>
-            <Text style={styles.recapTitle}>
+          <TouchableOpacity
+            style={styles.recapButton}
+            onPress={() => setIsRecapOpen(true)}
+          >
+            <Feather name="bar-chart-2" size={18} color={colors.primaryBlue} />
+            <Text style={styles.recapButtonText}>
               {isSameDay(selectedDate, new Date()) ? "Today's" : "Day's"} Recap
             </Text>
-
-            <View style={styles.recapRow}>
-              <Feather name="activity" size={16} color={colors.textSecondary} />
-              <Text style={styles.recapRowText}>
-                {recap.training.trained
-                  ? `${recap.training.exerciseCount} exercise${recap.training.exerciseCount === 1 ? "" : "s"} · ${recap.training.totalSets} sets · ${recap.training.totalVolume.toLocaleString()} lbs volume`
-                  : "No workout logged"}
-              </Text>
-            </View>
-
-            <View style={styles.recapRow}>
-              <Feather name="trending-up" size={16} color={colors.textSecondary} />
-              <Text style={styles.recapRowText}>
-                {Math.round(recap.protein.actualG)}g protein
-                {recap.protein.goalG != null
-                  ? ` (${recap.protein.percentOfGoal}% of ${recap.protein.goalG}g goal)`
-                  : ""}
-              </Text>
-            </View>
-
-            <View style={styles.recapRow}>
-              <Feather name="pie-chart" size={16} color={colors.textSecondary} />
-              <Text style={styles.recapRowText}>
-                {recap.calories.actual} cal
-                {recap.calories.goal != null
-                  ? ` / ${recap.calories.goal} — ${CALORIE_STATUS_LABELS[recap.calories.status]}`
-                  : ""}
-              </Text>
-            </View>
-
-            <View
-              style={[
-                styles.verdictBanner,
-                recap.supportsMuscleGain
-                  ? styles.verdictGood
-                  : styles.verdictNeutral,
-              ]}
-            >
-              <Feather
-                name={recap.supportsMuscleGain ? "check-circle" : "info"}
-                size={18}
-                color={
-                  recap.supportsMuscleGain
-                    ? colors.completedGreen
-                    : colors.pendingAmber
-                }
-              />
-              <Text style={styles.verdictText}>{buildRecapVerdict(recap)}</Text>
-            </View>
-
-            <Text style={styles.recapDisclaimer}>
-              A same-day check on whether training and nutrition lined up —
-              not proof muscle was gained. That only shows up over weeks of
-              consistent training and eating, and only via real body
-              measurement.
-            </Text>
-          </View>
+            <Feather name="chevron-right" size={18} color={colors.textMuted} />
+          </TouchableOpacity>
         )}
       </ScrollView>
+
+      {recap && (
+        <Modal visible={isRecapOpen} onClose={() => setIsRecapOpen(false)}>
+          <Text style={styles.recapTitle}>
+            {isSameDay(selectedDate, new Date()) ? "Today's" : "Day's"} Recap
+          </Text>
+
+          <View style={styles.recapRow}>
+            <Feather name="activity" size={16} color={colors.textSecondary} />
+            <Text style={styles.recapRowText}>
+              {recap.training.trained
+                ? `${recap.training.exerciseCount} exercise${recap.training.exerciseCount === 1 ? "" : "s"} · ${recap.training.totalSets} sets · ${recap.training.totalVolume.toLocaleString()} lbs volume`
+                : "No workout logged"}
+            </Text>
+          </View>
+
+          <View style={styles.recapRow}>
+            <Feather name="trending-up" size={16} color={colors.textSecondary} />
+            <Text style={styles.recapRowText}>
+              {Math.round(recap.protein.actualG)}g protein
+              {recap.protein.goalG != null
+                ? ` (${recap.protein.percentOfGoal}% of ${recap.protein.goalG}g goal)`
+                : ""}
+            </Text>
+          </View>
+
+          <View style={styles.recapRow}>
+            <Feather name="pie-chart" size={16} color={colors.textSecondary} />
+            <Text style={styles.recapRowText}>
+              {recap.calories.actual} cal
+              {recap.calories.goal != null
+                ? ` / ${recap.calories.goal} — ${CALORIE_STATUS_LABELS[recap.calories.status]}`
+                : ""}
+            </Text>
+          </View>
+
+          <View
+            style={[
+              styles.verdictBanner,
+              recap.supportsMuscleGain
+                ? styles.verdictGood
+                : styles.verdictNeutral,
+            ]}
+          >
+            <Feather
+              name={recap.supportsMuscleGain ? "check-circle" : "info"}
+              size={18}
+              color={
+                recap.supportsMuscleGain
+                  ? colors.completedGreen
+                  : colors.pendingAmber
+              }
+            />
+            <Text style={styles.verdictText}>{buildRecapVerdict(recap)}</Text>
+          </View>
+
+          <Text style={styles.recapDisclaimer}>
+            A same-day check on whether training and nutrition lined up — not
+            proof muscle was gained. That only shows up over weeks of
+            consistent training and eating, and only via real body
+            measurement.
+          </Text>
+        </Modal>
+      )}
     </SafeAreaView>
   );
 };
@@ -525,12 +556,20 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontWeight: fontWeights.semibold,
   },
-  recapCard: {
+  recapButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
     borderWidth: 1,
     borderColor: colors.borderGray,
     borderRadius: 12,
     padding: spacing.md,
     marginTop: spacing.sm,
+  },
+  recapButtonText: {
+    flex: 1,
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.bold,
   },
   recapTitle: {
     fontSize: fontSizes.md,
