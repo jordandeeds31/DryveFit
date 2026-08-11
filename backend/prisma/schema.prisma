@@ -8,24 +8,30 @@ datasource db {
 }
 
 model User {
-  id                   String       @id @default(uuid())
-  email                String       @unique
-  password             String
-  username             String?      @unique
-  city                 String?
-  gender               String?
-  isLeaderboardVisible Boolean      @default(true)
-  profileImage         Bytes?
-  profileImageMimeType String?
-  passwordResetCodeHash  String?
-  passwordResetExpiresAt DateTime?
-  createdAt            DateTime     @default(now())
-  updatedAt            DateTime     @updatedAt
-  programs             Program[]
-  workoutLogs          WorkoutLog[]
-  cardioSessions       CardioSession[]
-  chatMessages         ChatMessage[]
-  trainer              Trainer?
+  id                        String          @id @default(uuid())
+  email                     String          @unique
+  password                  String
+  username                  String?         @unique
+  city                      String?
+  gender                    String?
+  isLeaderboardVisible      Boolean         @default(true)
+  profileImage              Bytes?
+  profileImageMimeType      String?
+  passwordResetCodeHash     String?
+  passwordResetExpiresAt    DateTime?
+  expoPushToken             String?
+  // IANA name (e.g. "America/New_York") — the reminder job runs on a
+  // fixed interval but needs to know each user's actual local clock to
+  // fire at 8:30pm *for them*, not 8:30pm server time.
+  timezone                  String?
+  lastWorkoutReminderSentAt DateTime?
+  createdAt                 DateTime        @default(now())
+  updatedAt                 DateTime        @updatedAt
+  programs                  Program[]
+  workoutLogs               WorkoutLog[]
+  cardioSessions            CardioSession[]
+  chatMessages              ChatMessage[]
+  trainer                   Trainer?
 
   @@index([city])
   @@map("users")
@@ -155,7 +161,7 @@ model ExerciseSet {
 model CardioSession {
   id              String   @id @default(uuid())
   userId          String
-  activityType    String   // "walk" | "run" | "bike"
+  activityType    String // "walk" | "run" | "bike"
   startedAt       DateTime
   endedAt         DateTime
   durationSeconds Int

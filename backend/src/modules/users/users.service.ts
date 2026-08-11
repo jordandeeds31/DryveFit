@@ -133,6 +133,19 @@ export const updateUserProfile = async (
   }
 };
 
+// Called on app launch once notification permission is granted — re-sent
+// every time so a reinstalled app or a token Expo rotates behind the
+// scenes stays current, and so the timezone updates if the user travels.
+export const updatePushToken = async (
+  userId: string,
+  { expoPushToken, timezone }: { expoPushToken: string; timezone: string },
+) => {
+  await prisma.user.update({
+    where: { id: userId },
+    data: { expoPushToken, timezone },
+  });
+};
+
 export const uploadProfileImage = async (userId: string, buffer: Buffer) => {
   // Normalize every upload to the same small, predictable size/format
   // regardless of what the user picked — keeps stored rows tiny.

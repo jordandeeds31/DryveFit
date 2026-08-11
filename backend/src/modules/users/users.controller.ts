@@ -6,6 +6,7 @@ import AppError from "../../utils/AppError";
 import {
   getUserProfile,
   updateUserProfile,
+  updatePushToken,
   uploadProfileImage,
   deleteProfileImage,
   getProfileImage,
@@ -30,6 +31,27 @@ export const updateMeHandler = catchAsync(
       isLeaderboardVisible,
     });
     sendSuccess(res, 200, "USER_PROFILE_UPDATED", { user });
+  },
+);
+
+export const updatePushTokenHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const { expoPushToken, timezone } = req.body;
+
+    if (typeof expoPushToken !== "string" || expoPushToken.trim() === "") {
+      throw new AppError(400, "expoPushToken is required");
+    }
+    if (typeof timezone !== "string" || timezone.trim() === "") {
+      throw new AppError(400, "timezone is required");
+    }
+    try {
+      new Intl.DateTimeFormat("en-US", { timeZone: timezone });
+    } catch {
+      throw new AppError(400, "Invalid timezone");
+    }
+
+    await updatePushToken(req.userId!, { expoPushToken, timezone });
+    sendSuccess(res, 200, "PUSH_TOKEN_UPDATED", { message: "Saved" });
   },
 );
 

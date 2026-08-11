@@ -64,6 +64,13 @@
           "locationWhenInUsePermission": "Dryve uses your location to track the distance and route of your walks, runs, and rides."
         }
       ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/logo.png",
+          "color": "#022cfa"
+        }
+      ],
       "./plugins/withFmtCxx17Fix.js",
       "expo-asset"
     ],

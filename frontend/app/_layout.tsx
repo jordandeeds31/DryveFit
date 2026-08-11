@@ -9,12 +9,16 @@ import { useAuth } from "@/hooks/useAuth";
 import { queryClient } from "@/lib/api/queryClient";
 import { configurePurchases } from "@/lib/purchases/purchases";
 import { fetchSubscriptionStatus } from "@/store/slices/subscriptionSlice";
+import {
+    registerForWorkoutReminders,
+    setupWorkoutReminderTapHandling,
+} from "@/lib/notifications/pushNotifications";
 
 SplashScreen.preventAutoHideAsync();
 configurePurchases();
 
 const RootNavigator = () => {
-    const { isLoading } = useAuth();
+    const { isLoading, isAuthenticated } = useAuth();
     const dispatch = useDispatch<AppDispatch>();
 
     const hideSplash = useCallback(async () => {
@@ -30,6 +34,20 @@ const RootNavigator = () => {
     useEffect(() => {
         dispatch(fetchSubscriptionStatus());
     }, [dispatch]);
+
+    // Registering the push token requires an authenticated request, but
+    // tap handling (a user opening a notification they got yesterday, say)
+    // should work regardless of today's auth state — kept as two effects
+    // rather than one gated together.
+    useEffect(() => {
+        if (isAuthenticated) {
+            registerForWorkoutReminders();
+        }
+    }, [isAuthenticated]);
+
+    useEffect(() => {
+        return setupWorkoutReminderTapHandling();
+    }, []);
 
     return (
         <Stack screenOptions={{ headerShown: false }}>

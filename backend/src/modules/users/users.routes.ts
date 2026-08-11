@@ -4,6 +4,7 @@ import { authMiddleware } from "../../middleware/authMiddleware";
 import {
   getMeHandler,
   updateMeHandler,
+  updatePushTokenHandler,
   uploadProfileImageHandler,
   deleteProfileImageHandler,
   getProfileImageHandler,
@@ -22,6 +23,7 @@ router.use(authMiddleware);
 
 router.get("/me", getMeHandler);
 router.patch("/me", updateMeHandler);
+router.patch("/me/push-token", updatePushTokenHandler);
 router.post("/me/profile-image", upload.single("image"), uploadProfileImageHandler);
 router.delete("/me/profile-image", deleteProfileImageHandler);
 router.get("/:userId/profile-image", getProfileImageHandler);

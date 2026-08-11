@@ -33,6 +33,13 @@ export const updateProfile = async (
   return data.result.user;
 };
 
+export const updatePushToken = async (input: {
+  expoPushToken: string;
+  timezone: string;
+}): Promise<void> => {
+  await apiClient.patch("/api/users/me/push-token", input);
+};
+
 export const uploadProfileImage = async (
   uri: string,
 ): Promise<UserProfile> => {
