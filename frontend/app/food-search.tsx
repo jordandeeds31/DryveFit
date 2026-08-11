@@ -9,7 +9,6 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import Feather from "@expo/vector-icons/Feather";
@@ -98,13 +97,6 @@ const FoodSearchScreen = () => {
       style={styles.hitRow}
       onPress={() => handleSelectHit(hit)}
     >
-      {hit.photoUrl ? (
-        <Image source={{ uri: hit.photoUrl }} style={styles.hitPhoto} />
-      ) : (
-        <View style={styles.hitPhotoPlaceholder}>
-          <Feather name="image" size={16} color={colors.textMuted} />
-        </View>
-      )}
       <View style={styles.hitTextGroup}>
         <Text style={styles.hitName} numberOfLines={1}>
           {hit.foodName}
@@ -323,20 +315,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderGray,
-  },
-  hitPhoto: {
-    width: 36,
-    height: 36,
-    borderRadius: 6,
-    backgroundColor: colors.lightGraySoft,
-  },
-  hitPhotoPlaceholder: {
-    width: 36,
-    height: 36,
-    borderRadius: 6,
-    backgroundColor: colors.lightGraySoft,
-    alignItems: "center",
-    justifyContent: "center",
   },
   hitTextGroup: {
     flex: 1,
