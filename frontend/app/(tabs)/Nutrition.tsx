@@ -200,6 +200,20 @@ const NutritionScreen = () => {
           loggedDateKeys={loggedDateKeys}
         />
 
+        {hasGoal && recap && (
+          <View style={styles.recapButtonRow}>
+            <TouchableOpacity
+              style={styles.recapButton}
+              onPress={() => setIsRecapOpen(true)}
+            >
+              <Feather name="bar-chart-2" size={14} color={colors.primaryBlue} />
+              <Text style={styles.recapButtonText}>
+                {isSameDay(selectedDate, new Date()) ? "Today's" : "Day's"} Recap
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {!hasGoal ? (
           <TouchableOpacity
             style={styles.setupPrompt}
@@ -318,18 +332,6 @@ const NutritionScreen = () => {
           })
         )}
 
-        {hasGoal && recap && (
-          <TouchableOpacity
-            style={styles.recapButton}
-            onPress={() => setIsRecapOpen(true)}
-          >
-            <Feather name="bar-chart-2" size={18} color={colors.primaryBlue} />
-            <Text style={styles.recapButtonText}>
-              {isSameDay(selectedDate, new Date()) ? "Today's" : "Day's"} Recap
-            </Text>
-            <Feather name="chevron-right" size={18} color={colors.textMuted} />
-          </TouchableOpacity>
-        )}
       </ScrollView>
 
       {recap && (
@@ -556,20 +558,26 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontWeight: fontWeights.semibold,
   },
+  recapButtonRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginBottom: spacing.sm,
+  },
   recapButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.sm,
+    gap: spacing.xs,
     borderWidth: 1,
-    borderColor: colors.borderGray,
-    borderRadius: 12,
-    padding: spacing.md,
-    marginTop: spacing.sm,
+    borderColor: colors.borderBlueLight,
+    backgroundColor: colors.surfaceBlueLight,
+    borderRadius: 8,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
   },
   recapButtonText: {
-    flex: 1,
-    fontSize: fontSizes.md,
+    fontSize: fontSizes.xs,
     fontWeight: fontWeights.bold,
+    color: colors.primaryBlue,
   },
   recapTitle: {
     fontSize: fontSizes.md,
