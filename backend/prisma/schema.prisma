@@ -44,6 +44,7 @@ model User {
   workoutLogs               WorkoutLog[]
   cardioSessions            CardioSession[]
   chatMessages              ChatMessage[]
+  conversations             Conversation[]
   foodLogEntries            FoodLogEntry[]
   trainer                   Trainer?
 
@@ -222,21 +223,49 @@ model CardioSession {
   @@map("cardio_sessions")
 }
 
-model ChatMessage {
-  id        String   @id @default(uuid())
+model Conversation {
+  id        String        @id @default(uuid())
   userId    String
+  // Derived from the first user message when the conversation is created
+  // (like ChatGPT/Claude) — never re-derived afterward, so later messages
+  // don't cause the title to drift.
+  title     String
+  createdAt DateTime      @default(now())
+  // Bumped on every new message so the history list can order by most
+  // recently active rather than most recently created.
+  updatedAt DateTime      @updatedAt
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  ChatMessage[]
+
+  @@index([userId, updatedAt])
+  @@map("conversations")
+}
+
+model ChatMessage {
+  id             String       @id @default(uuid())
+  userId         String
+  conversationId String
   // "user" | "assistant" — only the final visible turns are persisted.
   // Any tool calls/results the model makes mid-turn to fetch workout data
   // are resolved within that single request and never stored, so replaying
   // history back to OpenAI on the next message never has to reconstruct
   // OpenAI's stricter tool-call/tool-result message pairing.
-  role      String
-  content   String
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           String
+  content        String
+  createdAt      DateTime     @default(now())
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
-  @@index([userId, createdAt])
+  @@index([conversationId, createdAt])
   @@map("chat_messages")
+}
+
+model WaitlistSignup {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+
+  @@map("waitlist_signups")
 }
 
 model Exercise {

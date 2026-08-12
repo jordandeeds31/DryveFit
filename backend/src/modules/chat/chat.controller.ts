@@ -4,21 +4,37 @@ import { sendSuccess } from "../../utils/apiResponse";
 import { AuthRequest } from "../../middleware/authMiddleware";
 import AppError from "../../utils/AppError";
 import {
-  getChatHistory,
+  listConversations,
+  getConversationMessages,
   sendChatMessage,
-  clearChatHistory,
+  deleteConversation,
 } from "./chat.service";
 
-export const getChatHistoryHandler = catchAsync(
+const getParam = (value: string | string[]): string => {
+  return Array.isArray(value) ? value[0] : value;
+};
+
+export const listConversationsHandler = catchAsync(
   async (req: AuthRequest, res: Response) => {
-    const messages = await getChatHistory(req.userId!);
-    sendSuccess(res, 200, "CHAT_HISTORY_FETCHED", { messages });
+    const conversations = await listConversations(req.userId!);
+    sendSuccess(res, 200, "CONVERSATIONS_FETCHED", { conversations });
+  },
+);
+
+export const getConversationMessagesHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const conversationId = getParam(req.params.conversationId);
+    const messages = await getConversationMessages(
+      req.userId!,
+      conversationId,
+    );
+    sendSuccess(res, 200, "CONVERSATION_MESSAGES_FETCHED", { messages });
   },
 );
 
 export const sendChatMessageHandler = catchAsync(
   async (req: AuthRequest, res: Response) => {
-    const { content } = req.body;
+    const { content, conversationId } = req.body;
 
     if (typeof content !== "string" || content.trim() === "") {
       throw new AppError(400, "content is required");
@@ -26,15 +42,23 @@ export const sendChatMessageHandler = catchAsync(
     if (content.length > 2000) {
       throw new AppError(400, "content must be 2000 characters or fewer");
     }
+    if (conversationId !== undefined && typeof conversationId !== "string") {
+      throw new AppError(400, "conversationId must be a string");
+    }
 
-    const message = await sendChatMessage(req.userId!, content.trim());
-    sendSuccess(res, 201, "CHAT_MESSAGE_SENT", { message });
+    const result = await sendChatMessage(
+      req.userId!,
+      content.trim(),
+      conversationId,
+    );
+    sendSuccess(res, 201, "CHAT_MESSAGE_SENT", result);
   },
 );
 
-export const clearChatHistoryHandler = catchAsync(
+export const deleteConversationHandler = catchAsync(
   async (req: AuthRequest, res: Response) => {
-    await clearChatHistory(req.userId!);
-    sendSuccess(res, 200, "CHAT_HISTORY_CLEARED", {});
+    const conversationId = getParam(req.params.conversationId);
+    await deleteConversation(req.userId!, conversationId);
+    sendSuccess(res, 200, "CONVERSATION_DELETED", {});
   },
 );

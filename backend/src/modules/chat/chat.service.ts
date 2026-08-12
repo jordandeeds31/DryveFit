@@ -4,6 +4,7 @@ import type {
 } from "openai/resources/chat/completions";
 import openai from "../../lib/openai";
 import prisma from "../../lib/prisma";
+import AppError from "../../utils/AppError";
 import {
   getRecentWorkoutLogsForUser,
   getDistinctExerciseNamesForUser,
@@ -174,20 +175,73 @@ const executeTool = async (
   }
 };
 
-export const getChatHistory = async (userId: string) => {
-  return prisma.chatMessage.findMany({
+// Conversation titles are derived once, from the first user message, the
+// same way ChatGPT/Claude do it — never re-derived on later messages, so
+// the title doesn't drift as the conversation moves on.
+const TITLE_MAX_LENGTH = 60;
+
+const deriveConversationTitle = (content: string): string => {
+  const singleLine = content.replace(/\s+/g, " ").trim();
+  if (singleLine.length <= TITLE_MAX_LENGTH) return singleLine;
+  return `${singleLine.slice(0, TITLE_MAX_LENGTH - 1).trimEnd()}…`;
+};
+
+export const listConversations = async (userId: string) => {
+  return prisma.conversation.findMany({
     where: { userId },
+    orderBy: { updatedAt: "desc" },
+  });
+};
+
+const requireOwnedConversation = async (
+  userId: string,
+  conversationId: string,
+) => {
+  const conversation = await prisma.conversation.findFirst({
+    where: { id: conversationId, userId },
+  });
+  if (!conversation) {
+    throw new AppError(404, "Conversation not found");
+  }
+  return conversation;
+};
+
+export const getConversationMessages = async (
+  userId: string,
+  conversationId: string,
+) => {
+  await requireOwnedConversation(userId, conversationId);
+  return prisma.chatMessage.findMany({
+    where: { conversationId },
     orderBy: { createdAt: "asc" },
   });
 };
 
-export const sendChatMessage = async (userId: string, content: string) => {
+export const deleteConversation = async (
+  userId: string,
+  conversationId: string,
+) => {
+  await requireOwnedConversation(userId, conversationId);
+  await prisma.conversation.delete({ where: { id: conversationId } });
+};
+
+export const sendChatMessage = async (
+  userId: string,
+  content: string,
+  conversationId?: string,
+) => {
+  const conversation = conversationId
+    ? await requireOwnedConversation(userId, conversationId)
+    : await prisma.conversation.create({
+        data: { userId, title: deriveConversationTitle(content) },
+      });
+
   await prisma.chatMessage.create({
-    data: { userId, role: "user", content },
+    data: { userId, conversationId: conversation.id, role: "user", content },
   });
 
   const priorMessages = await prisma.chatMessage.findMany({
-    where: { userId },
+    where: { conversationId: conversation.id },
     orderBy: { createdAt: "desc" },
     take: HISTORY_LIMIT,
   });
@@ -250,12 +304,20 @@ export const sendChatMessage = async (userId: string, content: string) => {
     finalText ?? "Sorry, I wasn't able to come up with an answer for that.";
 
   const assistantMessage = await prisma.chatMessage.create({
-    data: { userId, role: "assistant", content: assistantContent },
+    data: {
+      userId,
+      conversationId: conversation.id,
+      role: "assistant",
+      content: assistantContent,
+    },
   });
 
-  return assistantMessage;
-};
+  // Bumps updatedAt (no other field changes) so the conversation surfaces
+  // at the top of the history list, ordered by recent activity.
+  await prisma.conversation.update({
+    where: { id: conversation.id },
+    data: { updatedAt: new Date() },
+  });
 
-export const clearChatHistory = async (userId: string) => {
-  await prisma.chatMessage.deleteMany({ where: { userId } });
+  return { message: assistantMessage, conversationId: conversation.id };
 };
