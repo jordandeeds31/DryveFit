@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -18,11 +18,12 @@ import { spacing } from "@/constants/spacing";
 import { fontSizes, fontWeights } from "@/constants/typography";
 import { safeGoBack } from "@/lib/utils/navigation.utils";
 import {
-  useChatHistory,
+  useConversations,
+  useConversationMessages,
   useSendChatMessage,
-  useClearChatHistory,
 } from "@/hooks/useChat";
-import { ChatMessage, ChatRole } from "@/types/chat.types";
+import { ChatRole } from "@/types/chat.types";
+import ChatHistoryDrawer from "@/features/ChatHistoryDrawer/ChatHistoryDrawer";
 
 const SUGGESTIONS = [
   "How's my squat progressing?",
@@ -35,15 +36,35 @@ type DisplayItem =
   | { id: "typing"; kind: "typing" };
 
 const AiChatScreen = () => {
+  // undefined = a fresh, not-yet-started chat. Moves to a freshly-created
+  // id after the first message, or to whatever's picked in the history
+  // drawer — both handled locally so switching chats never needs a
+  // navigation round-trip.
+  const [activeConversationId, setActiveConversationId] = useState<
+    string | undefined
+  >(undefined);
+  const [isHistoryVisible, setIsHistoryVisible] = useState(false);
   const [draft, setDraft] = useState("");
   const [optimisticMessage, setOptimisticMessage] = useState<string | null>(
     null,
   );
+  // Runs exactly once per mount — defaults into the most recently active
+  // chat rather than always opening blank. Stays false after that so it
+  // never fights "New chat" or a manual pick from the history drawer.
+  const [isResolvingInitialChat, setIsResolvingInitialChat] = useState(true);
 
-  const { data: history, isLoading: isLoadingHistory } = useChatHistory();
+  const { data: conversations } = useConversations();
+  const { data: messages, isLoading: isLoadingMessages } =
+    useConversationMessages(activeConversationId);
   const { mutate: sendMessage, isPending: isSending } = useSendChatMessage();
-  const { mutate: clearHistory, isPending: isClearing } =
-    useClearChatHistory();
+
+  useEffect(() => {
+    if (!isResolvingInitialChat || conversations === undefined) return;
+    if (conversations.length > 0) {
+      setActiveConversationId(conversations[0].id);
+    }
+    setIsResolvingInitialChat(false);
+  }, [isResolvingInitialChat, conversations]);
 
   const handleSend = (content: string) => {
     const trimmed = content.trim();
@@ -52,29 +73,25 @@ const AiChatScreen = () => {
     setDraft("");
     setOptimisticMessage(trimmed);
 
-    sendMessage(trimmed, {
-      onSuccess: () => setOptimisticMessage(null),
-      onError: () => {
-        setOptimisticMessage(null);
-        Alert.alert("Couldn't send message", "Please try again.");
+    sendMessage(
+      { content: trimmed, conversationId: activeConversationId },
+      {
+        onSuccess: (data) => {
+          setOptimisticMessage(null);
+          setActiveConversationId(data.conversationId);
+        },
+        onError: () => {
+          setOptimisticMessage(null);
+          Alert.alert("Couldn't send message", "Please try again.");
+        },
       },
-    });
+    );
   };
 
-  const handleClear = () => {
-    if (!history || history.length === 0) return;
-    Alert.alert(
-      "Clear this conversation?",
-      "This can't be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Clear",
-          style: "destructive",
-          onPress: () => clearHistory(),
-        },
-      ],
-    );
+  const handleNewChat = () => {
+    setActiveConversationId(undefined);
+    setOptimisticMessage(null);
+    setDraft("");
   };
 
   // FlatList is inverted (newest at the bottom, list scrolls "up" from
@@ -91,8 +108,8 @@ const AiChatScreen = () => {
       content: optimisticMessage,
     });
   }
-  for (let i = (history?.length ?? 0) - 1; i >= 0; i--) {
-    const message = history![i];
+  for (let i = (messages?.length ?? 0) - 1; i >= 0; i--) {
+    const message = messages![i];
     items.push({
       id: message.id,
       kind: "message",
@@ -101,33 +118,35 @@ const AiChatScreen = () => {
     });
   }
 
+  const isLoadingHistory =
+    isResolvingInitialChat || (!!activeConversationId && isLoadingMessages);
+
   return (
     <SafeAreaView
       style={styles.container}
       edges={["top", "bottom", "left", "right"]}
     >
       <View style={styles.header}>
-        <TouchableOpacity
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          onPress={safeGoBack}
-        >
-          <Feather name="chevron-left" size={26} color="#000" />
-        </TouchableOpacity>
+        <View style={styles.headerLeft}>
+          <TouchableOpacity
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            onPress={safeGoBack}
+          >
+            <Feather name="chevron-left" size={26} color="#000" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            onPress={() => setIsHistoryVisible(true)}
+          >
+            <Feather name="menu" size={22} color="#000" />
+          </TouchableOpacity>
+        </View>
         <Text style={styles.headerTitle}>Dryve AI Coach</Text>
         <TouchableOpacity
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          onPress={handleClear}
-          disabled={isClearing || !history || history.length === 0}
+          onPress={handleNewChat}
         >
-          <Feather
-            name="trash-2"
-            size={20}
-            color={
-              !history || history.length === 0
-                ? colors.textMuted
-                : colors.dangerRed
-            }
-          />
+          <Feather name="edit-3" size={20} color="#000" />
         </TouchableOpacity>
       </View>
 
@@ -217,6 +236,15 @@ const AiChatScreen = () => {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      <ChatHistoryDrawer
+        visible={isHistoryVisible}
+        onClose={() => setIsHistoryVisible(false)}
+        onSelectConversation={(conversationId) => {
+          setActiveConversationId(conversationId);
+          setIsHistoryVisible(false);
+        }}
+      />
     </SafeAreaView>
   );
 };
@@ -236,6 +264,11 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderGray,
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
   },
   headerTitle: {
     fontSize: fontSizes.md,

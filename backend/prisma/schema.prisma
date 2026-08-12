@@ -25,16 +25,58 @@ model User {
   // fire at 8:30pm *for them*, not 8:30pm server time.
   timezone                  String?
   lastWorkoutReminderSentAt DateTime?
+  // Nutrition-goal inputs (Mifflin-St Jeor) — kept alongside the resolved
+  // goals below so the calculator can be re-run if the user updates them,
+  // without losing whatever manual override they've made to the goals
+  // themselves in the meantime.
+  weightLbs                 Float?
+  heightInches              Float?
+  birthdate                 DateTime?
+  activityLevel             String?
+  nutritionGoalType         String?
+  dailyCalorieGoal          Int?
+  dailyProteinGoalG         Int?
+  dailyCarbGoalG            Int?
+  dailyFatGoalG             Int?
   createdAt                 DateTime        @default(now())
   updatedAt                 DateTime        @updatedAt
   programs                  Program[]
   workoutLogs               WorkoutLog[]
   cardioSessions            CardioSession[]
   chatMessages              ChatMessage[]
+  conversations             Conversation[]
+  foodLogEntries            FoodLogEntry[]
   trainer                   Trainer?
 
   @@index([city])
   @@map("users")
+}
+
+model FoodLogEntry {
+  id          String   @id @default(uuid())
+  userId      String
+  // Calendar day this entry belongs to, stored as local midnight —
+  // matches the ProgramDay/WorkoutLog.loggedAt convention elsewhere in
+  // this schema, not a real timezone-aware timestamp.
+  date        DateTime
+  mealType    String
+  foodName    String
+  brandName   String?
+  servingQty  Float
+  servingUnit String
+  // A snapshot of the nutrition values at logging time (like
+  // ExerciseLog snapshotting exerciseName/muscleGroup) — not a live
+  // reference back to Nutritionix, since serving size is user-adjustable
+  // and a food's listed nutrition can change over time.
+  calories    Int
+  proteinG    Float
+  carbsG      Float
+  fatG        Float
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+  @@map("food_log_entries")
 }
 
 model Program {
@@ -181,20 +223,40 @@ model CardioSession {
   @@map("cardio_sessions")
 }
 
-model ChatMessage {
-  id        String   @id @default(uuid())
+model Conversation {
+  id        String        @id @default(uuid())
   userId    String
+  // Derived from the first user message when the conversation is created
+  // (like ChatGPT/Claude) — never re-derived afterward, so later messages
+  // don't cause the title to drift.
+  title     String
+  createdAt DateTime      @default(now())
+  // Bumped on every new message so the history list can order by most
+  // recently active rather than most recently created.
+  updatedAt DateTime      @updatedAt
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  ChatMessage[]
+
+  @@index([userId, updatedAt])
+  @@map("conversations")
+}
+
+model ChatMessage {
+  id             String       @id @default(uuid())
+  userId         String
+  conversationId String
   // "user" | "assistant" — only the final visible turns are persisted.
   // Any tool calls/results the model makes mid-turn to fetch workout data
   // are resolved within that single request and never stored, so replaying
   // history back to OpenAI on the next message never has to reconstruct
   // OpenAI's stricter tool-call/tool-result message pairing.
-  role      String
-  content   String
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           String
+  content        String
+  createdAt      DateTime     @default(now())
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
-  @@index([userId, createdAt])
+  @@index([conversationId, createdAt])
   @@map("chat_messages")
 }
 

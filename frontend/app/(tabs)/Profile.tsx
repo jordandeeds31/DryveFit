@@ -20,6 +20,7 @@ import Button from "@/components/shared/Button/Button";
 import Input from "@/components/shared/TextInput/TextInput";
 import CityPicker from "@/components/shared/CityPicker/CityPicker";
 import Toast from "@/components/shared/Toast/Toast";
+import DevicesModal from "@/features/DevicesModal/DevicesModal";
 import { useAuth } from "@/hooks/useAuth";
 import {
   useCurrentUser,
@@ -61,6 +62,7 @@ const Profile = () => {
     "unavailable" | "not_connected" | "connected"
   >("not_connected");
   const [isConnectingHealthKit, setIsConnectingHealthKit] = useState(false);
+  const [isDevicesModalVisible, setIsDevicesModalVisible] = useState(false);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -322,34 +324,22 @@ const Profile = () => {
           />
         </View>
 
-        {healthKitStatus !== "unavailable" && (
-          <View style={styles.switchRow}>
-            <View style={styles.switchTextGroup}>
-              <Text style={styles.switchLabel}>Connect Apple Health</Text>
-              <Text style={styles.switchSubtext}>
-                {healthKitStatus === "connected"
-                  ? "Dryve can read your heart rate and calories burned during Cinematic Mode workouts. Manage access in the Health app."
-                  : "Let Dryve read your heart rate and calories burned from Apple Health during Cinematic Mode workouts."}
-              </Text>
-            </View>
-            {healthKitStatus === "connected" ? (
-              <Feather
-                name="check-circle"
-                size={22}
-                color={colors.primaryBlue}
-              />
-            ) : (
-              <TouchableOpacity
-                onPress={handleConnectHealthKit}
-                disabled={isConnectingHealthKit}
-              >
-                <Text style={styles.avatarActionText}>
-                  {isConnectingHealthKit ? "Connecting..." : "Connect"}
-                </Text>
-              </TouchableOpacity>
-            )}
+        <TouchableOpacity
+          style={styles.switchRow}
+          onPress={() => setIsDevicesModalVisible(true)}
+        >
+          <View style={styles.switchTextGroup}>
+            <Text style={styles.switchLabel}>Devices</Text>
+            <Text style={styles.switchSubtext}>
+              {healthKitStatus === "connected"
+                ? "Apple Health connected — manage other devices"
+                : healthKitStatus === "unavailable"
+                  ? "Connect your health devices"
+                  : "Connect Apple Health and other health devices"}
+            </Text>
           </View>
-        )}
+          <Feather name="chevron-right" size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
 
         <View style={styles.buttonContainer}>
           <Button
@@ -375,6 +365,13 @@ const Profile = () => {
           visible={!!toastMessage}
           message={toastMessage ?? ""}
           onHide={() => setToastMessage(null)}
+        />
+        <DevicesModal
+          visible={isDevicesModalVisible}
+          onClose={() => setIsDevicesModalVisible(false)}
+          healthKitStatus={healthKitStatus}
+          isConnectingHealthKit={isConnectingHealthKit}
+          onConnectHealthKit={handleConnectHealthKit}
         />
       </SafeAreaView>
     </KeyboardAvoidingView>

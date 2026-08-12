@@ -11,7 +11,8 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://fitness-vioh.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://fitness-vioh.onrender.com",
+        "EXPO_PUBLIC_REVENUECAT_API_KEY_IOS": "appl_wZQCWJksaxmmKYDSNqLQFjlZZGe"
       }
     },
     "production": {
@@ -20,7 +21,8 @@
         "image": "latest"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://fitness-vioh.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://fitness-vioh.onrender.com",
+        "EXPO_PUBLIC_REVENUECAT_API_KEY_IOS": "appl_wZQCWJksaxmmKYDSNqLQFjlZZGe"
       }
     }
   },

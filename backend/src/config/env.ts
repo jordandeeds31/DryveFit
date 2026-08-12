@@ -25,6 +25,10 @@ const envSchema = z.object({
   // forgot-password email works immediately in dev; swap in a verified
   // sender on the real domain once one exists.
   RESEND_FROM_EMAIL: z.string().min(1).default("Dryve <onboarding@resend.dev>"),
+  // Optional so normal app startup never hard-fails without it — food
+  // search/logging just 500s with a clear message until this is set. Free
+  // at api.data.gov/signup — no paid tier, unlike Nutritionix.
+  USDA_API_KEY: z.string().min(1).optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

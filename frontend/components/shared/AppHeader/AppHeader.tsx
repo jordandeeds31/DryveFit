@@ -20,6 +20,13 @@ const AppHeader = () => {
       <View style={styles.headerActions}>
         <TouchableOpacity
           style={styles.settingsButton}
+          onPress={() => router.push("/(tabs)/Programs")}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Feather name="clipboard" size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.settingsButton}
           onPress={() => router.push("/ai-chat")}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
