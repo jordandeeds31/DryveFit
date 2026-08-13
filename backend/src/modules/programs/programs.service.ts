@@ -23,6 +23,7 @@ import {
   SessionClassification,
   getWeeksPlan,
   buildWeekPrompt,
+  getDayVolumeTarget,
   assignSplitToDays,
   normalizeDay,
   getWeightIncrement,
@@ -1512,8 +1513,14 @@ const generateProgramWeeks = async (
         performanceHistory,
       });
 
+      // gpt-4o-mini was unreliable at following this prompt's per-day exact
+      // exercise-count and movement-category requirements (e.g. generating
+      // only 2 exercises for a dedicated bro-split day instead of the
+      // stated target) — this call happens once per program, not per
+      // chat message, so the accuracy gap is worth the extra cost of the
+      // full model.
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-4o",
         messages: [{ role: "user", content: prompt }],
         response_format: { type: "json_object" },
       });
@@ -1568,6 +1575,26 @@ const generateProgramWeeks = async (
 
           return [{ ...exercise, exerciseName: resolvedName }];
         });
+
+        // Post-generation compliance check — the prompt states an exact
+        // per-day target, but nothing stops the model from ignoring it.
+        // This can't fully repair a short day (no code path here safely
+        // invents new exercises), but it makes under-generation visible in
+        // logs instead of silently shipping a thin day, which is how the
+        // original bug (a bro-split day with only 2 exercises) went
+        // unnoticed until a user reported it.
+        if (!day.isRestDay) {
+          const focus = daySplitAssignment[day.dayName] ?? [];
+          const { totalExercises: target } = getDayVolumeTarget(
+            focus,
+            input.fitnessLevel,
+          );
+          if (day.exercises.length < target) {
+            console.warn(
+              `Program generation under target: week ${week.weekNumber} ${day.dayName} (${focus.join("/")}) has ${day.exercises.length} exercises, target was ${target}.`,
+            );
+          }
+        }
       }
 
       await prisma.programWeek.create({

@@ -92,6 +92,92 @@ const FITNESS_LEVEL_GUIDANCE: Record<FitnessLevel, string> = {
     "This person is advanced and trains hard. Include heavier compound lifts, higher volume and/or intensity (4-5 sets, lower rep ranges on strength days), advanced techniques where appropriate (drop sets, supersets, rest-pause, tempo work), and push closer to failure on isolation work. Assume strong technique and higher work capacity.",
 };
 
+// Collapses a day's raw muscleGroup tags (as used in SPLIT_TEMPLATES and
+// the Exercise catalog) into the muscle REGION a lifter actually thinks of
+// as one training focus — e.g. bro split's back day is tagged
+// ["back", "lats", "traps"], but that's one region ("back") trained
+// together, not three independent ones each needing a full minimum. This
+// also matters because the catalog itself is uneven per raw tag (e.g. only
+// 2 exercises are tagged "lats" and 2 "hamstrings" on their own) — treating
+// them as part of a combined region is both more realistic programming and
+// the only way the minimums below are achievable from the allowed list.
+const MUSCLE_REGION: Record<string, string> = {
+  chest: "chest",
+  back: "back",
+  lats: "back",
+  traps: "back",
+  shoulders: "shoulders",
+  biceps: "arms",
+  triceps: "arms",
+  forearms: "arms",
+  quads: "legs",
+  hamstrings: "legs",
+  glutes: "legs",
+  calves: "legs",
+  abs: "core",
+  obliques: "core",
+};
+
+const getDayRegions = (focus: string[]): string[] => [
+  ...new Set(focus.map((group) => MUSCLE_REGION[group] ?? group)),
+];
+
+// Total exercise count target for a training day, keyed by fitness level
+// and how many distinct REGIONS (see above) share that day — a day
+// dedicated to a single region (a bro-split "chest day") gets noticeably
+// MORE total volume for it than a region sharing the day with three
+// others (a full-body day), since the whole session's time budget
+// concentrates on it instead of splitting across several muscle groups.
+// These are deliberately hand-set per region-count rather than a flat
+// "N exercises per region" multiplication — that naive approach either
+// undershoots dedicated single-region days (which should feel like a real
+// specialization session, not just the bare per-day minimum) or produces
+// unrealistic 20+ exercise sessions once multiplied across 3-4 regions.
+const TOTAL_EXERCISES_BY_REGION_COUNT: Record<
+  FitnessLevel,
+  Record<number, number>
+> = {
+  beginner: { 1: 4, 2: 6, 3: 7, 4: 8 },
+  intermediate: { 1: 6, 2: 8, 3: 9, 4: 10 },
+  advanced: { 1: 7, 2: 10, 3: 11, 4: 12 },
+};
+
+const MAX_TRACKED_REGIONS = 4;
+
+export const getDayVolumeTarget = (
+  focus: string[],
+  fitnessLevel: FitnessLevel,
+): { totalExercises: number; regions: string[] } => {
+  const regions = getDayRegions(focus);
+  const regionCount = Math.min(
+    Math.max(regions.length, 1),
+    MAX_TRACKED_REGIONS,
+  );
+  return {
+    totalExercises: TOTAL_EXERCISES_BY_REGION_COUNT[fitnessLevel][regionCount],
+    regions,
+  };
+};
+
+// Concrete compound/isolation/finisher guidance per region, in movement-
+// pattern terms (not exact catalog exercise names, since availability
+// varies by equipment access) — gives the model a real structure to fill
+// each day's exercise count with instead of just repeating whatever
+// exercise comes to mind first for that body part.
+const REGION_MOVEMENT_GUIDANCE: Record<string, string> = {
+  chest:
+    "1 primary compound press (flat barbell/dumbbell bench or equivalent), 1 secondary compound press at a different angle (incline or decline), 1-2 isolation moves targeting a different region of the chest (flyes, cable crossover, pec deck), and 1 finisher (a higher-rep burnout move, often cable or machine-based, placed last).",
+  back:
+    "1 primary compound pull (a deadlift variation, barbell/dumbbell row, or weighted pull-up), 1 secondary compound pull at a different angle or grip (e.g. a different row variation, lat pulldown), 1-2 isolation/width-or-thickness moves (straight-arm pulldown, single-arm row, shrugs for traps), and 1 finisher (face pulls or a light high-rep pulldown/row).",
+  shoulders:
+    "1 primary compound press (overhead barbell/dumbbell press), 1-2 isolation moves for different heads (lateral raise for side delts, rear delt flye for rear delts, front raise for front delts), and 1 finisher (a high-rep lateral raise or cable burnout).",
+  arms:
+    "at least 1 biceps-focused move and 1 triceps-focused move at minimum (never only one of the two), ideally 2 of each at different angles/grips (e.g. barbell curl + incline dumbbell curl, close-grip bench or pushdown + overhead extension), plus forearm work if forearms exercises are in the allowed list, and a finisher (drop-set curl or pushdown) if the count allows.",
+  legs:
+    "1 primary compound squat-pattern lift (back squat, front squat, leg press) for quads, 1 primary compound hip-hinge lift (RDL, deadlift variation, hip thrust) for hamstrings/glutes, 1-2 isolation moves (leg extension, leg curl, lunges, glute-focused accessory), calf work if calves exercises are in the allowed list, and a finisher (walking lunges or a burnout set) if the count allows.",
+  core: "a mix of weighted/loaded core work (planks, hanging leg raises) and rotational or isolation work (cable crunches, oblique-focused moves).",
+};
+
 export const EQUIPMENT_ACCESS = [
   "full gym",
   "home gym (dumbbells + barbell)",
@@ -333,7 +419,18 @@ export const buildWeekPrompt = (input: WeekPromptInput): string => {
         return `- ${d.dayName}: Rest day`;
       }
       const focus = input.daySplitAssignment[d.dayName] ?? [];
-      return `- ${d.dayName}: Train ${focus.join(" & ")} ONLY — do not include exercises for any other body part on this day`;
+      const { totalExercises, regions } = getDayVolumeTarget(
+        focus,
+        input.fitnessLevel,
+      );
+      const regionGuidance = regions
+        .map(
+          (region) =>
+            `  - ${region}: ${REGION_MOVEMENT_GUIDANCE[region] ?? "cover both a primary compound movement and isolation/accessory work."}`,
+        )
+        .join("\n");
+
+      return `- ${d.dayName}: Train ${focus.join(" & ")} ONLY — do not include exercises for any other body part on this day. This day MUST include EXACTLY ${totalExercises} total exercises (not fewer — this is a hard minimum, not a suggestion). Distribute them across:\n${regionGuidance}`;
     })
     .join("\n");
 
@@ -403,10 +500,19 @@ ${performanceHistoryText}
 DAY-BY-DAY PLAN (follow exactly — each day trains only its assigned body part(s)):
 ${dayPlanLines}
 
-EXERCISE COUNT AND SELECTION REQUIREMENTS:
-- Every training day must include AT LEAST 2 exercises for EACH assigned body part on that day, and NEVER fewer than 4 total exercises on any training day — a 3-exercise (or shorter) session is not acceptable, regardless of fitness level, session length, or training goal.
-- For any day that trains "quads", "hamstrings", "glutes", "chest", "back", or "shoulders", you MUST include at least one primary compound/foundational lift for that body part from the ALLOWED EXERCISES list before adding any isolation or accessory work for it — e.g. a squat-pattern lift for quads, a hip-hinge lift for hamstrings/glutes, a bench/press variation for chest, a row or pulldown/pull-up for back, an overhead press for shoulders. Do not substitute an isolation exercise for this foundational lift just because one also appears in the allowed list — isolation work should supplement it, not replace it.
-- This applies at every fitness level and training goal, including "strength" — "fewer total exercises" for strength/advanced training means fewer isolation add-ons, never dropping below the minimums above or skipping the body part's foundational lift.
+EXERCISE COUNT AND SELECTION REQUIREMENTS — apply these IDENTICALLY to every single training day in the DAY-BY-DAY PLAN above, with zero exceptions. A later day in the week must never receive less effort, fewer exercises, or less variety than an earlier day just because it comes later in your output:
+- Each day's exact total exercise count is stated on its line above (e.g. "MUST include EXACTLY 7 total exercises") — hit that number exactly. Do not fall short of it, and do not pad past it with filler. This number already accounts for fitness level and how many muscle regions share that day (a day dedicated to one region gets more total volume for it, not less, than a day splitting attention across several) — you do not need to re-derive or second-guess it.
+- Within a day, distribute exercises across its listed region(s) following the movement-category breakdown given for each region — every region on that day needs its own primary compound lift; do not put all the day's volume into one region's isolation work while neglecting another region's compound lift.
+- For any region whose guidance calls for a compound/primary lift (chest, back, shoulders, legs), you MUST include that foundational movement from the ALLOWED EXERCISES list before adding isolation or accessory work for it. Do not substitute an isolation exercise for this foundational lift just because one also appears in the allowed list.
+- If the ALLOWED EXERCISES list genuinely does not contain enough distinct exercises to hit a day's target count without repeating an exercise within the same day, get as close as possible using every distinct allowed exercise for that day's region(s) rather than falling well short, and never repeat the same exercise twice in one day's list.
+- This applies at every fitness level and training goal, including "strength" — a lower-rep, strength-focused day still needs its full exercise count; "strength" changes rep ranges and rest periods (see FITNESS_LEVEL/TRAINING_GOAL guidance above), not how many exercises are in the session.
+
+Before finalizing your response, silently verify each of the following, and revise your output if any check fails:
+[ ] Every day listed in DAY-BY-DAY PLAN appears in the output, including rest days (with an empty exercises array).
+[ ] Every training day's exercise count matches its stated target EXACTLY.
+[ ] Every region on every training day has its required primary compound lift before any isolation work for that region.
+[ ] No training day has noticeably fewer or less varied exercises than another training day of the same week, regardless of order in your output.
+[ ] Every "exerciseName" is copied character-for-character from the ALLOWED EXERCISES list.
 
 Respond ONLY with valid JSON — no markdown, no explanation, no code blocks. Structure:
 {
@@ -434,6 +540,33 @@ Respond ONLY with valid JSON — no markdown, no explanation, no code blocks. St
           "notes": "Control the descent, press explosively on the way up.",
           "order": 2,
           "recommendedWeight": 45
+        },
+        {
+          "exerciseName": "Cable Crossover",
+          "muscleGroup": "chest",
+          "sets": 3,
+          "reps": 12,
+          "restSeconds": 60,
+          "notes": "Squeeze at full contraction, keep a slight bend in the elbows throughout.",
+          "order": 3
+        },
+        {
+          "exerciseName": "Pec Deck Fly",
+          "muscleGroup": "chest",
+          "sets": 3,
+          "reps": 12,
+          "restSeconds": 60,
+          "notes": "Focus on stretch at the bottom, don't let momentum carry the weight.",
+          "order": 4
+        },
+        {
+          "exerciseName": "Push-Up",
+          "muscleGroup": "chest",
+          "sets": 2,
+          "reps": 20,
+          "restSeconds": 45,
+          "notes": "Burnout finisher — go to near-failure on both sets.",
+          "order": 5
         }
       ]
     },
@@ -446,7 +579,7 @@ Respond ONLY with valid JSON — no markdown, no explanation, no code blocks. St
   ]
 }
 
-NOTE ON THE EXAMPLE ABOVE: "Barbell Bench Press" has NO "recommendedWeight" key — that's what it looks like when the USER'S LOGGED PERFORMANCE HISTORY section does not contain that exact exercise name. "Incline Dumbbell Press" DOES have a "recommendedWeight" — that's what it looks like ONLY when the history section above does contain that exact exercise name. The presence of prior logged history for that EXACT exercise name is the ONLY thing that decides whether the key appears at all. This is not a stylistic choice — most exercises in most weeks will have NO "recommendedWeight" key, and that's expected and correct.
+NOTE ON THE EXAMPLE ABOVE: this MON example has 5 exercises because that's what a real target count for a single-region day looks like at this fitness level — it is a full, complete example, not a truncated one. Your actual per-day exercise count comes from the target stated on that day's line in DAY-BY-DAY PLAN above (which may be higher or lower than 5 depending on fitness level and how many regions share the day) — match THAT number exactly, not the number shown in this example. Separately: "Barbell Bench Press" has NO "recommendedWeight" key — that's what it looks like when the USER'S LOGGED PERFORMANCE HISTORY section does not contain that exact exercise name. "Incline Dumbbell Press" DOES have a "recommendedWeight" — that's what it looks like ONLY when the history section above does contain that exact exercise name. The presence of prior logged history for that EXACT exercise name is the ONLY thing that decides whether the key appears at all. This is not a stylistic choice — most exercises in most weeks will have NO "recommendedWeight" key, and that's expected and correct.
 
 IMPORTANT RULES:
 - "exerciseName" MUST be copied EXACTLY, character-for-character, from the ALLOWED EXERCISES list above. Do not combine, rename, merge, abbreviate, or paraphrase any exercise name — even if it seems like a reasonable variation. For example, if the list contains "Barbell Bent Over Row" and "One-Arm Dumbbell Row" as two separate items, do NOT invent a new name like "Dumbbell Bent Over Row" by blending them — pick one of the two exact names as listed, unmodified.
