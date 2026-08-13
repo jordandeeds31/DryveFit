@@ -1,7 +1,10 @@
 import prisma from "../../lib/prisma";
 import openai from "../../lib/openai";
 import AppError from "../../utils/AppError";
-import { assertNotFutureLog } from "../../utils/futureLogGuard";
+import {
+  assertNotFutureLog,
+  UNRESTRICTED_TEST_EMAIL,
+} from "../../utils/futureLogGuard";
 import {
   PROGRAM_DURATION_DAYS,
   ProgramDurationDays,
@@ -26,6 +29,7 @@ import {
   roundToNearestIncrement,
   BODYWEIGHT_REP_CEILING,
   BODYWEIGHT_MAX_SETS,
+  REAL_DAY_NAMES,
 } from "./programs.prompts";
 import { weekResponseSchema } from "./programs.schema";
 import { CreateProgramInput } from "./programs.types";
@@ -1250,6 +1254,78 @@ export const revertDaySwaps = async (userId: string, dayId: string) => {
       }),
     ),
   );
+};
+
+const addOneDay = (date: Date): Date => {
+  const result = new Date(date);
+  result.setDate(result.getDate() + 1);
+  return result;
+};
+
+export const postponeProgramDay = async (userId: string, dayId: string) => {
+  const day = await prisma.programDay.findFirst({
+    where: { id: dayId, week: { program: { userId } } },
+    include: {
+      exercises: { include: { _count: { select: { exerciseLogs: true } } } },
+      week: { include: { program: true } },
+    },
+  });
+
+  if (!day) {
+    throw new AppError(404, "Day not found");
+  }
+  if (day.isRestDay) {
+    throw new AppError(400, "Rest days can't be postponed");
+  }
+
+  const hasLoggedProgress = day.exercises.some(
+    (exercise) => exercise._count.exerciseLogs > 0,
+  );
+  if (hasLoggedProgress) {
+    throw new AppError(
+      400,
+      "This day already has logged progress and can't be postponed",
+    );
+  }
+
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  if (day.date >= todayStart) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true },
+    });
+    if (user?.email !== UNRESTRICTED_TEST_EMAIL) {
+      throw new AppError(400, "Only a missed day can be postponed");
+    }
+  }
+
+  const programId = day.week.program.id;
+
+  // Shifts this day and every later day in the program forward by one —
+  // not just this single day — so the whole remaining schedule slides in
+  // step, keeping every day's date unique and preserving the program's
+  // rest-day cadence and day-to-day spacing.
+  const laterDays = await prisma.programDay.findMany({
+    where: { date: { gte: day.date }, week: { programId } },
+    select: { id: true, date: true },
+  });
+
+  await prisma.$transaction([
+    ...laterDays.map((d) => {
+      const newDate = addOneDay(d.date);
+      return prisma.programDay.update({
+        where: { id: d.id },
+        data: { date: newDate, dayName: REAL_DAY_NAMES[newDate.getDay()] },
+      });
+    }),
+    prisma.program.update({
+      where: { id: programId },
+      data: { endDate: addOneDay(day.week.program.endDate) },
+    }),
+  ]);
+
+  return { postponedCount: laterDays.length };
 };
 
 export const addProgramExercise = async (

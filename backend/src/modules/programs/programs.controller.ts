@@ -17,6 +17,7 @@ import {
   addProgramExercise,
   revertDaySwaps,
   deleteProgramExercise,
+  postponeProgramDay,
 } from "./programs.service";
 import {
   TrainingSplit,
@@ -198,6 +199,14 @@ export const revertDaySwapsHandler = catchAsync(
     const dayId = getParam(req.params.dayId);
     await revertDaySwaps(req.userId!, dayId);
     sendSuccess(res, 200, "DAY_SWAPS_REVERTED", {});
+  },
+);
+
+export const postponeProgramDayHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const dayId = getParam(req.params.dayId);
+    const result = await postponeProgramDay(req.userId!, dayId);
+    sendSuccess(res, 200, "PROGRAM_DAY_POSTPONED", result);
   },
 );
 

@@ -12,6 +12,7 @@ import {
   addProgramExercise,
   revertDaySwaps,
   deleteProgramExercise,
+  postponeProgramDay,
 } from "@/lib/api/programs.api";
 
 export const usePrograms = () => {
@@ -160,6 +161,18 @@ export const useRevertDaySwaps = () => {
 
   return useMutation({
     mutationFn: (dayId: string) => revertDaySwaps(dayId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["programDay"] });
+      queryClient.invalidateQueries({ queryKey: ["schedule"] });
+    },
+  });
+};
+
+export const usePostponeProgramDay = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (dayId: string) => postponeProgramDay(dayId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["programDay"] });
       queryClient.invalidateQueries({ queryKey: ["schedule"] });

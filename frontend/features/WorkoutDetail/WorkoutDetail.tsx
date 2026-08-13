@@ -27,9 +27,10 @@ import {
   useAddProgramExercise,
   useRevertDaySwaps,
   useDeleteProgramExercise,
+  usePostponeProgramDay,
 } from "@/hooks/usePrograms";
 import { colors } from "@/constants/colors";
-import { formatCalendarDate } from "@/lib/utils/date.utils";
+import { formatCalendarDate, startOfDay } from "@/lib/utils/date.utils";
 import { useAuthImageHeaders } from "@/hooks/useAuthImageHeaders";
 
 const formatSessionDate = (dateStr: string) =>
@@ -150,6 +151,8 @@ const WorkoutDetail = ({
     useAddProgramExercise();
   const { mutate: revertSwaps, isPending: isReverting } = useRevertDaySwaps();
   const { mutate: deleteExercise } = useDeleteProgramExercise();
+  const { mutate: postponeDay, isPending: isPostponing } =
+    usePostponeProgramDay();
 
   const { data: exerciseCatalog } = useExercises();
   const descriptionByName: Record<string, string | null> = {};
@@ -315,6 +318,37 @@ const WorkoutDetail = ({
     !dayDetail.isRestDay &&
     dayDetail.exercises.length > 0;
 
+  // A day only qualifies to be pushed forward if it's a real training day
+  // that's already in the past with nothing logged against it yet — once
+  // any set is logged, postponing would just orphan that progress.
+  const isMissedDay =
+    !!dayDetail &&
+    !dayDetail.isRestDay &&
+    dayDetail.exercises.every((exercise) => exercise.exerciseLogs.length === 0) &&
+    startOfDay(new Date(dayDetail.date)) < startOfDay(new Date());
+
+  const handlePostponeDay = () => {
+    if (!dayDetail) return;
+    Alert.alert(
+      "Move this workout to tomorrow?",
+      "Every day after it in this program shifts forward one day too, so the rest of your schedule stays in order.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Move it",
+          onPress: () => {
+            postponeDay(dayDetail.id, {
+              onError: (error) => {
+                console.log("Postpone day failed:", JSON.stringify(error, null, 2));
+                Alert.alert("Couldn't move this workout", "Please try again.");
+              },
+            });
+          },
+        },
+      ],
+    );
+  };
+
   const cinematicSessionKey =
     dayDetail && programId
       ? `${programId}:${dayDetail.date.slice(0, 10)}`
@@ -343,6 +377,22 @@ const WorkoutDetail = ({
       <View style={styles.focusRow}>
         <Text style={styles.focus}>{dayDetail?.focus}</Text>
         <View style={styles.focusActionsRow}>
+          {!!dayDetail && (
+            <TouchableOpacity
+              style={styles.revertButton}
+              onPress={handlePostponeDay}
+              disabled={isPostponing}
+            >
+              <Feather
+                name="calendar"
+                size={12}
+                color={colors.textSecondary}
+              />
+              <Text style={styles.revertButtonText}>
+                {isPostponing ? "MOVING..." : "MOVE TO TOMORROW"}
+              </Text>
+            </TouchableOpacity>
+          )}
           {hasSwappedExercise && (
             <TouchableOpacity
               style={styles.revertButton}

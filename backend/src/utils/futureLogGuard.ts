@@ -3,7 +3,7 @@ import AppError from "./AppError";
 
 // One account (the developer's own) is exempt so future program days/dates
 // can still be tested without waiting for the calendar to catch up.
-const UNRESTRICTED_TEST_EMAIL = "jordandeeds31@gmail.com";
+export const UNRESTRICTED_TEST_EMAIL = "jordandeeds31@gmail.com";
 
 const startOfDay = (date: Date): number =>
   new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();

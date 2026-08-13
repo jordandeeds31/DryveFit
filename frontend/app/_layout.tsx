@@ -2,6 +2,7 @@ import { useCallback, useEffect } from "react";
 import { Stack } from "expo-router";
 import { Provider, useDispatch } from "react-redux";
 import { QueryClientProvider } from "@tanstack/react-query";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as SplashScreen from "expo-splash-screen";
 import { store } from "@/store";
 import type { AppDispatch } from "@/store";
@@ -77,10 +78,12 @@ const RootNavigator = () => {
 
 export default function RootLayout() {
     return (
-        <Provider store={store}>
-            <QueryClientProvider client={queryClient}>
-                <RootNavigator />
-            </QueryClientProvider>
-        </Provider>
+        <SafeAreaProvider>
+            <Provider store={store}>
+                <QueryClientProvider client={queryClient}>
+                    <RootNavigator />
+                </QueryClientProvider>
+            </Provider>
+        </SafeAreaProvider>
     );
 }

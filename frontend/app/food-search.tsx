@@ -54,6 +54,7 @@ const FoodSearchScreen = () => {
     mutate: fetchDetail,
     data: detail,
     isPending: isLoadingDetail,
+    isError: isDetailError,
     reset: resetDetail,
   } = useFoodDetail();
   const { mutate: log, isPending: isLogging } = useLogFood();
@@ -218,7 +219,24 @@ const FoodSearchScreen = () => {
         )}
 
         <Modal visible={!!selectedHit} onClose={handleClose}>
-          {isLoadingDetail || !detail ? (
+          {isLoadingDetail ? (
+            <ActivityIndicator style={{ paddingVertical: spacing.xl }} />
+          ) : isDetailError ? (
+            <View style={styles.detailErrorState}>
+              <Text style={styles.hintText}>
+                Couldn't load this food. Please try again.
+              </Text>
+              <Button
+                title="Retry"
+                variant="outline"
+                style={styles.retryButton}
+                onPress={() =>
+                  selectedHit &&
+                  fetchDetail({ type: selectedHit.type, id: selectedHit.id })
+                }
+              />
+            </View>
+          ) : !detail ? (
             <ActivityIndicator style={{ paddingVertical: spacing.xl }} />
           ) : (
             <View>
@@ -299,6 +317,14 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     textAlign: "center",
     marginTop: spacing.xl,
+  },
+  detailErrorState: {
+    paddingVertical: spacing.lg,
+    gap: spacing.md,
+  },
+  retryButton: {
+    alignSelf: "center",
+    paddingHorizontal: spacing.xl,
   },
   sectionLabel: {
     fontSize: fontSizes.xs,

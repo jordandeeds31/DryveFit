@@ -93,6 +93,13 @@ export const revertDaySwaps = async (dayId: string) => {
   return data;
 };
 
+export const postponeProgramDay = async (dayId: string) => {
+  const { data } = await apiClient.post(
+    `/api/programs/days/${dayId}/postpone`,
+  );
+  return data;
+};
+
 export const deleteProgram = async (programId: string) => {
   const { data } = await apiClient.delete(`/api/programs/${programId}`);
   return data;
