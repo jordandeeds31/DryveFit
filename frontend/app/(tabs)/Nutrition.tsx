@@ -22,7 +22,13 @@ import {
   useLoggedDateKeys,
   useDeleteFoodLogEntry,
 } from "@/hooks/useNutrition";
-import { getWeekDates, toDateKey, isSameDay } from "@/lib/utils/date.utils";
+import { useCurrentUser } from "@/hooks/useUsers";
+import {
+  getWeekDates,
+  toDateKey,
+  isSameDay,
+  startOfDay,
+} from "@/lib/utils/date.utils";
 import {
   MEAL_TYPES,
   MEAL_TYPE_LABELS,
@@ -143,6 +149,17 @@ const NutritionScreen = () => {
   const { data: diary, isLoading: isDiaryLoading } = useDiary(selectedDateKey);
   const { data: recapData } = useDailyRecap(selectedDateKey);
   const recap: DailyRecap | undefined = recapData;
+  const { data: currentUser } = useCurrentUser();
+
+  // Nothing to log before the account existed — same "can't page past the
+  // earliest real thing" pattern as the Home screen's program calendar.
+  const earliestWeekStart = currentUser
+    ? startOfDay(getWeekDates(new Date(currentUser.createdAt))[0])
+    : null;
+
+  const canGoToPreviousWeek =
+    !earliestWeekStart ||
+    startOfDay(weekDates[0]).getTime() > earliestWeekStart.getTime();
 
   // Covers the previous/current/next week pages the calendar can page
   // into without a refetch, same 3-page window NutritionCalendar renders.
@@ -159,6 +176,7 @@ const NutritionScreen = () => {
     setReferenceDate((prev) => addDays(prev, 7));
   };
   const goToPreviousWeek = () => {
+    if (!canGoToPreviousWeek) return;
     setReferenceDate((prev) => addDays(prev, -7));
   };
 
@@ -195,7 +213,7 @@ const NutritionScreen = () => {
           setSelectedDate={setSelectedDate}
           onNextWeek={goToNextWeek}
           onPreviousWeek={goToPreviousWeek}
-          canGoToPreviousWeek
+          canGoToPreviousWeek={canGoToPreviousWeek}
           canGoToNextWeek
           loggedDateKeys={loggedDateKeys}
         />
