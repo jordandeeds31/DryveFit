@@ -14,6 +14,7 @@ import {
   addProgramExerciseHandler,
   revertDaySwapsHandler,
   deleteProgramExerciseHandler,
+  postponeProgramDayHandler,
 } from "./programs.controller";
 
 const router = Router();
@@ -32,6 +33,7 @@ router.patch("/exercises/:exerciseId/swap", swapProgramExerciseHandler);
 router.delete("/exercises/:exerciseId", deleteProgramExerciseHandler);
 router.post("/days/:dayId/exercises", addProgramExerciseHandler);
 router.post("/days/:dayId/revert-swaps", revertDaySwapsHandler);
+router.post("/days/:dayId/postpone", postponeProgramDayHandler);
 router.patch("/:id/deactivate", deactivateProgramHandler);
 router.delete("/:id", deleteProgramHandler);
 

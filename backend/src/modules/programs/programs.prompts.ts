@@ -1,7 +1,7 @@
 export const PROGRAM_DURATION_DAYS = [30, 60, 90] as const;
 export type ProgramDurationDays = (typeof PROGRAM_DURATION_DAYS)[number];
 
-const REAL_DAY_NAMES = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+export const REAL_DAY_NAMES = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
 const DAY_ALIASES: Record<string, string> = {
   sun: "SUN",

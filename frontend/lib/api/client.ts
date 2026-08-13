@@ -1,10 +1,24 @@
+import { Platform } from "react-native";
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 import { setToken, getToken, clearToken } from "../storage/secureStore";
 import { router } from "expo-router";
 import { queryClient } from "./queryClient";
 
+// The Android emulator runs in its own virtual network where "localhost"
+// refers to the emulator itself, not the host machine — 10.0.2.2 is the
+// documented alias back to the host's localhost. iOS Simulator shares the
+// host's network directly, so it needs no rewrite; only touches local dev
+// URLs, never a real deployed API_URL.
+const resolveBaseURL = (url: string | undefined): string | undefined => {
+  if (!url) return url;
+  if (Platform.OS === "android" && url.includes("localhost")) {
+    return url.replace("localhost", "10.0.2.2");
+  }
+  return url;
+};
+
 const apiClient = axios.create({
-  baseURL: process.env.EXPO_PUBLIC_API_URL,
+  baseURL: resolveBaseURL(process.env.EXPO_PUBLIC_API_URL),
   timeout: 10000,
   headers: {
     "Content-Type": "application/json",
