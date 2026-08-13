@@ -1434,6 +1434,36 @@ const resolveExerciseName = (
   return candidates[0] ?? null;
 };
 
+// Runs `fn` over `items` with at most `limit` calls in flight at once,
+// via a small worker pool pulling from a shared cursor — avoids adding a
+// dependency (e.g. p-limit) for what's a ~10-line pattern.
+const mapWithConcurrency = async <T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> => {
+  const results: R[] = new Array(items.length);
+  let nextIndex = 0;
+  const workers = Array.from(
+    { length: Math.min(limit, items.length) },
+    async () => {
+      while (nextIndex < items.length) {
+        const index = nextIndex++;
+        results[index] = await fn(items[index]);
+      }
+    },
+  );
+  await Promise.all(workers);
+  return results;
+};
+
+// How many week-generation OpenAI calls run concurrently. Weeks are
+// independent (same allowed-exercise list and split assignment, and
+// performance history comes from the user's real past logs, not from
+// other weeks in this run), so this is purely a rate-limit safety cap,
+// not a correctness constraint — raise it if account rate limits allow.
+const WEEK_GENERATION_CONCURRENCY = 3;
+
 const generateProgramWeeks = async (
   programId: string,
   input: {
@@ -1485,22 +1515,21 @@ const generateProgramWeeks = async (
   });
 
   try {
+    // Doesn't depend on the week being built — the same real logged
+    // history applies to every week in this run, so it's fetched once
+    // instead of once per week.
+    const performanceHistory = await getRecentPerformanceByExerciseName(
+      input.userId,
+      allowedExercises,
+    );
+
+    let completedWeeks = 0;
     let generatedSessions = 0;
 
-    for (const week of plan) {
-      await prisma.program.update({
-        where: { id: programId },
-        data: {
-          generationStep: `Building week ${week.weekNumber} of ${totalWeeks}...`,
-          generationStepIndex: week.weekNumber,
-        },
-      });
-
-      const performanceHistory = await getRecentPerformanceByExerciseName(
-        input.userId,
-        allowedExercises,
-      );
-
+    // Weeks are generated concurrently (see WEEK_GENERATION_CONCURRENCY) —
+    // progress is reported as a completed count rather than "week N",
+    // since weeks no longer necessarily finish in numeric order.
+    await mapWithConcurrency(plan, WEEK_GENERATION_CONCURRENCY, async (week) => {
       const prompt = buildWeekPrompt({
         weekNumber: week.weekNumber,
         totalWeeks,
@@ -1630,13 +1659,18 @@ const generateProgramWeeks = async (
         },
       });
 
+      completedWeeks += 1;
       generatedSessions += week.trainingDays.length;
 
       await prisma.program.update({
         where: { id: programId },
-        data: { generatedSessions },
+        data: {
+          generationStep: `Building your program... (${completedWeeks} of ${totalWeeks} weeks ready)`,
+          generationStepIndex: completedWeeks,
+          generatedSessions,
+        },
       });
-    }
+    });
 
     await prisma.program.update({
       where: { id: programId },
