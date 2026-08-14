@@ -7,14 +7,14 @@ const styles = StyleSheet.create({
   datesContainer: {
     borderRadius: 8,
     paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+    paddingVertical: spacing.sm,
     marginBottom: spacing.md,
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: spacing.xs,
+    marginBottom: spacing.sm,
   },
   headerCenter: {
     flex: 1,
@@ -47,19 +47,17 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 2,
+    gap: spacing.sm,
     paddingHorizontal: spacing.sm,
-    paddingTop: spacing.xs + 2,
-    paddingBottom: spacing.xs,
+    paddingVertical: spacing.sm,
   },
   dateButtonSelected: {
     borderWidth: 1,
     borderColor: colors.primaryBlue,
-    borderRadius: 12,
-    paddingVertical: spacing.sm,
+    borderRadius: 23,
   },
   todayDotContainer: {
-    height: 3,
+    height: 4,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -83,10 +81,10 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.xl,
   },
   indicatorContainer: {
-    height: 12,
+    height: 16,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 2,
+    marginTop: 4,
   },
   completionPercent: {
     fontSize: fontSizes.xs,
