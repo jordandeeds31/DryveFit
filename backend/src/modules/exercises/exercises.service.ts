@@ -30,6 +30,22 @@ export const getAllExercises = async () => {
   }));
 };
 
+// Every exercise's image bytes, once successfully fetched from WorkoutX,
+// keyed by name+variant (static thumbnail vs. animated GIF are different
+// bytes). The catalog is small and fixed (~80 exercises), so this is
+// bounded and never needs eviction. Without this, every single modal open
+// hit WorkoutX live — any transient slowness/rate-limit/error there
+// surfaced to the user as the image just not appearing, with no retry.
+// Caching only successes (never failures) means a WorkoutX hiccup only
+// ever affects the first view of a given exercise, and self-heals on the
+// next request instead of staying broken.
+const imageCache = new Map<string, { buffer: Buffer; contentType: string }>();
+
+// WorkoutX has no documented SLA — without a timeout, a hung upstream
+// request would hang this proxy (and the user's modal) indefinitely
+// instead of failing fast enough to show an error state.
+const WORKOUTX_FETCH_TIMEOUT_MS = 8000;
+
 // Fetches the actual image bytes server-side (WorkoutX requires an API key
 // to load the GIF, not just to look it up) so the key never has to be
 // exposed to the client — the frontend hits our own /image proxy instead.
@@ -39,6 +55,10 @@ export const getExerciseImage = async (
 ): Promise<{ buffer: Buffer; contentType: string } | null> => {
   if (!env.WORKOUTX_API_KEY) return null;
 
+  const cacheKey = `${exerciseName}::${animated ? "animated" : "static"}`;
+  const cached = imageCache.get(cacheKey);
+  if (cached) return cached;
+
   const exercise = await prisma.exercise.findUnique({
     where: { name: exerciseName },
     select: { imageUrl: true },
@@ -46,32 +66,35 @@ export const getExerciseImage = async (
 
   if (!exercise?.imageUrl) return null;
 
-  const response = await fetch(exercise.imageUrl, {
-    headers: { "X-WorkoutX-Key": env.WORKOUTX_API_KEY },
-  });
+  let response: Response;
+  try {
+    response = await fetch(exercise.imageUrl, {
+      headers: { "X-WorkoutX-Key": env.WORKOUTX_API_KEY },
+      signal: AbortSignal.timeout(WORKOUTX_FETCH_TIMEOUT_MS),
+    });
+  } catch (err) {
+    console.warn(`WorkoutX image fetch failed for "${exerciseName}":`, err);
+    return null;
+  }
 
   if (!response.ok) return null;
 
   const arrayBuffer = await response.arrayBuffer();
 
-  if (animated) {
-    // Pass the original animated GIF through untouched.
-    return {
-      buffer: Buffer.from(arrayBuffer),
-      contentType: "image/gif",
-    };
-  }
+  const image = animated
+    ? // Pass the original animated GIF through untouched.
+      { buffer: Buffer.from(arrayBuffer), contentType: "image/gif" }
+    : // WorkoutX only serves animated GIFs — sharp defaults to reading just
+      // the first frame of a multi-frame input, so this gives us a static
+      // image instead of an animation. Used for the small list thumbnail,
+      // where a static frame is enough and keeps payload size down.
+      {
+        buffer: await sharp(Buffer.from(arrayBuffer)).png().toBuffer(),
+        contentType: "image/png",
+      };
 
-  // WorkoutX only serves animated GIFs — sharp defaults to reading just the
-  // first frame of a multi-frame input, so this gives us a static image
-  // instead of an animation. Used for the small list thumbnail, where a
-  // static frame is enough and keeps payload size down.
-  const pngBuffer = await sharp(Buffer.from(arrayBuffer)).png().toBuffer();
-
-  return {
-    buffer: pngBuffer,
-    contentType: "image/png",
-  };
+  imageCache.set(cacheKey, image);
+  return image;
 };
 
 // The most recent logged session for an exercise, set-by-set — powers the

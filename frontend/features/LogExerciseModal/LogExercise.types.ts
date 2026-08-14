@@ -12,4 +12,5 @@ export interface LogExerciseModalProps {
   exercise?: ProgramExercise;
   sets: SetEntry[];
   onSetsChange: (sets: SetEntry[]) => void;
+  onSaved?: (message: string) => void;
 }

@@ -15,4 +15,5 @@ export interface WorkoutDetailProps {
   dayDetail: DayDetail | undefined;
   isLoading: boolean;
   programId: string | null;
+  onExerciseSaved?: (message: string) => void;
 }
