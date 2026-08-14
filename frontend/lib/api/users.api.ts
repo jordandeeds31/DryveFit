@@ -4,6 +4,7 @@ import {
   PublicProfile,
   PublicWorkoutLog,
 } from "@/types/user.types";
+import { ProgramWithWeeks } from "@/types/programs.types";
 
 export const getCurrentUser = async (): Promise<UserProfile> => {
   const { data } = await apiClient.get("/api/users/me");
@@ -22,6 +23,13 @@ export const getPublicWorkoutHistory = async (
 ): Promise<PublicWorkoutLog[]> => {
   const { data } = await apiClient.get(`/api/users/${userId}/workouts`);
   return data.result.workoutLogs;
+};
+
+export const getPublicActiveProgram = async (
+  userId: string,
+): Promise<ProgramWithWeeks | null> => {
+  const { data } = await apiClient.get(`/api/users/${userId}/active-program`);
+  return data.result.program;
 };
 
 export const updateProfile = async (

@@ -10,6 +10,7 @@ import {
   getProfileImageHandler,
   getPublicProfileHandler,
   getPublicWorkoutHistoryHandler,
+  getPublicActiveProgramHandler,
 } from "./users.controller";
 
 const upload = multer({
@@ -29,5 +30,6 @@ router.delete("/me/profile-image", deleteProfileImageHandler);
 router.get("/:userId/profile-image", getProfileImageHandler);
 router.get("/:userId/public-profile", getPublicProfileHandler);
 router.get("/:userId/workouts", getPublicWorkoutHistoryHandler);
+router.get("/:userId/active-program", getPublicActiveProgramHandler);
 
 export default router;

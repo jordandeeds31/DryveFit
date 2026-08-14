@@ -20,8 +20,20 @@ interface WorkoutLog {
   exercises: ExerciseLog[];
 }
 
+export interface PrefillExercise {
+  exerciseName: string;
+  muscleGroup: string;
+  equipment: string | null;
+}
+
 export interface WorkoutLoggerProps {
   setClose: (value: boolean) => void;
   date: string;
   initialWorkoutLogs: WorkoutLog[];
+  onSaved?: (message: string) => void;
+  // Pre-selects these exercises (one empty set each, ready to fill in)
+  // instead of starting from a single blank entry — used when a workout
+  // is inherited from someone's profile but the viewer has no active
+  // program to slot it into, so it lands here instead.
+  prefillExercises?: PrefillExercise[];
 }

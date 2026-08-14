@@ -6,6 +6,7 @@ import {
   deleteProfileImage,
   getPublicProfile,
   getPublicWorkoutHistory,
+  getPublicActiveProgram,
 } from "@/lib/api/users.api";
 
 export const useCurrentUser = () => {
@@ -27,6 +28,14 @@ export const usePublicWorkoutHistory = (userId: string | null) => {
   return useQuery({
     queryKey: ["publicWorkoutHistory", userId],
     queryFn: () => getPublicWorkoutHistory(userId!),
+    enabled: !!userId,
+  });
+};
+
+export const usePublicActiveProgram = (userId: string | null) => {
+  return useQuery({
+    queryKey: ["publicActiveProgram", userId],
+    queryFn: () => getPublicActiveProgram(userId!),
     enabled: !!userId,
   });
 };

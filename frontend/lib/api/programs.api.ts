@@ -104,3 +104,11 @@ export const deleteProgram = async (programId: string) => {
   const { data } = await apiClient.delete(`/api/programs/${programId}`);
   return data;
 };
+
+export const inheritWorkoutDay = async (dayId: string, force?: boolean) => {
+  const { data } = await apiClient.post(
+    `/api/programs/days/${dayId}/inherit`,
+    { force },
+  );
+  return data.result;
+};

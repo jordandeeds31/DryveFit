@@ -101,7 +101,7 @@ const FITNESS_LEVEL_GUIDANCE: Record<FitnessLevel, string> = {
 // 2 exercises are tagged "lats" and 2 "hamstrings" on their own) — treating
 // them as part of a combined region is both more realistic programming and
 // the only way the minimums below are achievable from the allowed list.
-const MUSCLE_REGION: Record<string, string> = {
+export const MUSCLE_REGION: Record<string, string> = {
   chest: "chest",
   back: "back",
   lats: "back",
@@ -118,7 +118,7 @@ const MUSCLE_REGION: Record<string, string> = {
   obliques: "core",
 };
 
-const getDayRegions = (focus: string[]): string[] => [
+export const getDayRegions = (focus: string[]): string[] => [
   ...new Set(focus.map((group) => MUSCLE_REGION[group] ?? group)),
 ];
 
