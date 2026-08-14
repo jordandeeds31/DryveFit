@@ -42,6 +42,17 @@ const styles = StyleSheet.create({
     borderColor: colors.primaryBlue,
     borderRadius: 23,
   },
+  todayDotContainer: {
+    height: 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  todayDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.primaryBlue,
+  },
   dayLabel: {
     fontWeight: fontWeights.bold,
     fontSize: fontSizes.xs,

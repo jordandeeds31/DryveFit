@@ -13,6 +13,7 @@ import {
   getPublicProfile,
 } from "./users.service";
 import { getPublicWorkoutHistory } from "../workoutLogs/workoutLogs.service";
+import { getPublicActiveProgram } from "../programs/programs.service";
 
 export const getMeHandler = catchAsync(
   async (req: AuthRequest, res: Response) => {
@@ -101,6 +102,19 @@ export const getPublicWorkoutHistoryHandler = catchAsync(
 
     const workoutLogs = await getPublicWorkoutHistory(userId);
     sendSuccess(res, 200, "PUBLIC_WORKOUT_HISTORY_FETCHED", { workoutLogs });
+  },
+);
+
+export const getPublicActiveProgramHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const { userId } = req.params;
+
+    if (typeof userId !== "string") {
+      throw new AppError(400, "userId is required");
+    }
+
+    const program = await getPublicActiveProgram(userId);
+    sendSuccess(res, 200, "PUBLIC_ACTIVE_PROGRAM_FETCHED", { program });
   },
 );
 

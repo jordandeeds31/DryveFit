@@ -3,6 +3,7 @@ import authReducer from "./slices/authSlice";
 import subscriptionReducer from "./slices/subscriptionSlice";
 import cinematicTimerReducer from "./slices/cinematicTimerSlice";
 import cardioSessionReducer from "./slices/cardioSessionSlice";
+import pendingWorkoutReducer from "./slices/pendingWorkoutSlice";
 
 export const store = configureStore({
   reducer: {
@@ -10,6 +11,7 @@ export const store = configureStore({
     subscription: subscriptionReducer,
     cinematicTimer: cinematicTimerReducer,
     cardioSession: cardioSessionReducer,
+    pendingWorkout: pendingWorkoutReducer,
   },
 });
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import {
   View,
   Text,
@@ -7,8 +7,17 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  TouchableOpacity,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useNavigation } from "expo-router";
+import { useSelector, useDispatch } from "react-redux";
+import type { RootState, AppDispatch } from "@/store";
+import {
+  clearPendingWorkout,
+  PendingWorkoutExercise,
+} from "@/store/slices/pendingWorkoutSlice";
+import AppHeader from "@/components/shared/AppHeader/AppHeader";
 import ProgramBuilder from "@/features/ProgramBuilder/ProgramBuilder";
 import Modal from "@/components/shared/Modal/Modal";
 import Button from "@/components/shared/Button/Button";
@@ -26,12 +35,43 @@ import WorkoutDetail from "@/features/WorkoutDetail/WorkoutDetail";
 import WorkoutLogger from "@/features/WorkoutLogger/WorkoutLogger";
 import { ensureProAccess } from "@/lib/purchases/requirePro";
 import ActiveWorkoutBanner from "@/components/shared/ActiveWorkoutBanner/ActiveWorkoutBanner";
+import Toast from "@/components/shared/Toast/Toast";
+import Feed from "@/features/Feed/Feed";
 
 const HomeScreen = () => {
   const [referenceDate, setReferenceDate] = useState<Date>(new Date());
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isWorkoutLoggerOpen, setIsWorkoutLoggerOpen] = useState(false);
   const [isGeneratingProgram, setIsGeneratingProgram] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [homeTab, setHomeTab] = useState<"workouts" | "feed">("workouts");
+  const [prefillExercises, setPrefillExercises] = useState<
+    PendingWorkoutExercise[] | undefined
+  >(undefined);
+
+  const dispatch = useDispatch<AppDispatch>();
+  const pendingWorkoutExercises = useSelector(
+    (state: RootState) => state.pendingWorkout.exercises,
+  );
+
+  // A workout inherited from someone's profile while the viewer had no
+  // active program lands here via Redux (see pendingWorkoutSlice) rather
+  // than route params — captured into local state immediately so it
+  // survives the dispatch(clearPendingWorkout()) below; reading the
+  // Redux value directly in WorkoutLogger's initial render would already
+  // see it cleared by the time that render happens.
+  useEffect(() => {
+    if (pendingWorkoutExercises) {
+      setPrefillExercises(pendingWorkoutExercises);
+      setIsWorkoutLoggerOpen(true);
+      dispatch(clearPendingWorkout());
+    }
+  }, [pendingWorkoutExercises, dispatch]);
+
+  const handleCloseWorkoutLogger = (value: boolean) => {
+    setIsWorkoutLoggerOpen(value);
+    if (!value) setPrefillExercises(undefined);
+  };
 
   const { isOpen, close, toggle } = useToggle();
 
@@ -121,6 +161,7 @@ const HomeScreen = () => {
 
   useEffect(() => {
     setIsWorkoutLoggerOpen(false);
+    setPrefillExercises(undefined);
   }, [selectedDateKey]);
 
   const goToNextWeek = () => {
@@ -142,6 +183,19 @@ const HomeScreen = () => {
     if (granted) toggle();
   };
 
+  // The "+" that opens ProgramBuilder now lives in the shared AppHeader
+  // (freeing up the space the old full-width button took, for the
+  // Workouts/Feed tab bar below it) — only this screen overrides the
+  // header to include it, via navigation.setOptions rather than a prop
+  // threaded through (tabs)/_layout.tsx, since only Home needs it.
+  const navigation = useNavigation();
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      header: () => <AppHeader onCreateProgram={handleCreateProgram} />,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navigation]);
+
   const handleLogWorkout = async () => {
     const granted = await ensureProAccess();
     if (granted) setIsWorkoutLoggerOpen(true);
@@ -153,7 +207,42 @@ const HomeScreen = () => {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-    <SafeAreaView style={styles.container} edges={["bottom", "left", "right"]}>
+    <SafeAreaView style={styles.container} edges={["left", "right"]}>
+      <View style={styles.homeTabBar}>
+        <TouchableOpacity
+          style={[
+            styles.homeTab,
+            homeTab === "workouts" && styles.homeTabActive,
+          ]}
+          onPress={() => setHomeTab("workouts")}
+        >
+          <Text
+            style={[
+              styles.homeTabText,
+              homeTab === "workouts" && styles.homeTabTextActive,
+            ]}
+          >
+            Workouts
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.homeTab, homeTab === "feed" && styles.homeTabActive]}
+          onPress={() => setHomeTab("feed")}
+        >
+          <Text
+            style={[
+              styles.homeTabText,
+              homeTab === "feed" && styles.homeTabTextActive,
+            ]}
+          >
+            Feed
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {homeTab === "feed" ? (
+        <Feed />
+      ) : (
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={[
@@ -166,14 +255,6 @@ const HomeScreen = () => {
         keyboardShouldPersistTaps="handled"
       >
         <ActiveWorkoutBanner />
-
-        <View style={styles.buttonContainer}>
-          <Button
-            title="CREATE NEW PROGRAM"
-            onPress={handleCreateProgram}
-            style={styles.createProgramButton}
-          />
-        </View>
 
         <Modal visible={isOpen} onClose={close} closable={!isGeneratingProgram}>
           <ProgramBuilder
@@ -204,15 +285,18 @@ const HomeScreen = () => {
           <ActivityIndicator style={{ marginVertical: spacing.md }} />
         ) : (isWorkoutLoggerOpen || hasLoggedStandaloneWorkout) && !dayDetail ? (
           <WorkoutLogger
-            setClose={setIsWorkoutLoggerOpen}
+            setClose={handleCloseWorkoutLogger}
             date={selectedDateKey}
             initialWorkoutLogs={workoutLogs ?? []}
+            onSaved={setToastMessage}
+            prefillExercises={prefillExercises}
           />
         ) : dayDetail ? (
           <WorkoutDetail
             dayDetail={dayDetail}
             isLoading={false}
             programId={selectedProgramId}
+            onExerciseSaved={setToastMessage}
           />
         ) : (
           <View>
@@ -236,6 +320,12 @@ const HomeScreen = () => {
           </View>
         )}
       </ScrollView>
+      )}
+      <Toast
+        visible={!!toastMessage}
+        message={toastMessage ?? ""}
+        onHide={() => setToastMessage(null)}
+      />
     </SafeAreaView>
     </KeyboardAvoidingView>
   );
@@ -258,15 +348,36 @@ const styles = StyleSheet.create({
   scrollContentGrow: {
     flexGrow: 1,
   },
-  buttonContainer: {
-    marginBottom: spacing.md,
+  homeTabBar: {
+    flexDirection: "row",
+    backgroundColor: colors.surfaceGrayLight,
+    borderRadius: 10,
+    padding: 3,
+    marginHorizontal: spacing.sm,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
   },
-  createProgramButton: {
+  homeTab: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: spacing.sm,
+    borderRadius: 8,
+  },
+  homeTabActive: {
+    backgroundColor: "white",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  homeTabText: {
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.semibold,
+    color: colors.textSecondary,
+  },
+  homeTabTextActive: {
+    color: "#000",
   },
   noProgramsContainer: {
     flex: 1,

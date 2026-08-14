@@ -113,6 +113,7 @@ const WeeklySchedule = ({
     <View style={[styles.datesRow, { width: pageWidth }]}>
       {dates.map((date, index) => {
         const isSelected = isSameDay(date, selectedDate);
+        const isToday = isSameDay(date, new Date());
         const scheduleEntry: ScheduleEntry | undefined =
           scheduleMap[toDateKey(date)];
         const programDay = scheduleEntry?.programDays[0];
@@ -133,6 +134,9 @@ const WeeklySchedule = ({
             key={index}
             onPress={() => setSelectedDate(date)}
           >
+            <View style={styles.todayDotContainer}>
+              {isToday && <View style={styles.todayDot} />}
+            </View>
             <Text style={[styles.dayLabel]}>{DAY_LABELS[index]}</Text>
             <Text style={[styles.date, isSelected && styles.dateSelected]}>
               {date.getDate()}

@@ -115,6 +115,7 @@ const WorkoutDetail = ({
   dayDetail,
   isLoading,
   programId,
+  onExerciseSaved,
 }: WorkoutDetailProps) => {
   const authImageHeaders = useAuthImageHeaders();
   const [logModalVisible, setLogModalVisible] = useState(false);
@@ -135,6 +136,12 @@ const WorkoutDetail = ({
     url: string;
     name: string;
   } | null>(null);
+  const [enlargedImageFailed, setEnlargedImageFailed] = useState(false);
+  // Bumped on retry and appended to the request URL — the proxy ignores
+  // unknown query params, so this only serves to give the client (and
+  // expo-image's own cache) a fresh URL to force a real retry instead of
+  // replaying the same failed request.
+  const [enlargedImageRetryToken, setEnlargedImageRetryToken] = useState(0);
   const [swapTargetExercise, setSwapTargetExercise] = useState<Exercise | null>(
     null,
   );
@@ -508,12 +515,14 @@ const WorkoutDetail = ({
             </View>
             {exercise.imageUrl && authImageHeaders ? (
               <TouchableOpacity
-                onPress={() =>
+                onPress={() => {
+                  setEnlargedImageFailed(false);
+                  setEnlargedImageRetryToken(0);
                   setEnlargedImage({
                     url: exercise.imageUrl!,
                     name: exercise.exerciseName,
-                  })
-                }
+                  });
+                }}
               >
                 <Image
                   source={{
@@ -551,6 +560,7 @@ const WorkoutDetail = ({
           exercise={selectedExercise}
           sets={setsByExercise[selectedExercise.id] ?? []}
           onSetsChange={(sets) => handleSetsChange(selectedExercise.id, sets)}
+          onSaved={onExerciseSaved}
         />
       )}
       <Modal
@@ -685,20 +695,41 @@ const WorkoutDetail = ({
         onClose={() => setEnlargedImage(null)}
       >
         <Text style={styles.descriptionModalTitle}>{enlargedImage?.name}</Text>
-        {enlargedImage && authImageHeaders && (
+        {enlargedImage && authImageHeaders && !enlargedImageFailed && (
           <Image
             source={{
               // The list thumbnail's URL points at a static-PNG conversion
               // of the exercise GIF (see backend exercises.service.ts) —
               // appending animated=true here fetches the original animated
               // GIF instead, since seeing the motion is the point of
-              // viewing it enlarged.
-              uri: `${process.env.EXPO_PUBLIC_API_URL}${enlargedImage.url}&animated=true`,
+              // viewing it enlarged. retry=N only changes on explicit
+              // retry, to force a fresh request instead of replaying a
+              // cached failure.
+              uri: `${process.env.EXPO_PUBLIC_API_URL}${enlargedImage.url}&animated=true&retry=${enlargedImageRetryToken}`,
               headers: authImageHeaders,
             }}
             style={styles.enlargedImage}
             contentFit="contain"
+            onError={() => setEnlargedImageFailed(true)}
           />
+        )}
+        {enlargedImage && enlargedImageFailed && (
+          <View style={styles.enlargedImageError}>
+            <Feather name="image" size={24} color={colors.textSecondary} />
+            <Text style={styles.enlargedImageErrorText}>
+              Couldn&apos;t load image
+            </Text>
+            <Button
+              title="RETRY"
+              variant="outline"
+              style={styles.enlargedImageRetryButton}
+              textStyle={{ fontSize: 12 }}
+              onPress={() => {
+                setEnlargedImageFailed(false);
+                setEnlargedImageRetryToken((prev) => prev + 1);
+              }}
+            />
+          </View>
         )}
       </Modal>
     </View>

@@ -94,6 +94,24 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginTop: spacing.sm,
   },
+  enlargedImageError: {
+    width: "100%",
+    height: 320,
+    borderRadius: 8,
+    marginTop: spacing.sm,
+    backgroundColor: colors.lightGraySoft,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+  },
+  enlargedImageErrorText: {
+    color: colors.textSecondary,
+  },
+  enlargedImageRetryButton: {
+    height: 34,
+    paddingVertical: 4,
+    paddingHorizontal: 16,
+  },
   exerciseNameRow: {
     flexDirection: "row",
     alignItems: "center",

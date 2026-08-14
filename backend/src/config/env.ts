@@ -29,6 +29,11 @@ const envSchema = z.object({
   // search/logging just 500s with a clear message until this is set. Free
   // at api.data.gov/signup — no paid tier, unlike Nutritionix.
   USDA_API_KEY: z.string().min(1).optional(),
+  // Optional so normal app startup never hard-fails without it — post
+  // image uploads just fail with a clear error until all three are set.
+  CLOUDINARY_CLOUD_NAME: z.string().min(1).optional(),
+  CLOUDINARY_API_KEY: z.string().min(1).optional(),
+  CLOUDINARY_API_SECRET: z.string().min(1).optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

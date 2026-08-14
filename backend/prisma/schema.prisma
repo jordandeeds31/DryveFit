@@ -47,9 +47,91 @@ model User {
   conversations             Conversation[]
   foodLogEntries            FoodLogEntry[]
   trainer                   Trainer?
+  posts                     Post[]
+  postLikes                 PostLike[]
+  postComments              PostComment[]
+  commentLikes              CommentLike[]
 
   @@index([city])
   @@map("users")
+}
+
+model Post {
+  id            String        @id @default(uuid())
+  userId        String
+  // Both optional, but the service layer requires at least one — a post
+  // can be a caption-only text post, an image-only post, or both.
+  caption       String?
+  // Cloudinary-hosted URL (image OR video) — unlike profileImage/exercise
+  // GIFs, post media is NOT stored as DB bytes behind an authenticated
+  // proxy. Cloudinary serves it directly over its own CDN, which means
+  // this URL is publicly viewable by anyone who has it (no login
+  // required), not just other signed-in users of this app.
+  mediaUrl      String?
+  // "image" | "video" — which Cloudinary resource_type it was uploaded
+  // as, so the client knows whether to render an <Image> or a player.
+  mediaType     String?
+  // Cloudinary's asset identifier — kept alongside the URL so the asset
+  // can actually be removed from Cloudinary storage on delete, not just
+  // unlinked from this row (leaving it billed/counted against quota
+  // forever).
+  mediaPublicId String?
+  createdAt     DateTime      @default(now())
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  likes         PostLike[]
+  comments      PostComment[]
+
+  @@index([createdAt])
+  @@map("posts")
+}
+
+model PostLike {
+  id        String   @id @default(uuid())
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // One like per user per post — liking twice is a toggle-back-off in the
+  // UI, not a second row.
+  @@unique([postId, userId])
+  @@map("post_likes")
+}
+
+model PostComment {
+  id        String        @id @default(uuid())
+  postId    String
+  userId    String
+  content   String
+  // Null for a top-level comment on the post; set for a reply to another
+  // comment. Self-referential with no depth limit — replies can reply to
+  // replies indefinitely (see getComments in posts.service.ts, which
+  // fetches the flat list and builds the tree in application code rather
+  // than recursive queries).
+  parentId  String?
+  createdAt DateTime      @default(now())
+  post      Post          @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent    PostComment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   PostComment[] @relation("CommentReplies")
+  likes     CommentLike[]
+
+  @@index([postId, createdAt])
+  @@index([parentId])
+  @@map("post_comments")
+}
+
+model CommentLike {
+  id        String      @id @default(uuid())
+  commentId String
+  userId    String
+  createdAt DateTime    @default(now())
+  comment   PostComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId])
+  @@map("comment_likes")
 }
 
 model FoodLogEntry {

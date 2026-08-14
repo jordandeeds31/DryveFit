@@ -18,6 +18,7 @@ import {
   revertDaySwaps,
   deleteProgramExercise,
   postponeProgramDay,
+  inheritWorkoutDay,
 } from "./programs.service";
 import {
   TrainingSplit,
@@ -207,6 +208,15 @@ export const postponeProgramDayHandler = catchAsync(
     const dayId = getParam(req.params.dayId);
     const result = await postponeProgramDay(req.userId!, dayId);
     sendSuccess(res, 200, "PROGRAM_DAY_POSTPONED", result);
+  },
+);
+
+export const inheritWorkoutDayHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const dayId = getParam(req.params.dayId);
+    const force = req.body?.force === true;
+    const result = await inheritWorkoutDay(req.userId!, dayId, force);
+    sendSuccess(res, 200, "WORKOUT_DAY_INHERITED", result);
   },
 );
 

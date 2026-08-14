@@ -13,6 +13,7 @@ import {
   revertDaySwaps,
   deleteProgramExercise,
   postponeProgramDay,
+  inheritWorkoutDay,
 } from "@/lib/api/programs.api";
 
 export const usePrograms = () => {
@@ -173,6 +174,19 @@ export const usePostponeProgramDay = () => {
 
   return useMutation({
     mutationFn: (dayId: string) => postponeProgramDay(dayId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["programDay"] });
+      queryClient.invalidateQueries({ queryKey: ["schedule"] });
+    },
+  });
+};
+
+export const useInheritWorkoutDay = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ dayId, force }: { dayId: string; force?: boolean }) =>
+      inheritWorkoutDay(dayId, force),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["programDay"] });
       queryClient.invalidateQueries({ queryKey: ["schedule"] });

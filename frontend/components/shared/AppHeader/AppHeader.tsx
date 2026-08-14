@@ -5,7 +5,14 @@ import Feather from "@expo/vector-icons/Feather";
 import { colors } from "@/constants/colors";
 import styles from "./AppHeader.styles";
 
-const AppHeader = () => {
+interface AppHeaderProps {
+  // Set only by the Home screen (via navigation.setOptions) — every other
+  // tab keeps the default header from (tabs)/_layout.tsx with no plus
+  // button, since program creation only makes sense from Home.
+  onCreateProgram?: () => void;
+}
+
+const AppHeader = ({ onCreateProgram }: AppHeaderProps) => {
   const insets = useSafeAreaInsets();
 
   return (
@@ -18,6 +25,15 @@ const AppHeader = () => {
         />
       </TouchableOpacity>
       <View style={styles.headerActions}>
+        {onCreateProgram && (
+          <TouchableOpacity
+            style={styles.settingsButton}
+            onPress={onCreateProgram}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Feather name="plus" size={20} color={colors.primaryBlue} />
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
           style={styles.settingsButton}
           onPress={() => router.push("/(tabs)/Programs")}

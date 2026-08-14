@@ -104,9 +104,7 @@ const LeaderboardScreen = () => {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.title}>
-          {mode === "lifting" ? selectedExercise?.name ?? "Leaderboard" : "Cardio"}
-        </Text>
+        <Text style={styles.title}>Leaderboard</Text>
 
         <View style={styles.modeSegmentedControl}>
           <TouchableOpacity
@@ -189,14 +187,9 @@ const LeaderboardScreen = () => {
               My City
             </Text>
           </TouchableOpacity>
-        </View>
-        {!hasCity && (
-          <Text style={styles.hintText}>
-            Set your city in Profile to use the city leaderboard.
-          </Text>
-        )}
 
-        <View style={[styles.segmentedControl, styles.genderSegmentedControl]}>
+          <View style={styles.segmentDivider} />
+
           <TouchableOpacity
             style={[
               styles.segment,
@@ -230,6 +223,11 @@ const LeaderboardScreen = () => {
             </Text>
           </TouchableOpacity>
         </View>
+        {!hasCity && (
+          <Text style={styles.hintText}>
+            Set your city in Profile to use the city leaderboard.
+          </Text>
+        )}
 
         {!hasGender && (
           <TouchableOpacity
@@ -471,12 +469,10 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     overflow: "hidden",
   },
-  genderSegmentedControl: {
-    marginTop: spacing.sm,
-  },
   segment: {
     flex: 1,
     paddingVertical: spacing.sm,
+    paddingHorizontal: 2,
     alignItems: "center",
   },
   segmentActive: {
@@ -485,8 +481,12 @@ const styles = StyleSheet.create({
   segmentDisabled: {
     opacity: 0.4,
   },
+  segmentDivider: {
+    width: 1,
+    backgroundColor: colors.borderGray,
+  },
   segmentText: {
-    fontSize: fontSizes.sm,
+    fontSize: fontSizes.xs,
     fontWeight: fontWeights.semibold,
     color: colors.textSecondary,
   },

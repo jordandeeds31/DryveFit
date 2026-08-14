@@ -14,6 +14,7 @@ const LogExerciseModal = ({
   exercise,
   sets,
   onSetsChange,
+  onSaved,
 }: LogExerciseModalProps) => {
   const { mutate: logPerformance, isPending: isSaving } =
     useLogExercisePerformance();
@@ -56,6 +57,9 @@ const LogExerciseModal = ({
       { programExerciseId: exercise.id, sets: validSets },
       {
         onSuccess: () => {
+          onSaved?.(
+            validSets.length === 1 ? "Set saved" : "Exercise saved",
+          );
           onClose();
         },
       },

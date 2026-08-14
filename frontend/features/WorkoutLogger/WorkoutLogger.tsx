@@ -93,17 +93,43 @@ const mapWorkoutLogsToEntries = (
   );
 };
 
+// Same exercise-selection, but one blank set each instead of copying past
+// performance numbers — this is what actually got weight/reps in the
+// inherited-from-someone's-profile workout is up to the viewer, not the
+// person it came from.
+const mapPrefillToEntries = (
+  prefillExercises: WorkoutLoggerProps["prefillExercises"],
+): ExerciseEntry[] =>
+  (prefillExercises ?? []).map((exercise, index) => ({
+    id: `prefill-${index}-${Date.now()}`,
+    exercise: {
+      name: exercise.exerciseName,
+      muscleGroup: exercise.muscleGroup,
+      equipment: exercise.equipment,
+    } as Exercise,
+    sets: [{ id: `prefill-set-${index}-${Date.now()}`, weight: "", reps: "" }],
+  }));
+
+const buildInitialEntries = (
+  initialWorkoutLogs: WorkoutLoggerProps["initialWorkoutLogs"],
+  prefillExercises: WorkoutLoggerProps["prefillExercises"],
+): ExerciseEntry[] => {
+  const mappedEntries = mapWorkoutLogsToEntries(initialWorkoutLogs);
+  if (mappedEntries.length > 0) return mappedEntries;
+
+  const prefillEntries = mapPrefillToEntries(prefillExercises);
+  return prefillEntries.length > 0 ? prefillEntries : [createBlankEntry()];
+};
+
 const WorkoutLogger = ({
   setClose,
   date,
   initialWorkoutLogs,
+  onSaved,
+  prefillExercises,
 }: WorkoutLoggerProps) => {
-  const [exerciseEntries, setExerciseEntries] = useState<ExerciseEntry[]>(
-    () => {
-      const mappedEntries = mapWorkoutLogsToEntries(initialWorkoutLogs);
-
-      return mappedEntries.length > 0 ? mappedEntries : [createBlankEntry()];
-    },
+  const [exerciseEntries, setExerciseEntries] = useState<ExerciseEntry[]>(() =>
+    buildInitialEntries(initialWorkoutLogs, prefillExercises),
   );
 
   const { mutate: logWorkout, isPending } = useLogStandaloneWorkout();
@@ -135,11 +161,15 @@ const WorkoutLogger = ({
   );
 
   useEffect(() => {
-    const mappedEntries = mapWorkoutLogsToEntries(initialWorkoutLogs);
-
     setExerciseEntries(
-      mappedEntries.length > 0 ? mappedEntries : [createBlankEntry()],
+      buildInitialEntries(initialWorkoutLogs, prefillExercises),
     );
+    // prefillExercises deliberately excluded — it should only seed the
+    // form once, on whichever mount/date it was passed in for; the
+    // parent clears it from its own state right after, so including it
+    // here would just re-apply it on every unrelated initialWorkoutLogs
+    // change until that clear lands.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialWorkoutLogs]);
 
   const handleAddExercise = () => {
@@ -246,10 +276,10 @@ const WorkoutLogger = ({
 
     if (payload.length === 0) return;
 
-    logWorkout({
-      exercises: payload,
-      date,
-    });
+    logWorkout(
+      { exercises: payload, date },
+      { onSuccess: () => onSaved?.("Workout saved") },
+    );
   };
 
   const handleDeleteWorkout = () => {
