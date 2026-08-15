@@ -1,14 +1,15 @@
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ActivityIndicator,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
   TouchableOpacity,
 } from "react-native";
+import {
+  KeyboardAwareScrollView,
+  KeyboardAwareScrollViewRef,
+} from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "expo-router";
 import { useSelector, useDispatch } from "react-redux";
@@ -33,6 +34,7 @@ import WeeklySchedule from "@/features/WeeklySchedule/WeeklySchedule";
 import { ScheduleEntry } from "@/types/programs.types";
 import WorkoutDetail from "@/features/WorkoutDetail/WorkoutDetail";
 import WorkoutLogger from "@/features/WorkoutLogger/WorkoutLogger";
+import { WorkoutLoggerHandle } from "@/features/WorkoutLogger/WorkoutLogger.types";
 import { ensureProAccess } from "@/lib/purchases/requirePro";
 import ActiveWorkoutBanner from "@/components/shared/ActiveWorkoutBanner/ActiveWorkoutBanner";
 import Toast from "@/components/shared/Toast/Toast";
@@ -48,6 +50,11 @@ const HomeScreen = () => {
   const [prefillExercises, setPrefillExercises] = useState<
     PendingWorkoutExercise[] | undefined
   >(undefined);
+  const [isWorkoutFormDirty, setIsWorkoutFormDirty] = useState(false);
+  const [isSavingWorkout, setIsSavingWorkout] = useState(false);
+  const workoutLoggerRef = useRef<WorkoutLoggerHandle>(null);
+  const scrollViewRef = useRef<KeyboardAwareScrollViewRef>(null);
+  const wasSaveBarVisible = useRef(false);
 
   const dispatch = useDispatch<AppDispatch>();
   const pendingWorkoutExercises = useSelector(
@@ -70,7 +77,10 @@ const HomeScreen = () => {
 
   const handleCloseWorkoutLogger = (value: boolean) => {
     setIsWorkoutLoggerOpen(value);
-    if (!value) setPrefillExercises(undefined);
+    if (!value) {
+      setPrefillExercises(undefined);
+      setIsWorkoutFormDirty(false);
+    }
   };
 
   const { isOpen, close, toggle } = useToggle();
@@ -162,6 +172,7 @@ const HomeScreen = () => {
   useEffect(() => {
     setIsWorkoutLoggerOpen(false);
     setPrefillExercises(undefined);
+    setIsWorkoutFormDirty(false);
   }, [selectedDateKey]);
 
   const goToNextWeek = () => {
@@ -201,12 +212,28 @@ const HomeScreen = () => {
     if (granted) setIsWorkoutLoggerOpen(true);
   };
 
+  const isSaveBarVisible =
+    homeTab === "workouts" &&
+    (isWorkoutLoggerOpen || hasLoggedStandaloneWorkout) &&
+    !dayDetail &&
+    isWorkoutFormDirty;
+
+  // Once the save bar goes away (saved, or the edit was discarded), scroll
+  // back to the top so the "working out right now" banner and calendar —
+  // which the save bar had pushed down — come back into view instead of
+  // staying scrolled past.
+  useEffect(() => {
+    if (wasSaveBarVisible.current && !isSaveBarVisible) {
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+    }
+    wasSaveBarVisible.current = isSaveBarVisible;
+  }, [isSaveBarVisible]);
+
   if (isProgramsLoading) {
     return <ActivityIndicator style={{ flex: 1 }} />;
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
       <View style={styles.homeTabBar}>
         <TouchableOpacity
@@ -240,86 +267,109 @@ const HomeScreen = () => {
         </TouchableOpacity>
       </View>
 
+      {isSaveBarVisible && (
+        <View style={styles.pinnedSaveBar}>
+          <Button
+            title={isSavingWorkout ? "SAVING..." : "SAVE"}
+            onPress={() => workoutLoggerRef.current?.save()}
+            style={styles.pinnedSaveButton}
+            disabled={isSavingWorkout}
+          />
+        </View>
+      )}
+
       {homeTab === "feed" ? (
         <Feed />
       ) : (
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={[
-          styles.scrollContent,
-          !hasPrograms &&
+        <KeyboardAwareScrollView
+          ref={scrollViewRef}
+          style={styles.scrollView}
+          contentContainerStyle={[
+            styles.scrollContent,
+            !hasPrograms &&
+              !isWorkoutLoggerOpen &&
+              !hasLoggedStandaloneWorkout &&
+              styles.scrollContentGrow,
+          ]}
+          keyboardShouldPersistTaps="handled"
+          bottomOffset={60}
+        >
+          <ActiveWorkoutBanner />
+
+          <Modal
+            visible={isOpen}
+            onClose={close}
+            closable={!isGeneratingProgram}
+          >
+            <ProgramBuilder
+              onCreated={close}
+              onGeneratingChange={setIsGeneratingProgram}
+            />
+          </Modal>
+
+          <WeeklySchedule
+            weekDates={weekDates}
+            selectedDate={selectedDate}
+            setSelectedDate={setSelectedDate}
+            onNextWeek={goToNextWeek}
+            onPreviousWeek={goToPreviousWeek}
+            scheduleMap={scheduleMap}
+            canGoToPreviousWeek={canGoToPreviousWeek}
+            canGoToNextWeek={canGoToNextWeek}
+            isCurrentProgramWeek={isCurrentProgramWeek}
+          />
+
+          {!hasPrograms &&
             !isWorkoutLoggerOpen &&
-            !hasLoggedStandaloneWorkout &&
-            styles.scrollContentGrow,
-        ]}
-        keyboardShouldPersistTaps="handled"
-      >
-        <ActiveWorkoutBanner />
-
-        <Modal visible={isOpen} onClose={close} closable={!isGeneratingProgram}>
-          <ProgramBuilder
-            onCreated={close}
-            onGeneratingChange={setIsGeneratingProgram}
-          />
-        </Modal>
-
-        <WeeklySchedule
-          weekDates={weekDates}
-          selectedDate={selectedDate}
-          setSelectedDate={setSelectedDate}
-          onNextWeek={goToNextWeek}
-          onPreviousWeek={goToPreviousWeek}
-          scheduleMap={scheduleMap}
-          canGoToPreviousWeek={canGoToPreviousWeek}
-          canGoToNextWeek={canGoToNextWeek}
-          isCurrentProgramWeek={isCurrentProgramWeek}
-        />
-
-        {!hasPrograms && !isWorkoutLoggerOpen && !hasLoggedStandaloneWorkout && (
-          <View style={styles.noProgramsContainer}>
-            <NoPrograms />
-          </View>
-        )}
-
-        {isSwitchingDay ? (
-          <ActivityIndicator style={{ marginVertical: spacing.md }} />
-        ) : (isWorkoutLoggerOpen || hasLoggedStandaloneWorkout) && !dayDetail ? (
-          <WorkoutLogger
-            setClose={handleCloseWorkoutLogger}
-            date={selectedDateKey}
-            initialWorkoutLogs={workoutLogs ?? []}
-            onSaved={setToastMessage}
-            prefillExercises={prefillExercises}
-          />
-        ) : dayDetail ? (
-          <WorkoutDetail
-            dayDetail={dayDetail}
-            isLoading={false}
-            programId={selectedProgramId}
-            onExerciseSaved={setToastMessage}
-          />
-        ) : (
-          <View>
-            {hasPrograms && (
-              <View style={styles.noWorkoutContainer}>
-                <Text style={styles.noWorkoutTitle}>
-                  No workout scheduled for today
-                </Text>
-                <Text style={styles.noWorkoutText}>
-                  You can still log a workout if you decide to train by
-                  clicking the button below.
-                </Text>
+            !hasLoggedStandaloneWorkout && (
+              <View style={styles.noProgramsContainer}>
+                <NoPrograms />
               </View>
             )}
-            <Button
-              title="Log Workout"
-              onPress={handleLogWorkout}
-              variant="outline"
-              style={styles.logWorkoutButton}
+
+          {isSwitchingDay ? (
+            <ActivityIndicator style={{ marginVertical: spacing.md }} />
+          ) : (isWorkoutLoggerOpen || hasLoggedStandaloneWorkout) &&
+            !dayDetail ? (
+            <WorkoutLogger
+              ref={workoutLoggerRef}
+              setClose={handleCloseWorkoutLogger}
+              date={selectedDateKey}
+              initialWorkoutLogs={workoutLogs ?? []}
+              onSaved={setToastMessage}
+              prefillExercises={prefillExercises}
+              onDirtyChange={setIsWorkoutFormDirty}
+              onSavingChange={setIsSavingWorkout}
             />
-          </View>
-        )}
-      </ScrollView>
+          ) : dayDetail ? (
+            <WorkoutDetail
+              dayDetail={dayDetail}
+              isLoading={false}
+              programId={selectedProgramId}
+              onExerciseSaved={setToastMessage}
+            />
+          ) : (
+            <View>
+              {hasPrograms && (
+                <View style={styles.noWorkoutContainer}>
+                  <Text style={styles.noWorkoutTitle}>
+                    No workout scheduled for today
+                  </Text>
+                  <Text style={styles.noWorkoutText}>
+                    You can still log a workout if you decide to train by
+                    clicking the button below.
+                  </Text>
+                </View>
+              )}
+              <Button
+                title="Log Workout"
+                onPress={handleLogWorkout}
+                variant="outline"
+                style={styles.logWorkoutButton}
+              />
+            </View>
+          )}
+        </KeyboardAwareScrollView>
       )}
       <Toast
         visible={!!toastMessage}
@@ -327,7 +377,6 @@ const HomeScreen = () => {
         onHide={() => setToastMessage(null)}
       />
     </SafeAreaView>
-    </KeyboardAvoidingView>
   );
 };
 
@@ -378,6 +427,13 @@ const styles = StyleSheet.create({
   },
   homeTabTextActive: {
     color: "#000",
+  },
+  pinnedSaveBar: {
+    paddingHorizontal: spacing.sm,
+    paddingBottom: spacing.xs,
+  },
+  pinnedSaveButton: {
+    width: "100%",
   },
   noProgramsContainer: {
     flex: 1,

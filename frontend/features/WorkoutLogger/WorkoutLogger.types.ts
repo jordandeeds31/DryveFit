@@ -36,4 +36,10 @@ export interface WorkoutLoggerProps {
   // is inherited from someone's profile but the viewer has no active
   // program to slot it into, so it lands here instead.
   prefillExercises?: PrefillExercise[];
+  onDirtyChange?: (isDirty: boolean) => void;
+  onSavingChange?: (isSaving: boolean) => void;
+}
+
+export interface WorkoutLoggerHandle {
+  save: () => void;
 }

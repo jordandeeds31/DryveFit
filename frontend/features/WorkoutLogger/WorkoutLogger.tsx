@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
 import {
   View,
   Text,
@@ -6,13 +6,13 @@ import {
   TextInput,
   ActivityIndicator,
   Alert,
+  Keyboard,
 } from "react-native";
 import styles from "./WorkoutLogger.styles";
-import { WorkoutLoggerProps } from "./WorkoutLogger.types";
+import { WorkoutLoggerProps, WorkoutLoggerHandle } from "./WorkoutLogger.types";
 import AntDesign from "@expo/vector-icons/AntDesign";
 import Feather from "@expo/vector-icons/Feather";
 import DropdownExerciseSelect from "@/components/shared/DropdownExerciseSelect/DropdownExerciseSelect";
-import Button from "@/components/shared/Button/Button";
 import Modal from "@/components/shared/Modal/Modal";
 import { Exercise } from "@/types/exercise.types";
 import {
@@ -121,330 +121,364 @@ const buildInitialEntries = (
   return prefillEntries.length > 0 ? prefillEntries : [createBlankEntry()];
 };
 
-const WorkoutLogger = ({
-  setClose,
-  date,
-  initialWorkoutLogs,
-  onSaved,
-  prefillExercises,
-}: WorkoutLoggerProps) => {
-  const [exerciseEntries, setExerciseEntries] = useState<ExerciseEntry[]>(() =>
-    buildInitialEntries(initialWorkoutLogs, prefillExercises),
-  );
-
-  const { mutate: logWorkout, isPending } = useLogStandaloneWorkout();
-  const { mutate: deleteWorkoutLogSet } = useDeleteWorkoutLogSet();
-  const { mutate: deleteWholeWorkout, isPending: isDeletingWorkout } =
-    useDeleteWorkoutLogsForDate();
-
-  const [previousModalEntryId, setPreviousModalEntryId] = useState<
-    string | null
-  >(null);
-  const previousModalEntry = exerciseEntries.find(
-    (entry) => entry.id === previousModalEntryId,
-  );
-  const { data: previousSession, isLoading: isPreviousLoading } =
-    usePreviousSession(
-      previousModalEntry?.exercise?.name ?? null,
+const WorkoutLogger = forwardRef<WorkoutLoggerHandle, WorkoutLoggerProps>(
+  (
+    {
+      setClose,
       date,
-      !!previousModalEntryId,
-    );
-
-  // Set IDs already persisted to the database (loaded from initialWorkoutLogs) —
-  // deleting one of these needs an immediate API call, not just local state removal.
-  const persistedSetIds = new Set(
-    initialWorkoutLogs.flatMap((workout) =>
-      workout.exercises.flatMap((exercise) =>
-        exercise.sets.map((set) => set.id),
-      ),
-    ),
-  );
-
-  useEffect(() => {
-    setExerciseEntries(
-      buildInitialEntries(initialWorkoutLogs, prefillExercises),
-    );
-    // prefillExercises deliberately excluded — it should only seed the
-    // form once, on whichever mount/date it was passed in for; the
-    // parent clears it from its own state right after, so including it
-    // here would just re-apply it on every unrelated initialWorkoutLogs
-    // change until that clear lands.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialWorkoutLogs]);
-
-  const handleAddExercise = () => {
-    setExerciseEntries((prev) => [...prev, createBlankEntry()]);
-  };
-
-  const handleRemoveExercise = (entryId: string) => {
-    setExerciseEntries((prev) => prev.filter((entry) => entry.id !== entryId));
-  };
-
-  const handleSelectExercise = (entryId: string, exercise: Exercise | null) => {
-    setExerciseEntries((prev) =>
-      prev.map((entry) =>
-        entry.id === entryId ? { ...entry, exercise } : entry,
-      ),
-    );
-  };
-
-  const handleAddSet = (entryId: string) => {
-    setExerciseEntries((prev) =>
-      prev.map((entry) =>
-        entry.id === entryId
-          ? {
-              ...entry,
-              sets: [
-                ...entry.sets,
-                {
-                  id: `${Date.now()}-${entry.sets.length}`,
-                  weight: "",
-                  reps: "",
-                },
-              ],
-            }
-          : entry,
-      ),
-    );
-  };
-
-  const handleDeleteSet = (entryId: string, setId: string) => {
-    setExerciseEntries((prev) =>
-      prev.map((entry) =>
-        entry.id === entryId
-          ? {
-              ...entry,
-              sets: entry.sets.filter((set) => set.id !== setId),
-            }
-          : entry,
-      ),
-    );
-
-    if (persistedSetIds.has(setId)) {
-      deleteWorkoutLogSet({ exerciseLogId: entryId, setId });
-    }
-  };
-
-  const handleUpdateSet = (
-    entryId: string,
-    setId: string,
-    field: "weight" | "reps",
-    value: string,
+      initialWorkoutLogs,
+      onSaved,
+      prefillExercises,
+      onDirtyChange,
+      onSavingChange,
+    },
+    ref,
   ) => {
-    setExerciseEntries((prev) =>
-      prev.map((entry) =>
-        entry.id === entryId
-          ? {
-              ...entry,
-              sets: entry.sets.map((set) =>
-                set.id === setId
-                  ? {
-                      ...set,
-                      [field]: value,
-                    }
-                  : set,
-              ),
-            }
-          : entry,
+    const [exerciseEntries, setExerciseEntries] = useState<ExerciseEntry[]>(
+      () => buildInitialEntries(initialWorkoutLogs, prefillExercises),
+    );
+    // Reported to the parent, which renders the actual Save button pinned
+    // above the scrollable content (see index.tsx) — a button rendered here,
+    // inline in this component's own content, would scroll out of view once
+    // enough exercises are added, same problem the very first bottom-of-
+    // screen version had.
+    const [isDirty, setIsDirty] = useState(false);
+
+    useEffect(() => {
+      onDirtyChange?.(isDirty);
+    }, [isDirty, onDirtyChange]);
+
+    const { mutate: logWorkout, isPending } = useLogStandaloneWorkout();
+
+    useEffect(() => {
+      onSavingChange?.(isPending);
+    }, [isPending, onSavingChange]);
+
+    const { mutate: deleteWorkoutLogSet } = useDeleteWorkoutLogSet();
+    const { mutate: deleteWholeWorkout, isPending: isDeletingWorkout } =
+      useDeleteWorkoutLogsForDate();
+
+    const [previousModalEntryId, setPreviousModalEntryId] = useState<
+      string | null
+    >(null);
+    const previousModalEntry = exerciseEntries.find(
+      (entry) => entry.id === previousModalEntryId,
+    );
+    const { data: previousSession, isLoading: isPreviousLoading } =
+      usePreviousSession(
+        previousModalEntry?.exercise?.name ?? null,
+        date,
+        !!previousModalEntryId,
+      );
+
+    // Set IDs already persisted to the database (loaded from initialWorkoutLogs) —
+    // deleting one of these needs an immediate API call, not just local state removal.
+    const persistedSetIds = new Set(
+      initialWorkoutLogs.flatMap((workout) =>
+        workout.exercises.flatMap((exercise) =>
+          exercise.sets.map((set) => set.id),
+        ),
       ),
     );
-  };
 
-  const handleSave = () => {
-    const payload = exerciseEntries
-      .filter((entry) => entry.exercise !== null)
-      .map((entry) => {
-        const isBodyweight = entry.exercise?.equipment === "bodyweight";
-        const validSets = entry.sets
-          .filter(
-            (set) =>
-              (isBodyweight || set.weight.trim() !== "") &&
-              set.reps.trim() !== "",
-          )
-          .map((set) => ({
-            weight: isBodyweight ? null : parseFloat(set.weight),
-            reps: parseInt(set.reps, 10),
-          }));
+    useEffect(() => {
+      setExerciseEntries(
+        buildInitialEntries(initialWorkoutLogs, prefillExercises),
+      );
+      setIsDirty(false);
+      // prefillExercises deliberately excluded — it should only seed the
+      // form once, on whichever mount/date it was passed in for; the
+      // parent clears it from its own state right after, so including it
+      // here would just re-apply it on every unrelated initialWorkoutLogs
+      // change until that clear lands.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [initialWorkoutLogs]);
 
-        return {
-          exerciseName: entry.exercise!.name,
-          muscleGroup: entry.exercise!.muscleGroup,
-          sets: validSets,
-        };
-      })
-      .filter((entry) => entry.sets.length > 0);
+    const handleAddExercise = () => {
+      setExerciseEntries((prev) => [...prev, createBlankEntry()]);
+    };
 
-    if (payload.length === 0) return;
+    const handleRemoveExercise = (entryId: string) => {
+      setExerciseEntries((prev) =>
+        prev.filter((entry) => entry.id !== entryId),
+      );
+      setIsDirty(true);
+    };
 
-    logWorkout(
-      { exercises: payload, date },
-      { onSuccess: () => onSaved?.("Workout saved") },
-    );
-  };
+    const handleSelectExercise = (
+      entryId: string,
+      exercise: Exercise | null,
+    ) => {
+      setExerciseEntries((prev) =>
+        prev.map((entry) =>
+          entry.id === entryId ? { ...entry, exercise } : entry,
+        ),
+      );
+    };
 
-  const handleDeleteWorkout = () => {
-    Alert.alert(
-      "Delete this workout?",
-      "This will permanently delete everything logged for this day.",
-      [
-        { text: "Cancel", style: "cancel" },
+    const handleAddSet = (entryId: string) => {
+      setExerciseEntries((prev) =>
+        prev.map((entry) =>
+          entry.id === entryId
+            ? {
+                ...entry,
+                sets: [
+                  ...entry.sets,
+                  {
+                    id: `${Date.now()}-${entry.sets.length}`,
+                    weight: "",
+                    reps: "",
+                  },
+                ],
+              }
+            : entry,
+        ),
+      );
+    };
+
+    const handleDeleteSet = (entryId: string, setId: string) => {
+      setExerciseEntries((prev) =>
+        prev.map((entry) =>
+          entry.id === entryId
+            ? {
+                ...entry,
+                sets: entry.sets.filter((set) => set.id !== setId),
+              }
+            : entry,
+        ),
+      );
+      setIsDirty(true);
+
+      if (persistedSetIds.has(setId)) {
+        deleteWorkoutLogSet({ exerciseLogId: entryId, setId });
+      }
+    };
+
+    const handleUpdateSet = (
+      entryId: string,
+      setId: string,
+      field: "weight" | "reps",
+      value: string,
+    ) => {
+      setExerciseEntries((prev) =>
+        prev.map((entry) =>
+          entry.id === entryId
+            ? {
+                ...entry,
+                sets: entry.sets.map((set) =>
+                  set.id === setId
+                    ? {
+                        ...set,
+                        [field]: value,
+                      }
+                    : set,
+                ),
+              }
+            : entry,
+        ),
+      );
+      setIsDirty(true);
+    };
+
+    const handleSave = () => {
+      // Tapping Save while a weight/reps field is still focused should close
+      // the keyboard immediately rather than leaving it up until the field
+      // loses focus on its own.
+      Keyboard.dismiss();
+
+      const payload = exerciseEntries
+        .filter((entry) => entry.exercise !== null)
+        .map((entry) => {
+          const isBodyweight = entry.exercise?.equipment === "bodyweight";
+          const validSets = entry.sets
+            .filter(
+              (set) =>
+                (isBodyweight || set.weight.trim() !== "") &&
+                set.reps.trim() !== "",
+            )
+            .map((set) => ({
+              weight: isBodyweight ? null : parseFloat(set.weight),
+              reps: parseInt(set.reps, 10),
+            }));
+
+          return {
+            exerciseName: entry.exercise!.name,
+            muscleGroup: entry.exercise!.muscleGroup,
+            sets: validSets,
+          };
+        })
+        .filter((entry) => entry.sets.length > 0);
+
+      if (payload.length === 0) return;
+
+      logWorkout(
+        { exercises: payload, date },
         {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            deleteWholeWorkout(date, {
-              onSuccess: () => setClose(false),
-            });
+          onSuccess: () => {
+            setIsDirty(false);
+            onSaved?.("Workout saved");
           },
         },
-      ],
-    );
-  };
+      );
+    };
 
-  return (
-    <View style={styles.container}>
-      <View style={styles.headerRow}>
-        <Text style={styles.title}>Workout Log</Text>
-        <View style={styles.headerActions}>
-          {initialWorkoutLogs.length > 0 && (
-            <TouchableOpacity
-              onPress={handleDeleteWorkout}
-              disabled={isDeletingWorkout}
-            >
-              <Feather name="trash-2" size={18} color={colors.dangerRed} />
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity onPress={() => setClose(false)}>
-            <AntDesign name="close" size={20} color="black" />
-          </TouchableOpacity>
-        </View>
-      </View>
+    useImperativeHandle(ref, () => ({ save: handleSave }));
 
-      {exerciseEntries.map((entry) => (
-        <View key={entry.id} style={styles.exerciseBlock}>
-          <View style={styles.exerciseBlockHeader}>
-            <View style={styles.dropdownWrapper}>
-              <DropdownExerciseSelect
-                selectedExercise={entry.exercise}
-                setSelectedExercise={(exercise) =>
-                  handleSelectExercise(entry.id, exercise)
-                }
-              />
-            </View>
+    const handleDeleteWorkout = () => {
+      Alert.alert(
+        "Delete this workout?",
+        "This will permanently delete everything logged for this day.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Delete",
+            style: "destructive",
+            onPress: () => {
+              deleteWholeWorkout(date, {
+                onSuccess: () => setClose(false),
+              });
+            },
+          },
+        ],
+      );
+    };
 
-            {exerciseEntries.length > 1 && (
-              <TouchableOpacity onPress={() => handleRemoveExercise(entry.id)}>
-                <AntDesign name="closecircleo" size={20} color="gray" />
+    return (
+      <View style={styles.container}>
+        <View style={styles.headerRow}>
+          <Text style={styles.title}>Workout Log</Text>
+          <View style={styles.headerActions}>
+            {initialWorkoutLogs.length > 0 && (
+              <TouchableOpacity
+                onPress={handleDeleteWorkout}
+                disabled={isDeletingWorkout}
+              >
+                <Feather name="trash-2" size={18} color={colors.dangerRed} />
               </TouchableOpacity>
             )}
+            <TouchableOpacity onPress={() => setClose(false)}>
+              <AntDesign name="close" size={20} color="black" />
+            </TouchableOpacity>
           </View>
+        </View>
 
-          {entry.exercise && (
-            <View style={styles.setsContainer}>
-              <CheckPreviousWorkoutButton
-                exerciseName={entry.exercise.name}
-                beforeDate={date}
-                onPress={() => setPreviousModalEntryId(entry.id)}
-              />
-              {entry.sets.map((set, setIndex) => (
-                <View key={set.id} style={styles.setRow}>
-                  <Text style={styles.setLabel}>Set {setIndex + 1}</Text>
+        {exerciseEntries.map((entry) => (
+          <View key={entry.id} style={styles.exerciseBlock}>
+            <View style={styles.exerciseBlockHeader}>
+              <View style={styles.dropdownWrapper}>
+                <DropdownExerciseSelect
+                  selectedExercise={entry.exercise}
+                  setSelectedExercise={(exercise) =>
+                    handleSelectExercise(entry.id, exercise)
+                  }
+                />
+              </View>
 
-                  {entry.exercise?.equipment !== "bodyweight" && (
+              {exerciseEntries.length > 1 && (
+                <TouchableOpacity
+                  onPress={() => handleRemoveExercise(entry.id)}
+                >
+                  <AntDesign name="closecircleo" size={20} color="gray" />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {entry.exercise && (
+              <View style={styles.setsContainer}>
+                <CheckPreviousWorkoutButton
+                  exerciseName={entry.exercise.name}
+                  beforeDate={date}
+                  onPress={() => setPreviousModalEntryId(entry.id)}
+                />
+                {entry.sets.map((set, setIndex) => (
+                  <View key={set.id} style={styles.setRow}>
+                    <Text style={styles.setLabel}>Set {setIndex + 1}</Text>
+
+                    {entry.exercise?.equipment !== "bodyweight" && (
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Weight"
+                        keyboardType="numeric"
+                        value={set.weight}
+                        onChangeText={(value) =>
+                          handleUpdateSet(entry.id, set.id, "weight", value)
+                        }
+                      />
+                    )}
+
                     <TextInput
                       style={styles.input}
-                      placeholder="Weight"
+                      placeholder="Reps"
                       keyboardType="numeric"
-                      value={set.weight}
+                      value={set.reps}
                       onChangeText={(value) =>
-                        handleUpdateSet(entry.id, set.id, "weight", value)
+                        handleUpdateSet(entry.id, set.id, "reps", value)
                       }
                     />
-                  )}
 
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Reps"
-                    keyboardType="numeric"
-                    value={set.reps}
-                    onChangeText={(value) =>
-                      handleUpdateSet(entry.id, set.id, "reps", value)
-                    }
-                  />
+                    <TouchableOpacity
+                      onPress={() => handleDeleteSet(entry.id, set.id)}
+                    >
+                      <Text style={styles.deleteText}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
 
-                  <TouchableOpacity
-                    onPress={() => handleDeleteSet(entry.id, set.id)}
-                  >
-                    <Text style={styles.deleteText}>✕</Text>
-                  </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.addSetButton}
+                  onPress={() => handleAddSet(entry.id)}
+                >
+                  <Text style={styles.addSetText}>+ ADD SET</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        ))}
+        <View style={styles.addExerciseSaveRow}>
+          <TouchableOpacity
+            style={styles.addExerciseButton}
+            onPress={handleAddExercise}
+          >
+            <Text style={styles.addExerciseText}>+ ADD EXERCISE</Text>
+          </TouchableOpacity>
+        </View>
+        {isDirty && (
+          <Text style={styles.saveReminder}>
+            Don't forget to tap Save — your sets aren't recorded until you do.
+          </Text>
+        )}
+
+        <Modal
+          visible={!!previousModalEntryId}
+          onClose={() => setPreviousModalEntryId(null)}
+        >
+          <Text style={styles.title}>{previousModalEntry?.exercise?.name}</Text>
+          {isPreviousLoading ? (
+            <ActivityIndicator style={{ marginTop: 12 }} />
+          ) : !previousSession ? (
+            <Text style={styles.saveReminder}>
+              No previous session logged for this exercise yet.
+            </Text>
+          ) : (
+            <>
+              <Text style={styles.previousSessionDate}>
+                {formatSessionDate(previousSession.date)}
+              </Text>
+              {previousSession.sets.map((set) => (
+                <View key={set.setNumber} style={styles.setRow}>
+                  <Text style={styles.setLabel}>Set {set.setNumber}</Text>
+                  <Text style={styles.previousSetValue}>
+                    {set.weight != null ? `${set.weight} lbs x ` : ""}
+                    {set.reps ?? "-"} reps
+                  </Text>
                 </View>
               ))}
-
-              <TouchableOpacity
-                style={styles.addSetButton}
-                onPress={() => handleAddSet(entry.id)}
-              >
-                <Text style={styles.addSetText}>+ ADD SET</Text>
-              </TouchableOpacity>
-            </View>
+            </>
           )}
-        </View>
-      ))}
-      <Text style={styles.saveReminder}>
-        Don't forget to tap Save — your sets aren't recorded until you do.
-      </Text>
-      <View style={styles.addExerciseSaveRow}>
-        <TouchableOpacity
-          style={styles.addExerciseButton}
-          onPress={handleAddExercise}
-        >
-          <Text style={styles.addExerciseText}>+ ADD EXERCISE</Text>
-        </TouchableOpacity>
-
-        <Button
-          title={isPending ? "SAVING..." : "SAVE"}
-          style={{
-            height: 40,
-            marginTop: 16,
-            flex: 1,
-          }}
-          onPress={handleSave}
-          disabled={isPending}
-        />
+        </Modal>
       </View>
-
-      <Modal
-        visible={!!previousModalEntryId}
-        onClose={() => setPreviousModalEntryId(null)}
-      >
-        <Text style={styles.title}>
-          {previousModalEntry?.exercise?.name}
-        </Text>
-        {isPreviousLoading ? (
-          <ActivityIndicator style={{ marginTop: 12 }} />
-        ) : !previousSession ? (
-          <Text style={styles.saveReminder}>
-            No previous session logged for this exercise yet.
-          </Text>
-        ) : (
-          <>
-            <Text style={styles.previousSessionDate}>
-              {formatSessionDate(previousSession.date)}
-            </Text>
-            {previousSession.sets.map((set) => (
-              <View key={set.setNumber} style={styles.setRow}>
-                <Text style={styles.setLabel}>Set {set.setNumber}</Text>
-                <Text style={styles.previousSetValue}>
-                  {set.weight != null ? `${set.weight} lbs x ` : ""}
-                  {set.reps ?? "-"} reps
-                </Text>
-              </View>
-            ))}
-          </>
-        )}
-      </Modal>
-    </View>
-  );
-};
+    );
+  },
+);
 
 export default WorkoutLogger;
