@@ -6,9 +6,9 @@ import { colors } from "@/constants/colors";
 import styles from "./AppHeader.styles";
 
 interface AppHeaderProps {
-  // Set only by the Home screen (via navigation.setOptions) — every other
-  // tab keeps the default header from (tabs)/_layout.tsx with no plus
-  // button, since program creation only makes sense from Home.
+  // Wired up globally in (tabs)/_layout.tsx, so the "+" (and the
+  // ProgramBuilder modal it opens) shows on every tab's header, not just
+  // Home.
   onCreateProgram?: () => void;
 }
 
@@ -46,7 +46,11 @@ const AppHeader = ({ onCreateProgram }: AppHeaderProps) => {
           onPress={() => router.push("/ai-chat")}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Feather name="message-circle" size={20} color={colors.textSecondary} />
+          <Feather
+            name="message-circle"
+            size={20}
+            color={colors.textSecondary}
+          />
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.settingsButton}

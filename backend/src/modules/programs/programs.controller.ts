@@ -43,7 +43,6 @@ export const createProgramHandler = catchAsync(
     const {
       description,
       startDate,
-      durationDays,
       preferredDays,
       trainingSplit,
       sessionMinutes,
@@ -58,7 +57,6 @@ export const createProgramHandler = catchAsync(
       userId: req.userId!,
       description,
       startDate: parsedStartDate,
-      durationDays,
       daysPerWeek: preferredDays.length,
       preferredDays,
       trainingSplit: trainingSplit as TrainingSplit,

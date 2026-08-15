@@ -1,6 +1,3 @@
-export const PROGRAM_DURATION_OPTIONS = [30, 60, 90] as const;
-export type ProgramDurationDays = (typeof PROGRAM_DURATION_OPTIONS)[number];
-
 export const SESSION_MINUTES_OPTIONS = [30, 45, 60, 90] as const;
 
 export const DAYS_OF_WEEK = [
@@ -44,7 +41,6 @@ export type TrainingGoal = (typeof TRAINING_GOALS)[number];
 export interface CreateProgramPayload {
   description?: string;
   startDate: string;
-  durationDays: ProgramDurationDays;
   preferredDays: string[];
   trainingSplit: TrainingSplit;
   sessionMinutes: number;

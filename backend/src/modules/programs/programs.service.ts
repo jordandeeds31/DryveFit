@@ -7,7 +7,6 @@ import {
 } from "../../utils/futureLogGuard";
 import {
   PROGRAM_DURATION_DAYS,
-  ProgramDurationDays,
   TRAINING_SPLITS,
   TrainingSplit,
   SPLIT_TEMPLATES,
@@ -100,17 +99,12 @@ const hasStandaloneWorkoutLogOnDate = async (
 const validateProgramDates = async (input: {
   userId: string;
   startDate: Date;
-  durationDays: number;
   preferredDays: string[];
 }) => {
-  const { userId, startDate, durationDays, preferredDays } = input;
+  const { userId, startDate, preferredDays } = input;
 
   if (preferredDays.length === 0) {
     throw new AppError(400, "Select at least one preferred day");
-  }
-
-  if (!PROGRAM_DURATION_DAYS.includes(durationDays as ProgramDurationDays)) {
-    throw new AppError(400, "Duration must be 30, 60, or 90 days");
   }
 
   const today = new Date();
@@ -128,7 +122,7 @@ const validateProgramDates = async (input: {
   }
 
   const endDate = new Date(adjustedStartDate);
-  endDate.setDate(endDate.getDate() + durationDays);
+  endDate.setDate(endDate.getDate() + PROGRAM_DURATION_DAYS);
 
   const overlapping = await prisma.program.findFirst({
     where: {
@@ -147,14 +141,13 @@ const validateProgramDates = async (input: {
 };
 
 const buildDefaultProgramName = (input: {
-  durationDays: number;
   trainingSplit: TrainingSplit;
 }): string => {
   const splitLabel = input.trainingSplit.replace(/\b\w/g, (char) =>
     char.toUpperCase(),
   );
 
-  return `${input.durationDays}-Day ${splitLabel} Program`;
+  return `${PROGRAM_DURATION_DAYS}-Day ${splitLabel} Program`;
 };
 
 const getAllowedExerciseNames = async (
@@ -298,7 +291,8 @@ const classifyWeightedSession = (
 
     if (
       setsWithReducedWeight >= 2 ||
-      maxWeightReduction > prescribedWeight * WEIGHT_REDUCTION_SIGNIFICANT_PERCENT
+      maxWeightReduction >
+        prescribedWeight * WEIGHT_REDUCTION_SIGNIFICANT_PERCENT
     ) {
       return "significant_miss";
     }
@@ -325,7 +319,9 @@ const classifyWeightedSession = (
     // Missed by more on the final set, but still completed at least half
     // the prescribed reps — a bigger fade, not a collapse.
     const finalSetReps = achievedSets[lastIndex].reps;
-    return finalSetReps >= prescribedReps / 2 ? "moderate_miss" : "significant_miss";
+    return finalSetReps >= prescribedReps / 2
+      ? "moderate_miss"
+      : "significant_miss";
   }
 
   if (
@@ -367,7 +363,10 @@ const calculateBodyweightProgression = (
     // A near miss (fell only a rep or two short, usually on the last set)
     // is normal variance, not proof the target itself was too high — hold
     // it steady for another attempt instead of dropping to the fallback.
-    return { sets: baselineSets, reps: isNearMiss ? baselineReps : fallbackReps };
+    return {
+      sets: baselineSets,
+      reps: isNearMiss ? baselineReps : fallbackReps,
+    };
   }
 
   if (baselineReps < BODYWEIGHT_REP_CEILING) {
@@ -455,7 +454,9 @@ const getRecentPerformanceByExerciseName = async (
     const isBodyweight = equipmentByName.get(log.exerciseName) === "bodyweight";
     const validSets = log.sets
       .filter((set) =>
-        isBodyweight ? set.reps != null : set.weight != null && set.reps != null,
+        isBodyweight
+          ? set.reps != null
+          : set.weight != null && set.reps != null,
       )
       .sort((a, b) => a.setNumber - b.setNumber);
     if (validSets.length === 0) continue;
@@ -599,12 +600,10 @@ export const createProgram = async (input: CreateProgramInput) => {
   const { startDate, endDate } = await validateProgramDates({
     userId: input.userId,
     startDate: input.startDate,
-    durationDays: input.durationDays,
     preferredDays: input.preferredDays,
   });
 
   const name = buildDefaultProgramName({
-    durationDays: input.durationDays,
     trainingSplit: input.trainingSplit,
   });
 
@@ -615,7 +614,7 @@ export const createProgram = async (input: CreateProgramInput) => {
       description: input.description,
       startDate,
       endDate,
-      durationDays: input.durationDays,
+      durationDays: PROGRAM_DURATION_DAYS,
       daysPerWeek: input.daysPerWeek,
       preferredDays: input.preferredDays,
       trainingSplit: input.trainingSplit,
@@ -630,7 +629,7 @@ export const createProgram = async (input: CreateProgramInput) => {
   generateProgramWeeks(program.id, {
     userId: input.userId,
     startDate,
-    durationDays: input.durationDays,
+    durationDays: PROGRAM_DURATION_DAYS,
     preferredDays: input.preferredDays,
     trainingSplit: input.trainingSplit,
     sessionMinutes: input.sessionMinutes,
@@ -967,7 +966,10 @@ export const getProgramDayByDate = async (
         // like the weighted case progresses from estimated1RM (derived
         // from actual lifts) rather than from the frozen prescription.
         const { sets, reps } = calculateBodyweightProgression(
-          Math.max(performance.prescribedSets ?? exercise.sets, performance.achievedSets),
+          Math.max(
+            performance.prescribedSets ?? exercise.sets,
+            performance.achievedSets,
+          ),
           performance.reps,
           performance.didMeetTarget,
           performance.isNearMiss,
@@ -984,7 +986,8 @@ export const getProgramDayByDate = async (
       // weight for another attempt — that's normal variance, not evidence
       // of overreach. Only a significant miss (skipped set, reduced
       // weight, or a real collapse) triggers the scaled-down fallback.
-      const heldWeight = performance.recommendedWeightAtTime ?? performance.weight;
+      const heldWeight =
+        performance.recommendedWeightAtTime ?? performance.weight;
       let recommendedWeight: number;
       switch (performance.weightClassification) {
         case "full_success":
@@ -1429,10 +1432,7 @@ export const inheritWorkoutDay = async (
   });
 
   if (targetDays.length === 0) {
-    throw new AppError(
-      400,
-      `Your program doesn't have a ${sourceDay.dayName}`,
-    );
+    throw new AppError(400, `Your program doesn't have a ${sourceDay.dayName}`);
   }
 
   if (!force) {
@@ -1468,7 +1468,9 @@ export const inheritWorkoutDay = async (
       include: { exercises: true, week: { select: { weekNumber: true } } },
     });
 
-    const sourceRegions = new Set(getDayRegionsFromExercises(sourceDay.exercises));
+    const sourceRegions = new Set(
+      getDayRegionsFromExercises(sourceDay.exercises),
+    );
     const conflicts = adjacentDays
       .filter((day) => !day.isRestDay && day.exercises.length > 0)
       .map((day) => {
@@ -1598,11 +1600,7 @@ const normalizeExerciseNameWords = (name: string): string[] =>
 // Treats simple singular/plural variants as equal (e.g. "raise" / "raises")
 // without breaking words that already end in "s" (e.g. "press").
 const wordsMatch = (a: string, b: string): boolean =>
-  a === b ||
-  `${a}s` === b ||
-  `${b}s` === a ||
-  `${a}es` === b ||
-  `${b}es` === a;
+  a === b || `${a}s` === b || `${b}s` === a || `${a}es` === b || `${b}es` === a;
 
 // The AI is instructed to only use exact names from the allowed list, but
 // occasionally drifts to a close paraphrase (e.g. "Calf Raises" instead of
@@ -1728,148 +1726,156 @@ const generateProgramWeeks = async (
     // Weeks are generated concurrently (see WEEK_GENERATION_CONCURRENCY) —
     // progress is reported as a completed count rather than "week N",
     // since weeks no longer necessarily finish in numeric order.
-    await mapWithConcurrency(plan, WEEK_GENERATION_CONCURRENCY, async (week) => {
-      const prompt = buildWeekPrompt({
-        weekNumber: week.weekNumber,
-        totalWeeks,
-        days: week.days,
-        daySplitAssignment,
-        sessionMinutes: input.sessionMinutes,
-        fitnessLevel: input.fitnessLevel,
-        trainingGoal: input.trainingGoal,
-        allowedExercises,
-        performanceHistory,
-      });
-
-      // gpt-4o-mini was unreliable at following this prompt's per-day exact
-      // exercise-count and movement-category requirements (e.g. generating
-      // only 2 exercises for a dedicated bro-split day instead of the
-      // stated target) — this call happens once per program, not per
-      // chat message, so the accuracy gap is worth the extra cost of the
-      // full model.
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [{ role: "user", content: prompt }],
-        response_format: { type: "json_object" },
-      });
-
-      const rawContent = completion.choices[0]?.message?.content;
-      if (!rawContent) {
-        throw new Error(
-          `No content returned from OpenAI for week ${week.weekNumber}`,
-        );
-      }
-
-      const parsed = JSON.parse(stripCodeFences(rawContent));
-      const validated = weekResponseSchema.parse(parsed);
-
-      for (const day of validated.days) {
-        day.exercises = day.exercises.flatMap((exercise) => {
-          let resolvedName: string | null = exercise.exerciseName;
-
-          if (!allowedExerciseSet.has(exercise.exerciseName)) {
-            resolvedName = resolveExerciseName(
-              exercise.exerciseName,
-              allowedExercises,
-            );
-
-            if (!resolvedName) {
-              console.warn(
-                `Dropping AI-generated exercise not in allowed list (no close match found): "${exercise.exerciseName}"`,
-              );
-              return [];
-            }
-
-            console.warn(
-              `Resolved AI-generated exercise "${exercise.exerciseName}" to allowed exercise "${resolvedName}"`,
-            );
-          }
-
-          // Structural safety net: strip any recommendedWeight the AI
-          // attached to an exercise with no real prior logged history for
-          // that exact name, regardless of what the prompt asked for —
-          // this must be enforced in code, not just requested of the AI.
-          if (
-            exercise.recommendedWeight != null &&
-            !performanceHistory[resolvedName]
-          ) {
-            console.warn(
-              `Stripping unjustified recommendedWeight for "${resolvedName}" — no prior logged history for this exact exercise name.`,
-            );
-            return [
-              { ...exercise, exerciseName: resolvedName, recommendedWeight: undefined },
-            ];
-          }
-
-          return [{ ...exercise, exerciseName: resolvedName }];
+    await mapWithConcurrency(
+      plan,
+      WEEK_GENERATION_CONCURRENCY,
+      async (week) => {
+        const prompt = buildWeekPrompt({
+          weekNumber: week.weekNumber,
+          totalWeeks,
+          days: week.days,
+          daySplitAssignment,
+          sessionMinutes: input.sessionMinutes,
+          fitnessLevel: input.fitnessLevel,
+          trainingGoal: input.trainingGoal,
+          allowedExercises,
+          performanceHistory,
         });
 
-        // Post-generation compliance check — the prompt states an exact
-        // per-day target, but nothing stops the model from ignoring it.
-        // This can't fully repair a short day (no code path here safely
-        // invents new exercises), but it makes under-generation visible in
-        // logs instead of silently shipping a thin day, which is how the
-        // original bug (a bro-split day with only 2 exercises) went
-        // unnoticed until a user reported it.
-        if (!day.isRestDay) {
-          const focus = daySplitAssignment[day.dayName] ?? [];
-          const { totalExercises: target } = getDayVolumeTarget(
-            focus,
-            input.fitnessLevel,
+        // gpt-4o-mini was unreliable at following this prompt's per-day exact
+        // exercise-count and movement-category requirements (e.g. generating
+        // only 2 exercises for a dedicated bro-split day instead of the
+        // stated target) — this call happens once per program, not per
+        // chat message, so the accuracy gap is worth the extra cost of the
+        // full model.
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4o",
+          messages: [{ role: "user", content: prompt }],
+          response_format: { type: "json_object" },
+        });
+
+        const rawContent = completion.choices[0]?.message?.content;
+        if (!rawContent) {
+          throw new Error(
+            `No content returned from OpenAI for week ${week.weekNumber}`,
           );
-          if (day.exercises.length < target) {
-            console.warn(
-              `Program generation under target: week ${week.weekNumber} ${day.dayName} (${focus.join("/")}) has ${day.exercises.length} exercises, target was ${target}.`,
+        }
+
+        const parsed = JSON.parse(stripCodeFences(rawContent));
+        const validated = weekResponseSchema.parse(parsed);
+
+        for (const day of validated.days) {
+          day.exercises = day.exercises.flatMap((exercise) => {
+            let resolvedName: string | null = exercise.exerciseName;
+
+            if (!allowedExerciseSet.has(exercise.exerciseName)) {
+              resolvedName = resolveExerciseName(
+                exercise.exerciseName,
+                allowedExercises,
+              );
+
+              if (!resolvedName) {
+                console.warn(
+                  `Dropping AI-generated exercise not in allowed list (no close match found): "${exercise.exerciseName}"`,
+                );
+                return [];
+              }
+
+              console.warn(
+                `Resolved AI-generated exercise "${exercise.exerciseName}" to allowed exercise "${resolvedName}"`,
+              );
+            }
+
+            // Structural safety net: strip any recommendedWeight the AI
+            // attached to an exercise with no real prior logged history for
+            // that exact name, regardless of what the prompt asked for —
+            // this must be enforced in code, not just requested of the AI.
+            if (
+              exercise.recommendedWeight != null &&
+              !performanceHistory[resolvedName]
+            ) {
+              console.warn(
+                `Stripping unjustified recommendedWeight for "${resolvedName}" — no prior logged history for this exact exercise name.`,
+              );
+              return [
+                {
+                  ...exercise,
+                  exerciseName: resolvedName,
+                  recommendedWeight: undefined,
+                },
+              ];
+            }
+
+            return [{ ...exercise, exerciseName: resolvedName }];
+          });
+
+          // Post-generation compliance check — the prompt states an exact
+          // per-day target, but nothing stops the model from ignoring it.
+          // This can't fully repair a short day (no code path here safely
+          // invents new exercises), but it makes under-generation visible in
+          // logs instead of silently shipping a thin day, which is how the
+          // original bug (a bro-split day with only 2 exercises) went
+          // unnoticed until a user reported it.
+          if (!day.isRestDay) {
+            const focus = daySplitAssignment[day.dayName] ?? [];
+            const { totalExercises: target } = getDayVolumeTarget(
+              focus,
+              input.fitnessLevel,
             );
+            if (day.exercises.length < target) {
+              console.warn(
+                `Program generation under target: week ${week.weekNumber} ${day.dayName} (${focus.join("/")}) has ${day.exercises.length} exercises, target was ${target}.`,
+              );
+            }
           }
         }
-      }
 
-      await prisma.programWeek.create({
-        data: {
-          programId,
-          weekNumber: week.weekNumber,
-          days: {
-            create: validated.days.map((day, index) => ({
-              dayNumber: index + 1,
-              dayName: day.dayName,
-              date: week.days[index]?.date ?? week.days[0].date,
-              focus: day.focus,
-              isRestDay: day.isRestDay,
-              exercises: {
-                // "order" is derived from final array position, not taken
-                // from the AI's output — it's not always present, and even
-                // when it is, dropped exercises (unresolvable names) would
-                // leave gaps in it. Array position is always contiguous and
-                // always reflects what's actually being persisted.
-                create: day.exercises.map((exercise, exerciseIndex) => ({
-                  exerciseName: exercise.exerciseName,
-                  muscleGroup: exercise.muscleGroup,
-                  sets: exercise.sets,
-                  reps: exercise.reps,
-                  restSeconds: exercise.restSeconds,
-                  notes: exercise.notes,
-                  order: exerciseIndex + 1,
-                  recommendedWeight: exercise.recommendedWeight ?? null,
-                })),
-              },
-            })),
+        await prisma.programWeek.create({
+          data: {
+            programId,
+            weekNumber: week.weekNumber,
+            days: {
+              create: validated.days.map((day, index) => ({
+                dayNumber: index + 1,
+                dayName: day.dayName,
+                date: week.days[index]?.date ?? week.days[0].date,
+                focus: day.focus,
+                isRestDay: day.isRestDay,
+                exercises: {
+                  // "order" is derived from final array position, not taken
+                  // from the AI's output — it's not always present, and even
+                  // when it is, dropped exercises (unresolvable names) would
+                  // leave gaps in it. Array position is always contiguous and
+                  // always reflects what's actually being persisted.
+                  create: day.exercises.map((exercise, exerciseIndex) => ({
+                    exerciseName: exercise.exerciseName,
+                    muscleGroup: exercise.muscleGroup,
+                    sets: exercise.sets,
+                    reps: exercise.reps,
+                    restSeconds: exercise.restSeconds,
+                    notes: exercise.notes,
+                    order: exerciseIndex + 1,
+                    recommendedWeight: exercise.recommendedWeight ?? null,
+                  })),
+                },
+              })),
+            },
           },
-        },
-      });
+        });
 
-      completedWeeks += 1;
-      generatedSessions += week.trainingDays.length;
+        completedWeeks += 1;
+        generatedSessions += week.trainingDays.length;
 
-      await prisma.program.update({
-        where: { id: programId },
-        data: {
-          generationStep: `Building your program... (${completedWeeks} of ${totalWeeks} weeks ready)`,
-          generationStepIndex: completedWeeks,
-          generatedSessions,
-        },
-      });
-    });
+        await prisma.program.update({
+          where: { id: programId },
+          data: {
+            generationStep: `Building your program... (${completedWeeks} of ${totalWeeks} weeks ready)`,
+            generationStepIndex: completedWeeks,
+            generatedSessions,
+          },
+        });
+      },
+    );
 
     await prisma.program.update({
       where: { id: programId },

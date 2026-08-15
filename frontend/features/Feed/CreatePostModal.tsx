@@ -93,6 +93,12 @@ const CreatePostModal = ({
           onPosted("Post shared");
           handleClose();
         },
+        onError: (error: unknown) => {
+          const message =
+            (error as { message?: string })?.message ??
+            "Something went wrong posting that — try again.";
+          Alert.alert("Couldn't post", message);
+        },
       },
     );
   };

@@ -28,6 +28,11 @@ export const createPost = async (input: {
 
   const { data } = await apiClient.post("/api/posts", formData, {
     headers: { "Content-Type": "multipart/form-data" },
+    // Media uploads (especially unresized video, or photos straight off a
+    // phone camera on a slow connection) can easily take longer than the
+    // client's default 10s timeout — that default is fine for ordinary
+    // JSON requests but was cutting off real uploads before they finished.
+    timeout: 60000,
   });
   return data.result.post;
 };

@@ -347,19 +347,14 @@ const WorkoutLogger = forwardRef<WorkoutLoggerHandle, WorkoutLoggerProps>(
       <View style={styles.container}>
         <View style={styles.headerRow}>
           <Text style={styles.title}>Workout Log</Text>
-          <View style={styles.headerActions}>
-            {initialWorkoutLogs.length > 0 && (
-              <TouchableOpacity
-                onPress={handleDeleteWorkout}
-                disabled={isDeletingWorkout}
-              >
-                <Feather name="trash-2" size={18} color={colors.dangerRed} />
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity onPress={() => setClose(false)}>
-              <AntDesign name="close" size={20} color="black" />
+          {initialWorkoutLogs.length > 0 && (
+            <TouchableOpacity
+              onPress={handleDeleteWorkout}
+              disabled={isDeletingWorkout}
+            >
+              <Feather name="trash-2" size={18} color={colors.dangerRed} />
             </TouchableOpacity>
-          </View>
+          )}
         </View>
 
         {exerciseEntries.map((entry) => (

@@ -1,13 +1,11 @@
 import { useState } from "react";
 import { View, Text } from "react-native";
 import {
-  ProgramDurationDays,
   FitnessLevel as FitnessLevelType,
   EquipmentAccess as EquipmentAccessType,
   TrainingGoal as TrainingGoalType,
   TrainingSplit as TrainingSplitType,
 } from "@/types/programs.types";
-import Duration from "./components/Duration/Duration";
 import StartDate from "./components/StartDate/StartDate";
 import SelectedDays from "./components/SelectedDays/SelectedDays";
 import SessionMinutes from "./components/SessionMinutes/SessionMinutes";
@@ -32,8 +30,10 @@ const normalizeToLocalMidnight = (date: Date): Date => {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 };
 
-const ProgramBuilder = ({ onCreated, onGeneratingChange }: ProgramBuilderProps) => {
-  const [durationDays, setDurationDays] = useState<ProgramDurationDays>(30);
+const ProgramBuilder = ({
+  onCreated,
+  onGeneratingChange,
+}: ProgramBuilderProps) => {
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const [sessionMinutes, setSessionMinutes] = useState<number>(30);
   const [startDate, setStartDate] = useState<Date>(new Date());
@@ -64,7 +64,6 @@ const ProgramBuilder = ({ onCreated, onGeneratingChange }: ProgramBuilderProps) 
     createProgram(
       {
         startDate: normalizeToLocalMidnight(startDate).toISOString(),
-        durationDays,
         preferredDays: selectedDays,
         trainingSplit,
         sessionMinutes,
@@ -114,12 +113,6 @@ const ProgramBuilder = ({ onCreated, onGeneratingChange }: ProgramBuilderProps) 
       <View style={styles.programFormContainer}>
         <View style={styles.section}>
           <StartDate startDate={startDate} setStartDate={setStartDate} />
-        </View>
-        <View style={styles.section}>
-          <Duration
-            durationDays={durationDays}
-            setDurationDays={setDurationDays}
-          />
         </View>
         <View style={styles.section}>
           <SelectedDays

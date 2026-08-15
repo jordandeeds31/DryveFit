@@ -9,6 +9,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: spacing.sm,
   },
+  overlayTop: {
+    justifyContent: "flex-start",
+  },
   card: {
     backgroundColor: "white",
     borderRadius: 20,
@@ -22,10 +25,17 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     elevation: 10,
   },
+  cardLarge: {
+    maxHeight: "95%",
+  },
   closeRow: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "flex-end",
     marginBottom: spacing.sm,
+  },
+  closeRowWithAction: {
+    justifyContent: "space-between",
   },
   scrollArea: {
     flexGrow: 0,

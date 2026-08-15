@@ -22,7 +22,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   levelText: {
-    fontSize: fontSizes.sm,
+    fontSize: fontSizes.xs,
     fontWeight: "bold",
     color: colors.textSecondary,
   },

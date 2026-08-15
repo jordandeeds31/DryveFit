@@ -1,5 +1,4 @@
 import {
-  ProgramDurationDays,
   TrainingSplit,
   FitnessLevel,
   EquipmentAccess,
@@ -10,7 +9,6 @@ export interface CreateProgramInput {
   userId: string;
   description?: string;
   startDate: Date;
-  durationDays: ProgramDurationDays;
   daysPerWeek: number;
   preferredDays: string[];
   trainingSplit: TrainingSplit;

@@ -1,19 +1,29 @@
 import {
   Modal as RNModal,
   View,
-  ScrollView,
   StyleSheet,
   TouchableOpacity,
   TouchableWithoutFeedback,
-  KeyboardAvoidingView,
-  Platform,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import Feather from "@expo/vector-icons/Feather";
 import { colors } from "@/constants/colors";
+import { spacing } from "@/constants/spacing";
 import styles from "./Modal.styles";
 import { ModalProps } from "./Modal.types";
 
-const Modal = ({ visible, onClose, children, closable = true }: ModalProps) => {
+const Modal = ({
+  visible,
+  onClose,
+  children,
+  closable = true,
+  headerAction,
+  size = "default",
+}: ModalProps) => {
+  const insets = useSafeAreaInsets();
+  const isLarge = size === "large";
+
   const handleClose = () => {
     if (closable) {
       onClose();
@@ -27,10 +37,7 @@ const Modal = ({ visible, onClose, children, closable = true }: ModalProps) => {
       animationType="fade"
       onRequestClose={handleClose}
     >
-      <KeyboardAvoidingView
-        style={styles.overlay}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
+      <View style={[styles.overlay, isLarge && styles.overlayTop]}>
         {/* Absolutely-positioned sibling behind the card, not a wrapper
             around it — a wrapper would sit as a touch-responder ancestor
             of the ScrollView below and swallow scroll gestures before they
@@ -40,26 +47,41 @@ const Modal = ({ visible, onClose, children, closable = true }: ModalProps) => {
           <View style={StyleSheet.absoluteFill} />
         </TouchableWithoutFeedback>
 
-        <View style={styles.card}>
-          {closable && (
-            <View style={styles.closeRow}>
-              <TouchableOpacity
-                onPress={onClose}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Feather name="x" size={22} color={colors.textSecondary} />
-              </TouchableOpacity>
+        <View
+          style={[
+            styles.card,
+            isLarge && styles.cardLarge,
+            isLarge && { marginTop: insets.top + spacing.sm },
+          ]}
+        >
+          {(closable || headerAction) && (
+            <View
+              style={[
+                styles.closeRow,
+                !!headerAction && styles.closeRowWithAction,
+              ]}
+            >
+              {headerAction}
+              {closable && (
+                <TouchableOpacity
+                  onPress={onClose}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Feather name="x" size={22} color={colors.textSecondary} />
+                </TouchableOpacity>
+              )}
             </View>
           )}
-          <ScrollView
+          <KeyboardAwareScrollView
             style={styles.scrollArea}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            bottomOffset={60}
           >
             {children}
-          </ScrollView>
+          </KeyboardAwareScrollView>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </RNModal>
   );
 };

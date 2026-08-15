@@ -1,5 +1,5 @@
-export const PROGRAM_DURATION_DAYS = [30, 60, 90] as const;
-export type ProgramDurationDays = (typeof PROGRAM_DURATION_DAYS)[number];
+// Every program runs for a fixed 30-day cycle — no longer a user choice.
+export const PROGRAM_DURATION_DAYS = 30;
 
 export const REAL_DAY_NAMES = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
@@ -167,14 +167,11 @@ export const getDayVolumeTarget = (
 const REGION_MOVEMENT_GUIDANCE: Record<string, string> = {
   chest:
     "1 primary compound press (flat barbell/dumbbell bench or equivalent), 1 secondary compound press at a different angle (incline or decline), 1-2 isolation moves targeting a different region of the chest (flyes, cable crossover, pec deck), and 1 finisher (a higher-rep burnout move, often cable or machine-based, placed last).",
-  back:
-    "1 primary compound pull (a deadlift variation, barbell/dumbbell row, or weighted pull-up), 1 secondary compound pull at a different angle or grip (e.g. a different row variation, lat pulldown), 1-2 isolation/width-or-thickness moves (straight-arm pulldown, single-arm row, shrugs for traps), and 1 finisher (face pulls or a light high-rep pulldown/row).",
+  back: "1 primary compound pull (a deadlift variation, barbell/dumbbell row, or weighted pull-up), 1 secondary compound pull at a different angle or grip (e.g. a different row variation, lat pulldown), 1-2 isolation/width-or-thickness moves (straight-arm pulldown, single-arm row, shrugs for traps), and 1 finisher (face pulls or a light high-rep pulldown/row).",
   shoulders:
     "1 primary compound press (overhead barbell/dumbbell press), 1-2 isolation moves for different heads (lateral raise for side delts, rear delt flye for rear delts, front raise for front delts), and 1 finisher (a high-rep lateral raise or cable burnout).",
-  arms:
-    "at least 1 biceps-focused move and 1 triceps-focused move at minimum (never only one of the two), ideally 2 of each at different angles/grips (e.g. barbell curl + incline dumbbell curl, close-grip bench or pushdown + overhead extension), plus forearm work if forearms exercises are in the allowed list, and a finisher (drop-set curl or pushdown) if the count allows.",
-  legs:
-    "1 primary compound squat-pattern lift (back squat, front squat, leg press) for quads, 1 primary compound hip-hinge lift (RDL, deadlift variation, hip thrust) for hamstrings/glutes, 1-2 isolation moves (leg extension, leg curl, lunges, glute-focused accessory), calf work if calves exercises are in the allowed list, and a finisher (walking lunges or a burnout set) if the count allows.",
+  arms: "at least 1 biceps-focused move and 1 triceps-focused move at minimum (never only one of the two), ideally 2 of each at different angles/grips (e.g. barbell curl + incline dumbbell curl, close-grip bench or pushdown + overhead extension), plus forearm work if forearms exercises are in the allowed list, and a finisher (drop-set curl or pushdown) if the count allows.",
+  legs: "1 primary compound squat-pattern lift (back squat, front squat, leg press) for quads, 1 primary compound hip-hinge lift (RDL, deadlift variation, hip thrust) for hamstrings/glutes, 1-2 isolation moves (leg extension, leg curl, lunges, glute-focused accessory), calf work if calves exercises are in the allowed list, and a finisher (walking lunges or a burnout set) if the count allows.",
   core: "a mix of weighted/loaded core work (planks, hanging leg raises) and rotational or isolation work (cable crunches, oblique-focused moves).",
 };
 
@@ -468,20 +465,22 @@ export const buildWeekPrompt = (input: WeekPromptInput): string => {
                 ? "FULL SUCCESS — they completed every prescribed set at or above the prescribed weight and reps. Apply an upward progression increase (see IMPORTANT RULES below for how much)."
                 : perf.weightClassification === "partial_success"
                   ? `PARTIAL SUCCESS — they logged FEWER sets than prescribed, but every set they DID log met or exceeded the prescribed weight and reps (best set: ${perf.weight} lbs x ${perf.reps} reps). This is real evidence they can handle more, just from fewer sets than a full session would prove — apply a smaller upward progression than a full success would get (roughly half the usual increase), not a hold and not a decrease.`
-                : perf.weightClassification === "near_miss"
-                  ? `NEAR MISS — they attempted every set at the full prescribed weight and fell only slightly short on reps, usually just on the last, most fatigued set. This is normal session-to-session variance, not evidence the weight is too heavy. Recommend ${heldWeight} lbs — the SAME weight as last time, giving them another attempt. Do NOT increase, and do NOT decrease.`
-                  : perf.weightClassification === "moderate_miss"
-                    ? `MODERATE MISS — either one earlier (non-final) set fell slightly short, or the final set fell short by a larger margin without collapsing. Not yet clear evidence the weight is too heavy, but not a clean success either. Recommend ${heldWeight} lbs — the SAME weight as last time, giving them another attempt before deciding to reduce it. Do NOT increase, and do NOT decrease.`
-                    : `SIGNIFICANT MISS — a set was skipped, the weight itself was reduced, multiple sets fell meaningfully short, or a set collapsed well under its target. This is real evidence the weight is too heavy right now. Recommend ${perf.fallbackWeight} lbs — a working weight scaled down from their demonstrated 1RM for a full prescription at this rep target.${
-                        perf.provenWeightFloor != null && perf.fallbackWeight < perf.provenWeightFloor && heldWeight > perf.provenWeightFloor
-                          ? ` However, they have previously fully completed this exercise's prescription at ${perf.provenWeightFloor} lbs in an earlier session — NEVER recommend below that proven floor unless this miss happened AT ${perf.provenWeightFloor} lbs itself. Use ${perf.provenWeightFloor} lbs instead of ${perf.fallbackWeight} lbs here.`
-                          : ""
-                      } Do NOT increase, and do NOT simply repeat the weight they failed to sustain.`;
+                  : perf.weightClassification === "near_miss"
+                    ? `NEAR MISS — they attempted every set at the full prescribed weight and fell only slightly short on reps, usually just on the last, most fatigued set. This is normal session-to-session variance, not evidence the weight is too heavy. Recommend ${heldWeight} lbs — the SAME weight as last time, giving them another attempt. Do NOT increase, and do NOT decrease.`
+                    : perf.weightClassification === "moderate_miss"
+                      ? `MODERATE MISS — either one earlier (non-final) set fell slightly short, or the final set fell short by a larger margin without collapsing. Not yet clear evidence the weight is too heavy, but not a clean success either. Recommend ${heldWeight} lbs — the SAME weight as last time, giving them another attempt before deciding to reduce it. Do NOT increase, and do NOT decrease.`
+                      : `SIGNIFICANT MISS — a set was skipped, the weight itself was reduced, multiple sets fell meaningfully short, or a set collapsed well under its target. This is real evidence the weight is too heavy right now. Recommend ${perf.fallbackWeight} lbs — a working weight scaled down from their demonstrated 1RM for a full prescription at this rep target.${
+                          perf.provenWeightFloor != null &&
+                          perf.fallbackWeight < perf.provenWeightFloor &&
+                          heldWeight > perf.provenWeightFloor
+                            ? ` However, they have previously fully completed this exercise's prescription at ${perf.provenWeightFloor} lbs in an earlier session — NEVER recommend below that proven floor unless this miss happened AT ${perf.provenWeightFloor} lbs itself. Use ${perf.provenWeightFloor} lbs instead of ${perf.fallbackWeight} lbs here.`
+                            : ""
+                        } Do NOT increase, and do NOT simply repeat the weight they failed to sustain.`;
 
             return `- User's last logged performance for ${exerciseName}: ${comparisonText}, estimated 1RM: ${perf.estimated1RM} lbs${perf.provenWeightFloor != null ? `, previously fully completed a full prescription at ${perf.provenWeightFloor} lbs (their proven floor for this exercise)` : ""}. ${targetStatus}`;
           })
           .join("\n")
-      : "- No prior logged performance for any allowed exercise. Omit \"recommendedWeight\" for every exercise this week.";
+      : '- No prior logged performance for any allowed exercise. Omit "recommendedWeight" for every exercise this week.';
 
   return `You are an elite strength and conditioning coach. Generate week ${input.weekNumber} of ${input.totalWeeks} of a periodized workout program.
 
