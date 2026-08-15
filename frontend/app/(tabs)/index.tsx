@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   TouchableOpacity,
+  Keyboard,
 } from "react-native";
 import {
   KeyboardAwareScrollView,
@@ -51,6 +52,29 @@ const HomeScreen = () => {
   const [isSavingWorkout, setIsSavingWorkout] = useState(false);
   const workoutLoggerRef = useRef<WorkoutLoggerHandle>(null);
   const scrollViewRef = useRef<KeyboardAwareScrollViewRef>(null);
+  const isWorkoutLoggerModalOpenRef = useRef(isWorkoutLoggerModalOpen);
+  isWorkoutLoggerModalOpenRef.current = isWorkoutLoggerModalOpen;
+
+  // react-native-keyboard-controller's keyboard events are global, so
+  // Home's own KeyboardAwareScrollView reacts to the workout modal's
+  // keyboard too, even though none of Home's own inputs are involved —
+  // its internal scroll-position correction for that (unrelated) keyboard
+  // event can land after ours if we react to modal-close alone, leaving a
+  // stale scroll position (visible as blank space above the "working out
+  // right now" banner). Listening for the keyboard's own hide event and
+  // waiting past its ~250-300ms hide animation lets our reset win the race.
+  // Scoped to only while the workout modal is open so this doesn't fight
+  // the legitimate scroll-into-view behavior for WorkoutDetail's own
+  // inline set-logging inputs, which aren't affected by this bug.
+  useEffect(() => {
+    const subscription = Keyboard.addListener("keyboardDidHide", () => {
+      if (!isWorkoutLoggerModalOpenRef.current) return;
+      setTimeout(() => {
+        scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+      }, 350);
+    });
+    return () => subscription.remove();
+  }, []);
 
   const dispatch = useDispatch<AppDispatch>();
   const pendingWorkoutExercises = useSelector(
