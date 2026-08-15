@@ -1,5 +1,6 @@
 import { View, Text, TouchableOpacity } from "react-native";
 import { Image } from "expo-image";
+import { router } from "expo-router";
 import Feather from "@expo/vector-icons/Feather";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useToggleCommentLike, useDeleteComment } from "@/hooks/usePosts";
@@ -46,9 +47,14 @@ const CommentItem = ({ comment, postId, depth, onReply }: CommentItemProps) => {
           </View>
         )}
         <View style={styles.commentBody}>
-          <Text style={styles.commentUsername}>
-            {comment.author.username ?? "Someone"}
-          </Text>
+          <TouchableOpacity
+            disabled={comment.isOwnComment}
+            onPress={() => router.push(`/user/${comment.author.id}`)}
+          >
+            <Text style={styles.commentUsername}>
+              {comment.author.username ?? "Someone"}
+            </Text>
+          </TouchableOpacity>
           <Text style={styles.commentContent}>{comment.content}</Text>
           <View style={styles.commentActionsRow}>
             <TouchableOpacity

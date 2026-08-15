@@ -25,7 +25,12 @@ import {
 import { usePrograms, useInheritWorkoutDay } from "@/hooks/usePrograms";
 import { useAuthImageHeaders } from "@/hooks/useAuthImageHeaders";
 import { PublicWorkoutLog } from "@/types/user.types";
-import { Program, ProgramWeek, ProgramDay, ProgramExercise } from "@/types/programs.types";
+import {
+  Program,
+  ProgramWeek,
+  ProgramDay,
+  ProgramExercise,
+} from "@/types/programs.types";
 import Toast from "@/components/shared/Toast/Toast";
 import type { AppDispatch } from "@/store";
 import { setPendingWorkout } from "@/store/slices/pendingWorkoutSlice";
@@ -138,7 +143,10 @@ const UserProfileScreen = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={["top", "bottom", "left", "right"]}>
+    <SafeAreaView
+      style={styles.container}
+      edges={["top", "bottom", "left", "right"]}
+    >
       <View style={styles.header}>
         <TouchableOpacity
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
@@ -215,11 +223,19 @@ const UserProfileScreen = () => {
             </View>
           )}
 
-          {tab === "workouts" && isProgramLoading && (
+          {tab === "workouts" && (isProgramLoading || isHistoryLoading) && (
             <ActivityIndicator style={{ marginTop: spacing.md }} />
           )}
 
-          {tab === "workouts" && !isProgramLoading && activeProgram ? (
+          {tab === "workouts" &&
+            !isProgramLoading &&
+            !isHistoryLoading &&
+            !activeProgram &&
+            (!workoutLogs || workoutLogs.length === 0) && (
+              <Text style={styles.emptyText}>No workouts logged yet.</Text>
+            )}
+
+          {tab === "workouts" && !isProgramLoading && activeProgram && (
             <>
               <Text style={styles.sectionLabel}>Current Program</Text>
               <Text style={styles.programName}>{activeProgram.name}</Text>
@@ -302,68 +318,59 @@ const UserProfileScreen = () => {
                 </View>
               ))}
             </>
-          ) : (
-            tab === "workouts" &&
-            !isProgramLoading && (
-              <>
-                <Text style={styles.sectionLabel}>Recent Workouts</Text>
-
-                {isHistoryLoading && (
-                  <ActivityIndicator style={{ marginTop: spacing.md }} />
-                )}
-
-                {!isHistoryLoading &&
-                  workoutLogs &&
-                  workoutLogs.length === 0 && (
-                    <Text style={styles.emptyText}>
-                      No workouts logged yet.
-                    </Text>
-                  )}
-
-                {!isHistoryLoading && workoutLogs && workoutLogs.length > 0 && (
-                  <View style={styles.grid}>
-                    {workoutLogs.map((log: PublicWorkoutLog) => (
-                      <View key={log.id} style={styles.gridCard}>
-                        <View style={styles.cardHeaderRow}>
-                          <Text style={styles.cardTitle}>
-                            {formatLoggedAt(log.loggedAt)}
-                          </Text>
-                          <View style={[styles.badge, styles.badgeActive]}>
-                            <Text
-                              style={[styles.badgeText, styles.badgeTextActive]}
-                            >
-                              {log.exercises.length}{" "}
-                              {log.exercises.length === 1
-                                ? "exercise"
-                                : "exercises"}
-                            </Text>
-                          </View>
-                        </View>
-                        {log.exercises.map((exercise) => (
-                          <View key={exercise.id} style={styles.exerciseBlock}>
-                            <Text
-                              style={styles.exerciseName}
-                              numberOfLines={1}
-                            >
-                              {exercise.exerciseName}
-                            </Text>
-                            <Text style={styles.setSummary} numberOfLines={1}>
-                              {exercise.sets
-                                .map(
-                                  (set) =>
-                                    `${set.weight != null ? `${set.weight}lb×` : ""}${set.reps ?? "-"}`,
-                                )
-                                .join(", ")}
-                            </Text>
-                          </View>
-                        ))}
-                      </View>
-                    ))}
-                  </View>
-                )}
-              </>
-            )
           )}
+
+          {tab === "workouts" &&
+            !isHistoryLoading &&
+            workoutLogs &&
+            workoutLogs.length > 0 && (
+              <>
+                <Text
+                  style={[
+                    styles.sectionLabel,
+                    !!activeProgram && styles.standaloneSectionLabel,
+                  ]}
+                >
+                  {activeProgram ? "Other Logged Workouts" : "Recent Workouts"}
+                </Text>
+                <View style={styles.grid}>
+                  {workoutLogs.map((log: PublicWorkoutLog) => (
+                    <View key={log.id} style={styles.gridCard}>
+                      <View style={styles.cardHeaderRow}>
+                        <Text style={styles.cardTitle}>
+                          {formatLoggedAt(log.loggedAt)}
+                        </Text>
+                        <View style={[styles.badge, styles.badgeActive]}>
+                          <Text
+                            style={[styles.badgeText, styles.badgeTextActive]}
+                          >
+                            {log.exercises.length}{" "}
+                            {log.exercises.length === 1
+                              ? "exercise"
+                              : "exercises"}
+                          </Text>
+                        </View>
+                      </View>
+                      {log.exercises.map((exercise) => (
+                        <View key={exercise.id} style={styles.exerciseBlock}>
+                          <Text style={styles.exerciseName} numberOfLines={1}>
+                            {exercise.exerciseName}
+                          </Text>
+                          <Text style={styles.setSummary} numberOfLines={1}>
+                            {exercise.sets
+                              .map(
+                                (set) =>
+                                  `${set.weight != null ? `${set.weight}lb×` : ""}${set.reps ?? "-"}`,
+                              )
+                              .join(", ")}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  ))}
+                </View>
+              </>
+            )}
         </ScrollView>
       )}
 
@@ -489,6 +496,10 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textTransform: "uppercase",
     letterSpacing: 0.5,
+  },
+  standaloneSectionLabel: {
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
   },
   programName: {
     fontSize: fontSizes.lg,

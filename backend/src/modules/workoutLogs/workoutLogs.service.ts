@@ -217,8 +217,11 @@ const PUBLIC_WORKOUT_HISTORY_LIMIT = 20;
 
 // Shown on another user's public profile (reached from the leaderboard) —
 // gated by the same isLeaderboardVisible/username eligibility as
-// getPublicProfile, and includes every logged workout (program-based or
-// standalone), not just standalone ones like getWorkoutLogsForDate above.
+// getPublicProfile. Standalone-only (same `programExerciseId: null` filter
+// as getWorkoutLogsForDate above) — the profile screen renders this
+// alongside the active-program section (see getPublicActiveProgram), not
+// as a replacement for it, so program-linked logs would otherwise show
+// twice.
 export const getPublicWorkoutHistory = async (targetUserId: string) => {
   const user = await prisma.user.findFirst({
     where: {
@@ -234,7 +237,10 @@ export const getPublicWorkoutHistory = async (targetUserId: string) => {
   }
 
   const workoutLogs = await prisma.workoutLog.findMany({
-    where: { userId: targetUserId },
+    where: {
+      userId: targetUserId,
+      exercises: { every: { programExerciseId: null } },
+    },
     include: { exercises: { include: { sets: true } } },
     orderBy: { loggedAt: "desc" },
     take: PUBLIC_WORKOUT_HISTORY_LIMIT,

@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
+import Purchases from "react-native-purchases";
 import Feather from "@expo/vector-icons/Feather";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -22,11 +23,13 @@ import CityPicker from "@/components/shared/CityPicker/CityPicker";
 import Toast from "@/components/shared/Toast/Toast";
 import DevicesModal from "@/features/DevicesModal/DevicesModal";
 import { useAuth } from "@/hooks/useAuth";
+import { useSubscription } from "@/hooks/useSubscription";
 import {
   useCurrentUser,
   useUpdateProfile,
   useUploadProfileImage,
   useDeleteProfileImage,
+  useDeleteAccount,
 } from "@/hooks/useUsers";
 import { Gender } from "@/types/user.types";
 import { useAuthImageHeaders } from "@/hooks/useAuthImageHeaders";
@@ -51,6 +54,9 @@ const Profile = () => {
     useUploadProfileImage();
   const { mutate: removeImage, isPending: isRemovingImage } =
     useDeleteProfileImage();
+  const { mutate: deleteAccount, isPending: isDeletingAccount } =
+    useDeleteAccount();
+  const { isPro } = useSubscription();
   const authImageHeaders = useAuthImageHeaders();
 
   const [username, setUsername] = useState("");
@@ -197,158 +203,236 @@ const Profile = () => {
     ]);
   };
 
+  // Deleting the account here only removes it from our own backend — an
+  // active App Store/Play subscription is billed by Apple/Google directly
+  // and isn't touched by that at all, so a subscriber has to separately
+  // cancel it themselves or they'll keep being charged. showManageSubscriptions
+  // opens the native subscription-management screen so they can do that
+  // immediately after deleting, instead of needing to know where to find it.
+  const finishAccountDeletion = async () => {
+    await Purchases.logOut().catch(() => {});
+    await logout();
+    router.replace("/(auth)/signin");
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      "Delete your account?",
+      "This permanently deletes your account and everything in it — programs, workout logs, posts, everything. This can't be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete Account",
+          style: "destructive",
+          onPress: () => {
+            deleteAccount(undefined, {
+              onSuccess: () => {
+                if (!isPro) {
+                  finishAccountDeletion();
+                  return;
+                }
+                Alert.alert(
+                  "Cancel your subscription",
+                  "Your account is deleted, but your subscription is billed through the App Store/Play Store separately, so this doesn't cancel it — you'll keep being charged unless you cancel it yourself. Open subscription settings now?",
+                  [
+                    { text: "Later", onPress: finishAccountDeletion },
+                    {
+                      text: "Open Subscription Settings",
+                      onPress: async () => {
+                        await Purchases.showManageSubscriptions().catch(
+                          () => {},
+                        );
+                        finishAccountDeletion();
+                      },
+                    },
+                  ],
+                );
+              },
+              onError: () => {
+                Alert.alert(
+                  "Couldn't delete account",
+                  "Something went wrong — try again.",
+                );
+              },
+            });
+          },
+        },
+      ],
+    );
+  };
+
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <SafeAreaView style={styles.container} edges={["bottom", "left", "right"]}>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
+      <SafeAreaView
+        style={styles.container}
+        edges={["bottom", "left", "right"]}
+      >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
           <Text style={styles.title}>Profile</Text>
 
-        <View style={styles.avatarSection}>
-          {currentUser?.profileImageUrl && authImageHeaders ? (
-            <Image
-              source={{
-                uri: `${process.env.EXPO_PUBLIC_API_URL}${currentUser.profileImageUrl}`,
-                headers: authImageHeaders,
-              }}
-              style={styles.avatar}
-            />
-          ) : (
-            <View style={styles.avatarPlaceholder}>
-              <Feather name="user" size={32} color={colors.textSecondary} />
-            </View>
-          )}
+          <View style={styles.avatarSection}>
+            {currentUser?.profileImageUrl && authImageHeaders ? (
+              <Image
+                source={{
+                  uri: `${process.env.EXPO_PUBLIC_API_URL}${currentUser.profileImageUrl}`,
+                  headers: authImageHeaders,
+                }}
+                style={styles.avatar}
+              />
+            ) : (
+              <View style={styles.avatarPlaceholder}>
+                <Feather name="user" size={32} color={colors.textSecondary} />
+              </View>
+            )}
 
-          <View style={styles.avatarActions}>
-            <TouchableOpacity
-              onPress={handlePickImage}
-              disabled={isUploadingImage}
-            >
-              <Text style={styles.avatarActionText}>
-                {isUploadingImage
-                  ? "Uploading..."
-                  : currentUser?.profileImageUrl
-                    ? "Change Photo"
-                    : "Add Photo"}
-              </Text>
-            </TouchableOpacity>
-            {currentUser?.profileImageUrl && (
+            <View style={styles.avatarActions}>
               <TouchableOpacity
-                onPress={handleRemoveImage}
-                disabled={isRemovingImage}
+                onPress={handlePickImage}
+                disabled={isUploadingImage}
               >
-                <Text style={styles.avatarRemoveText}>
-                  {isRemovingImage ? "Removing..." : "Remove Photo"}
+                <Text style={styles.avatarActionText}>
+                  {isUploadingImage
+                    ? "Uploading..."
+                    : currentUser?.profileImageUrl
+                      ? "Change Photo"
+                      : "Add Photo"}
                 </Text>
               </TouchableOpacity>
-            )}
+              {currentUser?.profileImageUrl && (
+                <TouchableOpacity
+                  onPress={handleRemoveImage}
+                  disabled={isRemovingImage}
+                >
+                  <Text style={styles.avatarRemoveText}>
+                    {isRemovingImage ? "Removing..." : "Remove Photo"}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
-        </View>
 
-        <Text style={styles.sectionLabel}>Leaderboard identity</Text>
-        <Text style={styles.sectionSubtext}>
-          Set a username and city to appear on the leaderboard and compare
-          your lifts against other users.
-        </Text>
-
-        <Input
-          label="Username"
-          placeholder="Choose a username"
-          value={username}
-          onChangeText={setUsername}
-          autoCapitalize="none"
-          error={usernameError}
-        />
-
-        <View style={styles.fieldSpacer}>
-          <Text style={styles.fieldLabel}>City</Text>
-          <CityPicker selectedCity={city} setSelectedCity={setCity} />
-        </View>
-
-        <View style={styles.fieldSpacer}>
-          <Text style={styles.fieldLabel}>Gender</Text>
-          <Text style={styles.fieldHint}>
-            Used to show you on the Men's or Women's leaderboard.
+          <Text style={styles.sectionLabel}>Leaderboard identity</Text>
+          <Text style={styles.sectionSubtext}>
+            Set a username and city to appear on the leaderboard and compare
+            your lifts against other users.
           </Text>
-          <View style={styles.genderRow}>
-            <TouchableOpacity
-              style={[
-                styles.genderOption,
-                gender === "male" && styles.genderOptionActive,
-              ]}
-              onPress={() => setGender("male")}
-            >
-              <Text
-                style={[
-                  styles.genderOptionText,
-                  gender === "male" && styles.genderOptionTextActive,
-                ]}
-              >
-                Male
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.genderOption,
-                gender === "female" && styles.genderOptionActive,
-              ]}
-              onPress={() => setGender("female")}
-            >
-              <Text
-                style={[
-                  styles.genderOptionText,
-                  gender === "female" && styles.genderOptionTextActive,
-                ]}
-              >
-                Female
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
 
-        <View style={styles.switchRow}>
-          <View style={styles.switchTextGroup}>
-            <Text style={styles.switchLabel}>Show me on leaderboards</Text>
-            <Text style={styles.switchSubtext}>
-              Turn this off to hide your username and lifts from everyone
-              else's leaderboard.
-            </Text>
-          </View>
-          <Switch
-            value={isLeaderboardVisible}
-            onValueChange={setIsLeaderboardVisible}
-            trackColor={{ false: colors.lightGray, true: colors.primaryBlue }}
-            thumbColor="white"
+          <Input
+            label="Username"
+            placeholder="Choose a username"
+            value={username}
+            onChangeText={setUsername}
+            autoCapitalize="none"
+            error={usernameError}
           />
-        </View>
 
-        <TouchableOpacity
-          style={styles.switchRow}
-          onPress={() => setIsDevicesModalVisible(true)}
-        >
-          <View style={styles.switchTextGroup}>
-            <Text style={styles.switchLabel}>Devices</Text>
-            <Text style={styles.switchSubtext}>
-              {healthKitStatus === "connected"
-                ? "Apple Health connected — manage other devices"
-                : healthKitStatus === "unavailable"
-                  ? "Connect your health devices"
-                  : "Connect Apple Health and other health devices"}
-            </Text>
+          <View style={styles.fieldSpacer}>
+            <Text style={styles.fieldLabel}>City</Text>
+            <CityPicker selectedCity={city} setSelectedCity={setCity} />
           </View>
-          <Feather name="chevron-right" size={20} color={colors.textSecondary} />
-        </TouchableOpacity>
 
-        <View style={styles.buttonContainer}>
-          <Button
-            title={isLoading ? "SIGNING OUT..." : "SIGN OUT"}
-            backgroundColor={colors.dangerRed}
-            onPress={handleSignOut}
-            disabled={isLoading}
-          />
-        </View>
+          <View style={styles.fieldSpacer}>
+            <Text style={styles.fieldLabel}>Gender</Text>
+            <Text style={styles.fieldHint}>
+              Used to show you on the Men's or Women's leaderboard.
+            </Text>
+            <View style={styles.genderRow}>
+              <TouchableOpacity
+                style={[
+                  styles.genderOption,
+                  gender === "male" && styles.genderOptionActive,
+                ]}
+                onPress={() => setGender("male")}
+              >
+                <Text
+                  style={[
+                    styles.genderOptionText,
+                    gender === "male" && styles.genderOptionTextActive,
+                  ]}
+                >
+                  Male
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.genderOption,
+                  gender === "female" && styles.genderOptionActive,
+                ]}
+                onPress={() => setGender("female")}
+              >
+                <Text
+                  style={[
+                    styles.genderOptionText,
+                    gender === "female" && styles.genderOptionTextActive,
+                  ]}
+                >
+                  Female
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.switchRow}>
+            <View style={styles.switchTextGroup}>
+              <Text style={styles.switchLabel}>Show me on leaderboards</Text>
+              <Text style={styles.switchSubtext}>
+                Turn this off to hide your username and lifts from everyone
+                else's leaderboard.
+              </Text>
+            </View>
+            <Switch
+              value={isLeaderboardVisible}
+              onValueChange={setIsLeaderboardVisible}
+              trackColor={{ false: colors.lightGray, true: colors.primaryBlue }}
+              thumbColor="white"
+            />
+          </View>
+
+          <TouchableOpacity
+            style={styles.switchRow}
+            onPress={() => setIsDevicesModalVisible(true)}
+          >
+            <View style={styles.switchTextGroup}>
+              <Text style={styles.switchLabel}>Devices</Text>
+              <Text style={styles.switchSubtext}>
+                {healthKitStatus === "connected"
+                  ? "Apple Health connected — manage other devices"
+                  : healthKitStatus === "unavailable"
+                    ? "Connect your health devices"
+                    : "Connect Apple Health and other health devices"}
+              </Text>
+            </View>
+            <Feather
+              name="chevron-right"
+              size={20}
+              color={colors.textSecondary}
+            />
+          </TouchableOpacity>
+
+          <View style={styles.buttonContainer}>
+            <Button
+              title={isLoading ? "SIGNING OUT..." : "SIGN OUT"}
+              backgroundColor={colors.dangerRed}
+              onPress={handleSignOut}
+              disabled={isLoading}
+            />
+          </View>
+
+          <TouchableOpacity
+            style={styles.deleteAccountButton}
+            onPress={handleDeleteAccount}
+            disabled={isDeletingAccount}
+          >
+            <Text style={styles.deleteAccountText}>
+              {isDeletingAccount ? "Deleting Account..." : "Delete Account"}
+            </Text>
+          </TouchableOpacity>
         </ScrollView>
         {isDirty && (
           <TouchableOpacity
@@ -527,5 +611,16 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     marginTop: spacing.xl,
+  },
+  deleteAccountButton: {
+    alignItems: "center",
+    marginTop: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  deleteAccountText: {
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.semibold,
+    color: colors.dangerRed,
+    textDecorationLine: "underline",
   },
 });

@@ -8,6 +8,7 @@ import {
   Alert,
 } from "react-native";
 import { Image } from "expo-image";
+import { router } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
 import Feather from "@expo/vector-icons/Feather";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -46,8 +47,14 @@ const FeedVideo = ({ uri }: { uri: string }) => {
 
 const Feed = () => {
   const authImageHeaders = useAuthImageHeaders();
-  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage, refetch } =
-    useFeed();
+  const {
+    data,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    refetch,
+  } = useFeed();
   const { mutate: deletePost } = useDeletePost();
   const { mutate: toggleLike } = useToggleLike();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -96,12 +103,16 @@ const Feed = () => {
             <Feather name="user" size={14} color={colors.textSecondary} />
           </View>
         )}
-        <View style={styles.postHeaderText}>
+        <TouchableOpacity
+          style={styles.postHeaderText}
+          disabled={item.isOwnPost}
+          onPress={() => router.push(`/user/${item.author.id}`)}
+        >
           <Text style={styles.username}>
             {item.author.username ?? "Someone"}
           </Text>
           <Text style={styles.postDate}>{formatPostDate(item.createdAt)}</Text>
-        </View>
+        </TouchableOpacity>
         {item.isOwnPost && (
           <TouchableOpacity onPress={() => handleDelete(item)}>
             <Feather name="trash-2" size={16} color={colors.dangerRed} />
@@ -136,7 +147,9 @@ const Feed = () => {
           <Ionicons
             name={item.isLikedByViewer ? "heart" : "heart-outline"}
             size={18}
-            color={item.isLikedByViewer ? colors.dangerRed : colors.textSecondary}
+            color={
+              item.isLikedByViewer ? colors.dangerRed : colors.textSecondary
+            }
           />
           <Text style={styles.actionText}>{item.likeCount}</Text>
         </TouchableOpacity>

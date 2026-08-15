@@ -48,9 +48,7 @@ export const updatePushToken = async (input: {
   await apiClient.patch("/api/users/me/push-token", input);
 };
 
-export const uploadProfileImage = async (
-  uri: string,
-): Promise<UserProfile> => {
+export const uploadProfileImage = async (uri: string): Promise<UserProfile> => {
   const formData = new FormData();
   formData.append("image", {
     uri,
@@ -69,4 +67,8 @@ export const uploadProfileImage = async (
 export const deleteProfileImage = async (): Promise<UserProfile> => {
   const { data } = await apiClient.delete("/api/users/me/profile-image");
   return data.result.user;
+};
+
+export const deleteAccount = async (): Promise<void> => {
+  await apiClient.delete("/api/users/me");
 };

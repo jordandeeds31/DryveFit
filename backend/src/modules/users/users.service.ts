@@ -1,5 +1,6 @@
 import sharp from "sharp";
 import prisma from "../../lib/prisma";
+import cloudinary from "../../lib/cloudinary";
 import AppError from "../../utils/AppError";
 import { isValidCity } from "../../constants/cities";
 
@@ -171,6 +172,35 @@ export const deleteProfileImage = async (userId: string) => {
   });
 
   return toProfileResponse(user);
+};
+
+// Every other User-owned table (programs, workout logs, posts, cardio
+// sessions, chat, food log, trainer, likes/comments) cascades on
+// prisma.user.delete via its own onDelete: Cascade FK — the only thing
+// that DOESN'T cascade is the actual Cloudinary-hosted media behind each
+// post (profile images are stored as DB bytes, so those go with the row).
+// Cleaned up best-effort, same as deletePost — an orphaned Cloudinary
+// asset is recoverable manually, a half-deleted account isn't.
+export const deleteUserAccount = async (userId: string) => {
+  const posts = await prisma.post.findMany({
+    where: { userId, mediaPublicId: { not: null } },
+    select: { mediaPublicId: true, mediaType: true },
+  });
+
+  await prisma.user.delete({ where: { id: userId } });
+
+  for (const post of posts) {
+    cloudinary.uploader
+      .destroy(post.mediaPublicId!, {
+        resource_type: post.mediaType === "video" ? "video" : "image",
+      })
+      .catch((err) => {
+        console.warn(
+          `Failed to delete Cloudinary asset ${post.mediaPublicId}:`,
+          err,
+        );
+      });
+  }
 };
 
 export const getProfileImage = async (userId: string) => {

@@ -11,6 +11,7 @@ import {
   deleteProfileImage,
   getProfileImage,
   getPublicProfile,
+  deleteUserAccount,
 } from "./users.service";
 import { getPublicWorkoutHistory } from "../workoutLogs/workoutLogs.service";
 import { getPublicActiveProgram } from "../programs/programs.service";
@@ -32,6 +33,13 @@ export const updateMeHandler = catchAsync(
       isLeaderboardVisible,
     });
     sendSuccess(res, 200, "USER_PROFILE_UPDATED", { user });
+  },
+);
+
+export const deleteMeHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    await deleteUserAccount(req.userId!);
+    sendSuccess(res, 200, "USER_DELETED", { message: "Account deleted" });
   },
 );
 

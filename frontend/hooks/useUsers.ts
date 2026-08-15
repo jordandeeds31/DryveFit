@@ -4,6 +4,7 @@ import {
   updateProfile,
   uploadProfileImage,
   deleteProfileImage,
+  deleteAccount,
   getPublicProfile,
   getPublicWorkoutHistory,
   getPublicActiveProgram,
@@ -76,5 +77,14 @@ export const useDeleteProfileImage = () => {
       queryClient.invalidateQueries({ queryKey: ["currentUser"] });
       queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
     },
+  });
+};
+
+// No cache invalidation on success — the caller logs the user out and
+// navigates to signin right after, at which point every cached query for
+// this account is about to be torn down anyway.
+export const useDeleteAccount = () => {
+  return useMutation({
+    mutationFn: deleteAccount,
   });
 };
