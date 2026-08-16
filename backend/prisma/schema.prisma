@@ -51,13 +51,15 @@ model User {
   postLikes                 PostLike[]
   postComments              PostComment[]
   commentLikes              CommentLike[]
+  notificationsReceived     Notification[]  @relation("NotificationRecipient")
+  notificationsSent         Notification[]  @relation("NotificationActor")
 
   @@index([city])
   @@map("users")
 }
 
 model Post {
-  id            String        @id @default(uuid())
+  id            String         @id @default(uuid())
   userId        String
   // Both optional, but the service layer requires at least one — a post
   // can be a caption-only text post, an image-only post, or both.
@@ -76,10 +78,11 @@ model Post {
   // unlinked from this row (leaving it billed/counted against quota
   // forever).
   mediaPublicId String?
-  createdAt     DateTime      @default(now())
-  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt     DateTime       @default(now())
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   likes         PostLike[]
   comments      PostComment[]
+  notifications Notification[]
 
   @@index([createdAt])
   @@map("posts")
@@ -100,22 +103,23 @@ model PostLike {
 }
 
 model PostComment {
-  id        String        @id @default(uuid())
-  postId    String
-  userId    String
-  content   String
+  id            String         @id @default(uuid())
+  postId        String
+  userId        String
+  content       String
   // Null for a top-level comment on the post; set for a reply to another
   // comment. Self-referential with no depth limit — replies can reply to
   // replies indefinitely (see getComments in posts.service.ts, which
   // fetches the flat list and builds the tree in application code rather
   // than recursive queries).
-  parentId  String?
-  createdAt DateTime      @default(now())
-  post      Post          @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  parent    PostComment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
-  replies   PostComment[] @relation("CommentReplies")
-  likes     CommentLike[]
+  parentId      String?
+  createdAt     DateTime       @default(now())
+  post          Post           @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent        PostComment?   @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies       PostComment[]  @relation("CommentReplies")
+  likes         CommentLike[]
+  notifications Notification[]
 
   @@index([postId, createdAt])
   @@index([parentId])
@@ -132,6 +136,32 @@ model CommentLike {
 
   @@unique([commentId, userId])
   @@map("comment_likes")
+}
+
+model Notification {
+  id        String       @id @default(uuid())
+  userId    String
+  // Who performed the action that triggered this notification (the
+  // liker) — kept separate from userId (the recipient, the post's owner)
+  // since they're almost always different people.
+  actorId   String
+  // "post_like" | "post_comment" today, but a string (not an enum) so
+  // future notification types (follows, ...) don't need a migration.
+  type      String
+  postId    String?
+  // Set for "post_comment" only — which comment (or reply) triggered
+  // this, so the notification can drop the recipient straight into
+  // replying to that specific comment instead of just the post's thread.
+  commentId String?
+  isRead    Boolean      @default(false)
+  createdAt DateTime     @default(now())
+  user      User         @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  actor     User         @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade)
+  post      Post?        @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment   PostComment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("notifications")
 }
 
 model FoodLogEntry {

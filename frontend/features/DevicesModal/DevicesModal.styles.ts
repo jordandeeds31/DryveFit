@@ -50,11 +50,6 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.xs,
     color: colors.textSecondary,
   },
-  connectText: {
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.semibold,
-    color: colors.primaryBlue,
-  },
   comingSoonText: {
     fontSize: fontSizes.xs,
     fontWeight: fontWeights.semibold,

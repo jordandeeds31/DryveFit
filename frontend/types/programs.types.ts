@@ -41,6 +41,12 @@ export type TrainingGoal = (typeof TRAINING_GOALS)[number];
 export interface CreateProgramPayload {
   description?: string;
   startDate: string;
+  // The device's own current local date (YYYY-MM-DD) — the "cannot start
+  // in the past" check on the backend uses this instead of computing "now"
+  // itself, since the server's own clock/timezone (Render runs UTC) can
+  // disagree with the user's local calendar date by a full day in the
+  // evening in timezones behind UTC, incorrectly rejecting "today."
+  todayDateKey: string;
   preferredDays: string[];
   trainingSplit: TrainingSplit;
   sessionMinutes: number;

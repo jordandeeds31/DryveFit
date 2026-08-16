@@ -12,6 +12,8 @@ import {
   getPublicProfileHandler,
   getPublicWorkoutHistoryHandler,
   getPublicActiveProgramHandler,
+  getPublicNutritionHistoryHandler,
+  getPublicPostsHandler,
 } from "./users.controller";
 
 const upload = multer({
@@ -37,5 +39,7 @@ router.get("/:userId/profile-image", getProfileImageHandler);
 router.get("/:userId/public-profile", getPublicProfileHandler);
 router.get("/:userId/workouts", getPublicWorkoutHistoryHandler);
 router.get("/:userId/active-program", getPublicActiveProgramHandler);
+router.get("/:userId/nutrition", getPublicNutritionHistoryHandler);
+router.get("/:userId/posts", getPublicPostsHandler);
 
 export default router;

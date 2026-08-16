@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   Alert,
-  Switch,
   ScrollView,
   TouchableOpacity,
   Platform,
@@ -18,6 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import Button from "@/components/shared/Button/Button";
+import Switch from "@/components/shared/Switch/Switch";
 import Input from "@/components/shared/TextInput/TextInput";
 import CityPicker from "@/components/shared/CityPicker/CityPicker";
 import Toast from "@/components/shared/Toast/Toast";
@@ -37,6 +37,7 @@ import {
   isHealthKitAvailable,
   hasCompletedHealthKitConnect,
   requestHealthKitAuthorization,
+  disconnectHealthKit,
 } from "@/lib/health/healthkit";
 import { colors } from "@/constants/colors";
 import { spacing } from "@/constants/spacing";
@@ -187,6 +188,12 @@ const Profile = () => {
     }
     setHealthKitStatus("connected");
     setToastMessage("Apple Health connected");
+  };
+
+  const handleDisconnectHealthKit = async () => {
+    await disconnectHealthKit();
+    setHealthKitStatus("not_connected");
+    setToastMessage("Apple Health turned off");
   };
 
   const handleSignOut = () => {
@@ -389,10 +396,25 @@ const Profile = () => {
             <Switch
               value={isLeaderboardVisible}
               onValueChange={setIsLeaderboardVisible}
-              trackColor={{ false: colors.lightGray, true: colors.primaryBlue }}
-              thumbColor="white"
             />
           </View>
+
+          <TouchableOpacity
+            style={styles.switchRow}
+            onPress={() => router.push("/(tabs)/Programs")}
+          >
+            <View style={styles.switchTextGroup}>
+              <Text style={styles.switchLabel}>Programs</Text>
+              <Text style={styles.switchSubtext}>
+                View and manage all your training programs
+              </Text>
+            </View>
+            <Feather
+              name="chevron-right"
+              size={20}
+              color={colors.textSecondary}
+            />
+          </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.switchRow}
@@ -456,6 +478,7 @@ const Profile = () => {
           healthKitStatus={healthKitStatus}
           isConnectingHealthKit={isConnectingHealthKit}
           onConnectHealthKit={handleConnectHealthKit}
+          onDisconnectHealthKit={handleDisconnectHealthKit}
         />
       </SafeAreaView>
     </KeyboardAvoidingView>

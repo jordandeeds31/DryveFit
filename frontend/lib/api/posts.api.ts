@@ -8,6 +8,11 @@ export const getFeed = async (cursor?: string): Promise<FeedPage> => {
   return data.result;
 };
 
+export const getPost = async (postId: string): Promise<Post> => {
+  const { data } = await apiClient.get(`/api/posts/${postId}`);
+  return data.result.post;
+};
+
 export const createPost = async (input: {
   caption?: string;
   mediaUri?: string;

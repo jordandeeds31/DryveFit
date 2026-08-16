@@ -43,6 +43,7 @@ export const createProgramHandler = catchAsync(
     const {
       description,
       startDate,
+      todayDateKey,
       preferredDays,
       trainingSplit,
       sessionMinutes,
@@ -51,12 +52,17 @@ export const createProgramHandler = catchAsync(
       trainingGoal,
     } = req.body;
 
+    if (typeof todayDateKey !== "string") {
+      throw new AppError(400, "todayDateKey is required");
+    }
+
     const parsedStartDate = normalizeToLocalMidnight(new Date(startDate));
 
     const program = await createProgram({
       userId: req.userId!,
       description,
       startDate: parsedStartDate,
+      todayDateKey,
       daysPerWeek: preferredDays.length,
       preferredDays,
       trainingSplit: trainingSplit as TrainingSplit,

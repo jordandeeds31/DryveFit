@@ -130,17 +130,45 @@ const HomeScreen = () => {
     ? startOfDay(getWeekDates(earliestProgramStartDate)[0])
     : null;
 
+  // Standalone workout logs can predate every program (or exist when the
+  // user has none at all) — the boundary needs to reach back to those
+  // weeks too, or a workout logged outside a program becomes unreachable.
+  // entry.date is a "YYYY-MM-DD" key, parsed from components (not `new
+  // Date(str)`) since that string is a UTC-midnight ISO date and local
+  // getters on it can roll the calendar day back a day west of UTC.
+  const earliestStandaloneLogDate = (schedule ?? []).reduce(
+    (earliest: Date | null, entry) => {
+      if (!entry.hasStandaloneLog) return earliest;
+      const [year, month, day] = entry.date.split("-").map(Number);
+      const entryDate = new Date(year, month - 1, day);
+      return !earliest || entryDate.getTime() < earliest.getTime()
+        ? entryDate
+        : earliest;
+    },
+    null,
+  );
+
+  const earliestStandaloneWeekStart = earliestStandaloneLogDate
+    ? startOfDay(getWeekDates(earliestStandaloneLogDate)[0])
+    : null;
+
   // The user should always be able to page back at least as far as the
   // week containing today — e.g. to check a standalone-logged workout from
   // earlier in the week — even if every program they have starts later
   // (viewing a future program's first week shouldn't trap them there). A
-  // program that started earlier than today can still push the boundary
-  // back further, so take whichever of the two is earlier.
+  // program, or a standalone log, that predates today can still push the
+  // boundary back further, so take whichever of the three is earliest.
   const todayWeekStart = startOfDay(getWeekDates(new Date())[0]);
-  const earliestAllowedWeekStart =
-    earliestWeekStart && earliestWeekStart.getTime() < todayWeekStart.getTime()
-      ? earliestWeekStart
-      : todayWeekStart;
+  const earliestAllowedWeekStart = [
+    earliestWeekStart,
+    earliestStandaloneWeekStart,
+  ].reduce<Date>(
+    (earliest, candidate) =>
+      candidate && candidate.getTime() < earliest.getTime()
+        ? candidate
+        : earliest,
+    todayWeekStart,
+  );
 
   const canGoToPreviousWeek =
     startOfDay(weekDates[0]).getTime() > earliestAllowedWeekStart.getTime();

@@ -13,6 +13,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useQueryClient } from "@tanstack/react-query";
 import Feather from "@expo/vector-icons/Feather";
 import Modal from "@/components/shared/Modal/Modal";
+import AnimatedProgressBar from "@/components/shared/AnimatedProgressBar/AnimatedProgressBar";
 import NutritionCalendar from "@/features/NutritionCalendar/NutritionCalendar";
 import NutritionSetup from "@/features/NutritionSetup/NutritionSetup";
 import {
@@ -67,24 +68,18 @@ const MacroBar = ({
           {goal > 0 ? ` / ${goal}g` : "g"}
         </Text>
       </View>
-      <View style={styles.progressTrack}>
-        <View
-          style={[
-            styles.progressFill,
-            { width: `${percent}%`, backgroundColor: color },
-          ]}
-        />
-      </View>
+      <AnimatedProgressBar percent={percent} color={color} />
     </View>
   );
 };
 
-const CALORIE_STATUS_LABELS: Record<DailyRecap["calories"]["status"], string> = {
-  under: "under target",
-  on_target: "on target",
-  over: "over target",
-  unknown: "no goal set",
-};
+const CALORIE_STATUS_LABELS: Record<DailyRecap["calories"]["status"], string> =
+  {
+    under: "under target",
+    on_target: "on target",
+    over: "over target",
+    unknown: "no goal set",
+  };
 
 // Mirrors exactly what the backend's `supportsMuscleGain` boolean checks,
 // in the same order, so whichever condition this returns first is
@@ -202,7 +197,9 @@ const NutritionScreen = () => {
     goal && goal.calories > 0
       ? Math.min(100, (totals.calories / goal.calories) * 100)
       : 0;
-  const caloriesRemaining = goal ? Math.max(0, goal.calories - totals.calories) : 0;
+  const caloriesRemaining = goal
+    ? Math.max(0, goal.calories - totals.calories)
+    : 0;
 
   return (
     <SafeAreaView style={styles.container} edges={["bottom", "left", "right"]}>
@@ -224,9 +221,14 @@ const NutritionScreen = () => {
               style={styles.recapButton}
               onPress={() => setIsRecapOpen(true)}
             >
-              <Feather name="bar-chart-2" size={14} color={colors.primaryBlue} />
+              <Feather
+                name="bar-chart-2"
+                size={14}
+                color={colors.primaryBlue}
+              />
               <Text style={styles.recapButtonText}>
-                {isSameDay(selectedDate, new Date()) ? "Today's" : "Day's"} Recap
+                {isSameDay(selectedDate, new Date()) ? "Today's" : "Day's"}{" "}
+                Recap
               </Text>
             </TouchableOpacity>
           </View>
@@ -260,14 +262,10 @@ const NutritionScreen = () => {
                 <Feather name="edit-2" size={14} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
-            <View style={styles.progressTrack}>
-              <View
-                style={[
-                  styles.progressFill,
-                  { width: `${caloriePercent}%`, backgroundColor: colors.primaryBlue },
-                ]}
-              />
-            </View>
+            <AnimatedProgressBar
+              percent={caloriePercent}
+              color={colors.primaryBlue}
+            />
             <Text style={styles.remainingText}>
               {caloriesRemaining} cal remaining
             </Text>
@@ -349,7 +347,6 @@ const NutritionScreen = () => {
             );
           })
         )}
-
       </ScrollView>
 
       {recap && (
@@ -368,7 +365,11 @@ const NutritionScreen = () => {
           </View>
 
           <View style={styles.recapRow}>
-            <Feather name="trending-up" size={16} color={colors.textSecondary} />
+            <Feather
+              name="trending-up"
+              size={16}
+              color={colors.textSecondary}
+            />
             <Text style={styles.recapRowText}>
               {Math.round(recap.protein.actualG)}g protein
               {recap.protein.goalG != null
@@ -409,9 +410,8 @@ const NutritionScreen = () => {
 
           <Text style={styles.recapDisclaimer}>
             A same-day check on whether training and nutrition lined up — not
-            proof muscle was gained. That only shows up over weeks of
-            consistent training and eating, and only via real body
-            measurement.
+            proof muscle was gained. That only shows up over weeks of consistent
+            training and eating, and only via real body measurement.
           </Text>
         </Modal>
       )}
@@ -479,17 +479,6 @@ const styles = StyleSheet.create({
   editGoalButton: {
     marginLeft: "auto",
     padding: spacing.xs,
-  },
-  progressTrack: {
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.lightGray,
-    marginTop: spacing.sm,
-    overflow: "hidden",
-  },
-  progressFill: {
-    height: "100%",
-    borderRadius: 4,
   },
   remainingText: {
     fontSize: fontSizes.xs,

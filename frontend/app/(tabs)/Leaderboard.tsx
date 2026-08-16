@@ -142,8 +142,7 @@ const LeaderboardScreen = () => {
         {mode === "lifting" && (
         <>
         <Text style={styles.subtitle}>
-          See how your estimated one-rep max for an exercise stacks up
-          against other users. Pick an exercise below to get started.
+          Compare your estimated one-rep max to others.
         </Text>
         {scopeLabel && <Text style={styles.scopeLabel}>{scopeLabel}</Text>}
 

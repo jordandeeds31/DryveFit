@@ -3,6 +3,7 @@ import { UploadApiErrorResponse, UploadApiResponse } from "cloudinary";
 import prisma from "../../lib/prisma";
 import cloudinary from "../../lib/cloudinary";
 import AppError from "../../utils/AppError";
+import { createNotification } from "../notifications/notifications.service";
 
 const FEED_PAGE_SIZE = 20;
 
@@ -155,6 +156,23 @@ export const createPost = async ({
   return toPostResponse(post, userId);
 };
 
+// Backs the standalone post detail screen (reached by tapping a post's
+// image/caption, as opposed to tapping the author's name, which goes to
+// their profile instead) — no extra visibility gating beyond auth, same
+// as the feed itself already has none.
+export const getPostById = async (viewerId: string, postId: string) => {
+  const post = await prisma.post.findUnique({
+    where: { id: postId },
+    select: getPostSelect(viewerId),
+  });
+
+  if (!post) {
+    throw new AppError(404, "Post not found");
+  }
+
+  return toPostResponse(post, viewerId);
+};
+
 export const getFeed = async (viewerId: string, cursor?: string) => {
   const posts = await prisma.post.findMany({
     select: getPostSelect(viewerId),
@@ -170,6 +188,40 @@ export const getFeed = async (viewerId: string, cursor?: string) => {
     posts: page.map((post) => toPostResponse(post, viewerId)),
     nextCursor: hasMore ? page[page.length - 1].id : null,
   };
+};
+
+const PUBLIC_POSTS_LIMIT = 20;
+
+// Shown on another user's public profile's Social tab — gated by the same
+// isLeaderboardVisible/username eligibility as getPublicProfile. Uses
+// viewerId (not targetUserId) for getPostSelect/toPostResponse so
+// isLikedByViewer/isOwnPost reflect whoever is looking, same as the main
+// feed — not whether the profile owner liked their own posts.
+export const getPublicPostsByUser = async (
+  viewerId: string,
+  targetUserId: string,
+) => {
+  const user = await prisma.user.findFirst({
+    where: {
+      id: targetUserId,
+      isLeaderboardVisible: true,
+      username: { not: null },
+    },
+    select: { id: true },
+  });
+
+  if (!user) {
+    throw new AppError(404, "Profile not found");
+  }
+
+  const posts = await prisma.post.findMany({
+    where: { userId: targetUserId },
+    select: getPostSelect(viewerId),
+    orderBy: { createdAt: "desc" },
+    take: PUBLIC_POSTS_LIMIT,
+  });
+
+  return posts.map((post) => toPostResponse(post, viewerId));
 };
 
 export const deletePost = async (userId: string, postId: string) => {
@@ -208,20 +260,31 @@ export const deletePost = async (userId: string, postId: string) => {
 export const likePost = async (userId: string, postId: string) => {
   const post = await prisma.post.findUnique({
     where: { id: postId },
-    select: { id: true },
+    select: { id: true, userId: true },
   });
 
   if (!post) {
     throw new AppError(404, "Post not found");
   }
 
-  // Idempotent — the frontend just toggles based on its own last-known
-  // state, so liking an already-liked post should succeed silently rather
-  // than erroring on the unique constraint.
-  await prisma.postLike.upsert({
+  // Checked separately (rather than relying on upsert's create/update
+  // branches) so a genuinely new like — and only a genuinely new one —
+  // triggers a notification below; re-liking an already-liked post stays
+  // idempotent and silent, same as before.
+  const existingLike = await prisma.postLike.findUnique({
     where: { postId_userId: { postId, userId } },
-    create: { postId, userId },
-    update: {},
+    select: { id: true },
+  });
+
+  if (existingLike) return;
+
+  await prisma.postLike.create({ data: { postId, userId } });
+
+  await createNotification({
+    userId: post.userId,
+    actorId: userId,
+    type: "post_like",
+    postId,
   });
 };
 
@@ -338,7 +401,7 @@ export const addComment = async (
 
   const post = await prisma.post.findUnique({
     where: { id: postId },
-    select: { id: true },
+    select: { id: true, userId: true },
   });
 
   if (!post) {
@@ -361,6 +424,14 @@ export const addComment = async (
   const comment = await prisma.postComment.create({
     data: { postId, userId, content: trimmed, parentId: parentId ?? null },
     select: getCommentSelect(userId),
+  });
+
+  await createNotification({
+    userId: post.userId,
+    actorId: userId,
+    type: "post_comment",
+    postId,
+    commentId: comment.id,
   });
 
   return toCommentNode(comment, userId);

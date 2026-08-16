@@ -10,9 +10,11 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
+import { useVideoPlayer, VideoView } from "expo-video";
 import { router, useLocalSearchParams } from "expo-router";
 import { useDispatch } from "react-redux";
 import Feather from "@expo/vector-icons/Feather";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { spacing } from "@/constants/spacing";
 import { colors } from "@/constants/colors";
 import { fontSizes, fontWeights } from "@/constants/typography";
@@ -21,16 +23,25 @@ import {
   usePublicProfile,
   usePublicWorkoutHistory,
   usePublicActiveProgram,
+  usePublicNutritionHistory,
+  usePublicPosts,
 } from "@/hooks/useUsers";
 import { usePrograms, useInheritWorkoutDay } from "@/hooks/usePrograms";
 import { useAuthImageHeaders } from "@/hooks/useAuthImageHeaders";
-import { PublicWorkoutLog } from "@/types/user.types";
+import { ensureProAccess } from "@/lib/purchases/requirePro";
+import {
+  PublicWorkoutLog,
+  PublicNutritionDay,
+  PublicNutritionEntry,
+} from "@/types/user.types";
 import {
   Program,
   ProgramWeek,
   ProgramDay,
   ProgramExercise,
 } from "@/types/programs.types";
+import { MEAL_TYPES, MEAL_TYPE_LABELS } from "@/types/nutrition.types";
+import { Post } from "@/types/posts.types";
 import Toast from "@/components/shared/Toast/Toast";
 import type { AppDispatch } from "@/store";
 import { setPendingWorkout } from "@/store/slices/pendingWorkoutSlice";
@@ -42,7 +53,23 @@ const formatLoggedAt = (dateStr: string) =>
     day: "numeric",
   });
 
-type ProfileTab = "workouts" | "social";
+// Paused by default (not autoplaying/looping) — this profile screen can
+// have several of these mounted at once via the Social tab's post list,
+// same reasoning as Feed's own video card.
+const SocialPostVideo = ({ uri }: { uri: string }) => {
+  const player = useVideoPlayer(uri);
+
+  return (
+    <VideoView
+      style={styles.postMedia}
+      player={player}
+      contentFit="cover"
+      nativeControls
+    />
+  );
+};
+
+type ProfileTab = "workouts" | "nutrition" | "social";
 
 const UserProfileScreen = () => {
   const { userId } = useLocalSearchParams<{ userId: string }>();
@@ -58,6 +85,11 @@ const UserProfileScreen = () => {
     usePublicWorkoutHistory(userId ?? null);
   const { data: activeProgram, isLoading: isProgramLoading } =
     usePublicActiveProgram(userId ?? null);
+  const { data: nutritionDays, isLoading: isNutritionLoading } =
+    usePublicNutritionHistory(userId ?? null);
+  const { data: posts, isLoading: isPostsLoading } = usePublicPosts(
+    userId ?? null,
+  );
   const { mutate: inheritWorkoutDay, isPending: isInheriting } =
     useInheritWorkoutDay();
   const { data: ownPrograms } = usePrograms();
@@ -106,7 +138,10 @@ const UserProfileScreen = () => {
     );
   };
 
-  const handleInherit = (day: ProgramDay) => {
+  const handleInherit = async (day: ProgramDay) => {
+    const granted = await ensureProAccess();
+    if (!granted) return;
+
     Alert.alert(
       "Copy this workout?",
       `This will replace every ${day.dayName} in your program with ${profile?.username ?? "their"}'s ${day.focus} day — not just this week.`,
@@ -117,7 +152,10 @@ const UserProfileScreen = () => {
     );
   };
 
-  const handleLogAsStandalone = (day: ProgramDay) => {
+  const handleLogAsStandalone = async (day: ProgramDay) => {
+    const granted = await ensureProAccess();
+    if (!granted) return;
+
     Alert.alert(
       "Log this workout?",
       `You don't have an active program, so this will open Log Workout pre-filled with ${profile?.username ?? "their"}'s ${day.focus} exercises for you to fill in.`,
@@ -132,6 +170,39 @@ const UserProfileScreen = () => {
                   exerciseName: exercise.exerciseName,
                   muscleGroup: exercise.muscleGroup,
                   equipment: exercise.equipment,
+                })),
+              ),
+            );
+            router.push("/(tabs)");
+          },
+        },
+      ],
+    );
+  };
+
+  // Unlike a program day, a standalone log has no recurring weekday slot
+  // to inherit into — logging it for yourself is the only thing "copy
+  // this" can mean here, regardless of whether you have an active
+  // program. Equipment isn't captured on ExerciseLog at all (only
+  // exerciseName/muscleGroup), so it goes in as null rather than guessed.
+  const handleLogStandaloneWorkout = async (log: PublicWorkoutLog) => {
+    const granted = await ensureProAccess();
+    if (!granted) return;
+
+    Alert.alert(
+      "Log this workout?",
+      `This will open Log Workout pre-filled with ${profile?.username ?? "their"}'s exercises from this workout for you to fill in.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Log It",
+          onPress: () => {
+            dispatch(
+              setPendingWorkout(
+                log.exercises.map((exercise) => ({
+                  exerciseName: exercise.exerciseName,
+                  muscleGroup: exercise.muscleGroup,
+                  equipment: null,
                 })),
               ),
             );
@@ -202,6 +273,19 @@ const UserProfileScreen = () => {
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
+              style={[styles.tab, tab === "nutrition" && styles.tabActive]}
+              onPress={() => setTab("nutrition")}
+            >
+              <Text
+                style={[
+                  styles.tabText,
+                  tab === "nutrition" && styles.tabTextActive,
+                ]}
+              >
+                Nutrition
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
               style={[styles.tab, tab === "social" && styles.tabActive]}
               onPress={() => setTab("social")}
             >
@@ -216,12 +300,130 @@ const UserProfileScreen = () => {
             </TouchableOpacity>
           </View>
 
-          {tab === "social" && (
+          {tab === "nutrition" && isNutritionLoading && (
+            <ActivityIndicator style={{ marginTop: spacing.md }} />
+          )}
+
+          {tab === "nutrition" &&
+            !isNutritionLoading &&
+            (!nutritionDays || nutritionDays.length === 0) && (
+              <Text style={styles.emptyText}>
+                No food logged in the last 7 days.
+              </Text>
+            )}
+
+          {tab === "nutrition" &&
+            !isNutritionLoading &&
+            nutritionDays &&
+            nutritionDays.length > 0 &&
+            nutritionDays.map((day: PublicNutritionDay) => (
+              <View key={day.date} style={styles.nutritionDayCard}>
+                <View style={styles.cardHeaderRow}>
+                  <Text style={styles.cardTitle}>
+                    {formatLoggedAt(day.date)}
+                  </Text>
+                  <Text style={styles.nutritionCalories}>
+                    {Math.round(day.totals.calories)} cal
+                  </Text>
+                </View>
+                <Text style={styles.nutritionMacros}>
+                  {Math.round(day.totals.proteinG)}g protein ·{" "}
+                  {Math.round(day.totals.carbsG)}g carbs ·{" "}
+                  {Math.round(day.totals.fatG)}g fat
+                </Text>
+                {MEAL_TYPES.map((mealType) =>
+                  day.meals[mealType].length > 0 ? (
+                    <View key={mealType} style={styles.mealBlock}>
+                      <Text style={styles.mealLabel}>
+                        {MEAL_TYPE_LABELS[mealType]}
+                      </Text>
+                      {day.meals[mealType].map((entry: PublicNutritionEntry) => (
+                        <View key={entry.id} style={styles.exerciseLine}>
+                          <Text style={styles.exerciseName} numberOfLines={1}>
+                            {entry.foodName}
+                          </Text>
+                          <Text style={styles.setText}>
+                            {Math.round(entry.calories)} cal
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : null,
+                )}
+              </View>
+            ))}
+
+          {tab === "social" && isPostsLoading && (
+            <ActivityIndicator style={{ marginTop: spacing.md }} />
+          )}
+
+          {tab === "social" && !isPostsLoading && (!posts || posts.length === 0) && (
             <View style={styles.placeholderContainer}>
               <Feather name="users" size={32} color={colors.textSecondary} />
-              <Text style={styles.placeholderText}>Coming soon</Text>
+              <Text style={styles.placeholderText}>No posts yet</Text>
             </View>
           )}
+
+          {tab === "social" &&
+            !isPostsLoading &&
+            posts &&
+            posts.length > 0 &&
+            posts.map((post: Post) => (
+              <TouchableOpacity
+                key={post.id}
+                style={styles.postCard}
+                onPress={() => router.push(`/post/${post.id}`)}
+                activeOpacity={0.8}
+              >
+                {post.caption && (
+                  <Text style={styles.postCaption}>{post.caption}</Text>
+                )}
+                {/* Cloudinary URL — already absolute and publicly
+                    servable, unlike profile pictures/exercise GIFs which
+                    route through our own authenticated proxy, so no
+                    base-URL prefix or auth header here. */}
+                {post.mediaUrl && post.mediaType === "video" ? (
+                  <SocialPostVideo uri={post.mediaUrl} />
+                ) : (
+                  post.mediaUrl && (
+                    <Image
+                      source={{ uri: post.mediaUrl }}
+                      style={styles.postMedia}
+                      contentFit="cover"
+                    />
+                  )
+                )}
+                <View style={styles.postFooterRow}>
+                  <View style={styles.postFooterStat}>
+                    <Ionicons
+                      name={post.isLikedByViewer ? "heart" : "heart-outline"}
+                      size={14}
+                      color={
+                        post.isLikedByViewer
+                          ? colors.dangerRed
+                          : colors.textSecondary
+                      }
+                    />
+                    <Text style={styles.postFooterStatText}>
+                      {post.likeCount}
+                    </Text>
+                  </View>
+                  <View style={styles.postFooterStat}>
+                    <Feather
+                      name="message-circle"
+                      size={14}
+                      color={colors.textSecondary}
+                    />
+                    <Text style={styles.postFooterStatText}>
+                      {post.commentCount}
+                    </Text>
+                  </View>
+                  <Text style={styles.postFooterDate}>
+                    {formatLoggedAt(post.createdAt)}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))}
 
           {tab === "workouts" && (isProgramLoading || isHistoryLoading) && (
             <ActivityIndicator style={{ marginTop: spacing.md }} />
@@ -366,6 +568,19 @@ const UserProfileScreen = () => {
                           </Text>
                         </View>
                       ))}
+                      <TouchableOpacity
+                        style={styles.inheritButton}
+                        onPress={() => handleLogStandaloneWorkout(log)}
+                      >
+                        <Feather
+                          name="edit-3"
+                          size={12}
+                          color={colors.primaryBlue}
+                        />
+                        <Text style={styles.inheritButtonText}>
+                          Log this workout
+                        </Text>
+                      </TouchableOpacity>
                     </View>
                   ))}
                 </View>
@@ -489,6 +704,85 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.semibold,
     color: colors.textSecondary,
+  },
+  postCard: {
+    backgroundColor: "white",
+    borderWidth: 1,
+    borderColor: colors.borderGray,
+    borderRadius: 12,
+    padding: spacing.sm,
+    marginBottom: spacing.sm,
+    gap: spacing.xs,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  postCaption: {
+    fontSize: fontSizes.sm,
+    color: "#000",
+  },
+  postMedia: {
+    width: "100%",
+    aspectRatio: 1,
+    borderRadius: 8,
+    backgroundColor: colors.lightGraySoft,
+  },
+  postFooterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  postFooterStat: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  postFooterStatText: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.semibold,
+    color: colors.textSecondary,
+  },
+  postFooterDate: {
+    fontSize: fontSizes.xs,
+    color: colors.textSecondary,
+    marginLeft: "auto",
+  },
+  nutritionDayCard: {
+    backgroundColor: "white",
+    borderWidth: 1,
+    borderColor: colors.borderGray,
+    borderRadius: 12,
+    padding: spacing.sm,
+    marginBottom: spacing.sm,
+    gap: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  nutritionCalories: {
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
+    color: colors.primaryBlue,
+  },
+  nutritionMacros: {
+    fontSize: fontSizes.xs,
+    color: colors.textSecondary,
+    marginBottom: 2,
+  },
+  mealBlock: {
+    marginTop: spacing.xs,
+    gap: 4,
+  },
+  mealLabel: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.bold,
+    color: colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   sectionLabel: {
     fontSize: fontSizes.xs,

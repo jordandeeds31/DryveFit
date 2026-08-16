@@ -19,7 +19,6 @@ import { colors } from "@/constants/colors";
 import { Post } from "@/types/posts.types";
 import Toast from "@/components/shared/Toast/Toast";
 import CreatePostModal from "./CreatePostModal";
-import CommentsModal from "./CommentsModal";
 import styles from "./Feed.styles";
 
 const formatPostDate = (dateStr: string) =>
@@ -59,7 +58,6 @@ const Feed = () => {
   const { mutate: toggleLike } = useToggleLike();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
   // Deliberately not react-query's own isRefetching — that flips true for
   // ANY background refetch (posting, deleting, liking), which would flash
   // this spinner for reasons that have nothing to do with a manual pull.
@@ -120,22 +118,28 @@ const Feed = () => {
         )}
       </View>
 
-      {item.caption && <Text style={styles.caption}>{item.caption}</Text>}
+      <TouchableOpacity
+        activeOpacity={0.8}
+        onPress={() => router.push(`/post/${item.id}`)}
+      >
+        {item.caption && <Text style={styles.caption}>{item.caption}</Text>}
 
-      {/* Cloudinary URL — already absolute and publicly servable, unlike
-          profile pictures/exercise GIFs which route through our own
-          authenticated proxy, so no base-URL prefix or auth header here. */}
-      {item.mediaUrl && item.mediaType === "video" ? (
-        <FeedVideo uri={item.mediaUrl} />
-      ) : (
-        item.mediaUrl && (
-          <Image
-            source={{ uri: item.mediaUrl }}
-            style={styles.postImage}
-            contentFit="cover"
-          />
-        )
-      )}
+        {/* Cloudinary URL — already absolute and publicly servable,
+            unlike profile pictures/exercise GIFs which route through our
+            own authenticated proxy, so no base-URL prefix or auth header
+            here. */}
+        {item.mediaUrl && item.mediaType === "video" ? (
+          <FeedVideo uri={item.mediaUrl} />
+        ) : (
+          item.mediaUrl && (
+            <Image
+              source={{ uri: item.mediaUrl }}
+              style={styles.postImage}
+              contentFit="cover"
+            />
+          )
+        )}
+      </TouchableOpacity>
 
       <View style={styles.actionsRow}>
         <TouchableOpacity
@@ -155,7 +159,7 @@ const Feed = () => {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => setCommentsPostId(item.id)}
+          onPress={() => router.push(`/post/${item.id}`)}
         >
           <Feather
             name="message-circle"
@@ -210,11 +214,6 @@ const Feed = () => {
         visible={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
         onPosted={setToastMessage}
-      />
-
-      <CommentsModal
-        postId={commentsPostId}
-        onClose={() => setCommentsPostId(null)}
       />
 
       <Toast

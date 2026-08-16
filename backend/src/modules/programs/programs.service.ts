@@ -99,16 +99,22 @@ const hasStandaloneWorkoutLogOnDate = async (
 const validateProgramDates = async (input: {
   userId: string;
   startDate: Date;
+  todayDateKey: string;
   preferredDays: string[];
 }) => {
-  const { userId, startDate, preferredDays } = input;
+  const { userId, startDate, todayDateKey, preferredDays } = input;
 
   if (preferredDays.length === 0) {
     throw new AppError(400, "Select at least one preferred day");
   }
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // Derived from the client's own local date (todayDateKey), not the
+  // server's clock — the server (Render, UTC) and a user in a timezone
+  // behind UTC can disagree about what day it is by several hours in the
+  // evening, which was incorrectly rejecting a same-day start as "in the
+  // past" once the server's UTC date had already ticked over.
+  const [todayYear, todayMonth, todayDay] = todayDateKey.split("-").map(Number);
+  const today = new Date(todayYear, todayMonth - 1, todayDay, 0, 0, 0, 0);
   if (startDate < today) {
     throw new AppError(400, "Start date cannot be in the past");
   }
@@ -600,6 +606,7 @@ export const createProgram = async (input: CreateProgramInput) => {
   const { startDate, endDate } = await validateProgramDates({
     userId: input.userId,
     startDate: input.startDate,
+    todayDateKey: input.todayDateKey,
     preferredDays: input.preferredDays,
   });
 
@@ -773,6 +780,23 @@ export const deleteProgram = async (userId: string, programId: string) => {
   });
 };
 
+// day.date/WorkoutLog.loggedAt are stored as local midnight (see schema
+// comments), not real timezone-aware instants — .toISOString() converts to
+// UTC first, which silently shifts the calendar day by one whenever the
+// server process isn't running in UTC (confirmed non-UTC here; Render's
+// runtime timezone isn't otherwise guaranteed either). That mismatch is
+// exactly what caused the schedule's dots to disagree with
+// getWorkoutLogsForDate/getProgramDayByDate, which build their date
+// ranges from local Date components instead — matching that convention
+// here keeps every read of the same stored value assigned to the same
+// calendar day.
+const toLocalDateKey = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 export const getScheduleForUser = async (userId: string) => {
   const programs = await prisma.program.findMany({
     where: { userId, isActive: true },
@@ -809,7 +833,7 @@ export const getScheduleForUser = async (userId: string) => {
       for (const day of week.days) {
         if (day.isRestDay) continue;
 
-        const dateKey = day.date.toISOString().split("T")[0];
+        const dateKey = toLocalDateKey(day.date);
 
         const completedCount = day.exercises.filter(
           (exercise) => exercise._count.exerciseLogs > 0,
@@ -845,7 +869,7 @@ export const getScheduleForUser = async (userId: string) => {
   });
 
   const standaloneDateKeys = new Set(
-    standaloneLogs.map((log) => log.loggedAt.toISOString().split("T")[0]),
+    standaloneLogs.map((log) => toLocalDateKey(log.loggedAt)),
   );
 
   for (const dateKey of standaloneDateKeys) {
@@ -1326,7 +1350,14 @@ export const postponeProgramDay = async (userId: string, dayId: string) => {
 
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
-  if (day.date >= todayStart) {
+  // Widened by a day, same reasoning as futureLogGuard.ts's isFutureDate —
+  // compared against the SERVER's own clock/timezone (Render runs UTC),
+  // which can disagree with the user's local calendar date by up to a
+  // full day depending which side of UTC they're on. Without this, a day
+  // that's genuinely already missed from the user's perspective could get
+  // rejected as "not missed yet" purely because the server's clock hadn't
+  // caught up to their local date.
+  if (day.date.getTime() >= todayStart.getTime() + 24 * 60 * 60 * 1000) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { email: true },

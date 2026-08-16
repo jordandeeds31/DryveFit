@@ -309,7 +309,25 @@ const WorkoutLogger = forwardRef<WorkoutLoggerHandle, WorkoutLoggerProps>(
         })
         .filter((entry) => entry.sets.length > 0);
 
-      if (payload.length === 0) return;
+      if (payload.length === 0) {
+        // The backend rejects an empty exercises array (it has no concept
+        // of "save with nothing in it"), so removing every exercise and
+        // tapping Save used to just silently no-op — the day's previously
+        // saved exercises were still sitting in the database untouched,
+        // even though the form now showed nothing (the same class of bug
+        // as the stale-schedule-dot issue: the UI looked cleared, the data
+        // wasn't). If there's something to actually clear, delete it;
+        // otherwise there's genuinely nothing to do.
+        if (initialWorkoutLogs.length > 0) {
+          deleteWholeWorkout(date, {
+            onSuccess: () => {
+              setIsDirty(false);
+              onSaved?.("Workout deleted");
+            },
+          });
+        }
+        return;
+      }
 
       logWorkout(
         { exercises: payload, date },

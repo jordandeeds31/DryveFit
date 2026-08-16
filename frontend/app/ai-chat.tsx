@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Feather from "@expo/vector-icons/Feather";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { colors } from "@/constants/colors";
 import { spacing } from "@/constants/spacing";
 import { fontSizes, fontWeights } from "@/constants/typography";
@@ -158,11 +159,7 @@ const AiChatScreen = () => {
           <ActivityIndicator style={{ flex: 1 }} color={colors.primaryBlue} />
         ) : items.length === 0 ? (
           <View style={styles.emptyState}>
-            <Feather
-              name="message-circle"
-              size={32}
-              color={colors.textMuted}
-            />
+            <Ionicons name="sparkles" size={32} color={colors.textMuted} />
             <Text style={styles.emptyTitle}>Ask me about your training</Text>
             <Text style={styles.emptySubtitle}>
               I can look up your real workouts, lifts, and cardio to answer.

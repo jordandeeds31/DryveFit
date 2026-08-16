@@ -4,6 +4,7 @@ import { authMiddleware } from "../../middleware/authMiddleware";
 import {
   createPostHandler,
   getFeedHandler,
+  getPostHandler,
   deletePostHandler,
   likePostHandler,
   unlikePostHandler,
@@ -28,6 +29,7 @@ router.use(authMiddleware);
 
 router.get("/", getFeedHandler);
 router.post("/", upload.single("media"), createPostHandler);
+router.get("/:postId", getPostHandler);
 router.delete("/:postId", deletePostHandler);
 router.post("/:postId/like", likePostHandler);
 router.delete("/:postId/like", unlikePostHandler);

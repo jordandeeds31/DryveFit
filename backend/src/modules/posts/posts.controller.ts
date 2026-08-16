@@ -6,6 +6,7 @@ import AppError from "../../utils/AppError";
 import {
   createPost,
   getFeed,
+  getPostById,
   deletePost,
   likePost,
   unlikePost,
@@ -54,6 +55,19 @@ export const getFeedHandler = catchAsync(
 
     const feed = await getFeed(req.userId!, cursor);
     sendSuccess(res, 200, "FEED_FETCHED", feed);
+  },
+);
+
+export const getPostHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const { postId } = req.params;
+
+    if (typeof postId !== "string") {
+      throw new AppError(400, "postId is required");
+    }
+
+    const post = await getPostById(req.userId!, postId);
+    sendSuccess(res, 200, "POST_FETCHED", { post });
   },
 );
 

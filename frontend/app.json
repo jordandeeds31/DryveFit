@@ -63,7 +63,7 @@
       [
         "react-native-health",
         {
-          "healthSharePermission": "Allow Dryve to read your heart rate and calories burned during workouts.",
+          "healthSharePermission": "Allow Dryve to read your workouts, activity, heart rate, body measurements, sleep, and nutrition data from Health.",
           "healthUpdatePermission": "Dryve does not write data to Health."
         }
       ],

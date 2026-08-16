@@ -81,9 +81,9 @@ export default function TabsLayout() {
           name="Programs"
           options={{
             title: "Programs",
-            // Reached from the AppHeader icon now instead of the tab bar —
-            // same "registered route, hidden from the tab bar" pattern
-            // Profile below already used.
+            // Reached from the "Programs" row in Profile settings now
+            // instead of the tab bar — same "registered route, hidden from
+            // the tab bar" pattern Profile below already used.
             href: null,
           }}
         />

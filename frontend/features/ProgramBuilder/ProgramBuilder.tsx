@@ -6,6 +6,7 @@ import {
   TrainingGoal as TrainingGoalType,
   TrainingSplit as TrainingSplitType,
 } from "@/types/programs.types";
+import { toDateKey } from "@/lib/utils/date.utils";
 import StartDate from "./components/StartDate/StartDate";
 import SelectedDays from "./components/SelectedDays/SelectedDays";
 import SessionMinutes from "./components/SessionMinutes/SessionMinutes";
@@ -64,6 +65,7 @@ const ProgramBuilder = ({
     createProgram(
       {
         startDate: normalizeToLocalMidnight(startDate).toISOString(),
+        todayDateKey: toDateKey(new Date()),
         preferredDays: selectedDays,
         trainingSplit,
         sessionMinutes,

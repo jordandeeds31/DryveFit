@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-query";
 import {
   getFeed,
+  getPost,
   createPost,
   deletePost,
   likePost,
@@ -17,7 +18,7 @@ import {
   likeComment,
   unlikeComment,
 } from "@/lib/api/posts.api";
-import { FeedPage, PostComment } from "@/types/posts.types";
+import { FeedPage, Post, PostComment } from "@/types/posts.types";
 
 export const useFeed = () => {
   return useInfiniteQuery({
@@ -26,6 +27,16 @@ export const useFeed = () => {
       getFeed(pageParam),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+  });
+};
+
+// Backs the standalone post detail screen (app/post/[postId].tsx) —
+// reached by tapping a post's image/caption rather than the feed list.
+export const usePost = (postId: string | null) => {
+  return useQuery({
+    queryKey: ["post", postId],
+    queryFn: () => getPost(postId!),
+    enabled: !!postId,
   });
 };
 
@@ -62,9 +73,11 @@ export const useToggleLike = () => {
       isLiked ? unlikePost(postId) : likePost(postId),
     onMutate: async ({ postId, isLiked }) => {
       await queryClient.cancelQueries({ queryKey: ["feed"] });
-      const previous = queryClient.getQueryData<InfiniteData<FeedPage>>([
+      await queryClient.cancelQueries({ queryKey: ["post", postId] });
+      const previousFeed = queryClient.getQueryData<InfiniteData<FeedPage>>([
         "feed",
       ]);
+      const previousPost = queryClient.getQueryData<Post>(["post", postId]);
 
       queryClient.setQueryData<InfiniteData<FeedPage>>(
         ["feed"],
@@ -88,7 +101,21 @@ export const useToggleLike = () => {
         },
       );
 
-      return { previous };
+      // Same optimistic patch against the standalone post detail screen's
+      // cache, when that screen is the one the like tap came from —
+      // harmlessly stays undefined when nothing has fetched
+      // ["post", postId] yet, e.g. a like from the feed list.
+      queryClient.setQueryData<Post>(["post", postId], (old: Post | undefined) =>
+        old
+          ? {
+              ...old,
+              isLikedByViewer: !isLiked,
+              likeCount: old.likeCount + (isLiked ? -1 : 1),
+            }
+          : old,
+      );
+
+      return { previousFeed, previousPost };
     },
     // No onSettled refetch — the optimistic update above already reflects
     // the correct final state on success, and a forced refetch here was
@@ -96,9 +123,12 @@ export const useToggleLike = () => {
     // which Feed.tsx's FlatList used to drive its pull-to-refresh spinner,
     // so liking a post made that spinner flash for a moment. onError below
     // is the only reconciliation needed — roll back if the request failed.
-    onError: (_err, _vars, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(["feed"], context.previous);
+    onError: (_err, { postId }, context) => {
+      if (context?.previousFeed) {
+        queryClient.setQueryData(["feed"], context.previousFeed);
+      }
+      if (context?.previousPost) {
+        queryClient.setQueryData(["post", postId], context.previousPost);
       }
     },
   });
@@ -128,6 +158,7 @@ export const useAddComment = () => {
     onSuccess: (_data, { postId }) => {
       queryClient.invalidateQueries({ queryKey: ["comments", postId] });
       queryClient.invalidateQueries({ queryKey: ["feed"] });
+      queryClient.invalidateQueries({ queryKey: ["post", postId] });
     },
   });
 };
@@ -141,6 +172,7 @@ export const useDeleteComment = () => {
     onSuccess: (_data, { postId }) => {
       queryClient.invalidateQueries({ queryKey: ["comments", postId] });
       queryClient.invalidateQueries({ queryKey: ["feed"] });
+      queryClient.invalidateQueries({ queryKey: ["post", postId] });
     },
   });
 };

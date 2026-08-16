@@ -35,3 +35,26 @@ export interface PublicWorkoutLog {
   loggedAt: string;
   exercises: PublicWorkoutLogExercise[];
 }
+
+export interface PublicNutritionEntry {
+  id: string;
+  foodName: string;
+  brandName: string | null;
+  servingQty: number;
+  servingUnit: string;
+  calories: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+}
+
+export interface PublicNutritionDay {
+  date: string;
+  totals: {
+    calories: number;
+    proteinG: number;
+    carbsG: number;
+    fatG: number;
+  };
+  meals: Record<"breakfast" | "lunch" | "dinner" | "snacks", PublicNutritionEntry[]>;
+}

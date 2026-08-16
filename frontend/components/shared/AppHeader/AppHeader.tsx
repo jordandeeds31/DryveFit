@@ -1,8 +1,10 @@
-import { View, Image, TouchableOpacity } from "react-native";
+import { View, Image, Text, TouchableOpacity } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import Feather from "@expo/vector-icons/Feather";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { colors } from "@/constants/colors";
+import { useUnreadNotificationCount } from "@/hooks/useNotifications";
 import styles from "./AppHeader.styles";
 
 interface AppHeaderProps {
@@ -14,6 +16,8 @@ interface AppHeaderProps {
 
 const AppHeader = ({ onCreateProgram }: AppHeaderProps) => {
   const insets = useSafeAreaInsets();
+  const { data: unreadCount } = useUnreadNotificationCount();
+  const hasUnread = !!unreadCount && unreadCount > 0;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -27,30 +31,28 @@ const AppHeader = ({ onCreateProgram }: AppHeaderProps) => {
       <View style={styles.headerActions}>
         {onCreateProgram && (
           <TouchableOpacity
-            style={styles.settingsButton}
+            style={styles.createButton}
             onPress={onCreateProgram}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Feather name="plus" size={20} color={colors.primaryBlue} />
+            <Feather name="plus" size={16} color={colors.primaryBlue} />
+            <Text style={styles.createButtonText}>New Program</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity
           style={styles.settingsButton}
-          onPress={() => router.push("/(tabs)/Programs")}
+          onPress={() => router.push("/notifications")}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Feather name="clipboard" size={20} color={colors.textSecondary} />
+          <Feather name="bell" size={20} color={colors.textSecondary} />
+          {hasUnread && <View style={styles.unreadBadge} />}
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.settingsButton}
           onPress={() => router.push("/ai-chat")}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Feather
-            name="message-circle"
-            size={20}
-            color={colors.textSecondary}
-          />
+          <Ionicons name="sparkles" size={20} color={colors.textSecondary} />
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.settingsButton}

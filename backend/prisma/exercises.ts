@@ -33,7 +33,7 @@ const exercises = [
       "Lie flat on a bench holding a dumbbell in each hand at chest level, press them up until arms are extended, then lower with control back to chest height.",
   },
   {
-    name: "Incline Dumbbell Press",
+    name: "Dumbbell Incline Bench Press",
     muscleGroup: "chest",
     equipment: "dumbbell",
     isCompound: true,
@@ -57,7 +57,7 @@ const exercises = [
       "On an incline bench, hold dumbbells above your upper chest with a slight elbow bend, lower them out to the sides in an arc, then bring them back together at the top.",
   },
   {
-    name: "Cable Crossover",
+    name: "Cable Standing Up Straight Crossovers",
     muscleGroup: "chest",
     equipment: "cable",
     isCompound: false,
@@ -147,7 +147,7 @@ const exercises = [
       "Hang from a bar with an underhand, shoulder-width grip, pull your body up until your chin clears the bar, then lower with control to full arm extension.",
   },
   {
-    name: "Lat Pulldown",
+    name: "Cable Pulldown (Pro Lat Bar)",
     muscleGroup: "lats",
     equipment: "cable",
     isCompound: true,

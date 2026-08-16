@@ -6,4 +6,5 @@ export interface DevicesModalProps {
   healthKitStatus: HealthKitStatus;
   isConnectingHealthKit: boolean;
   onConnectHealthKit: () => void;
+  onDisconnectHealthKit: () => void;
 }

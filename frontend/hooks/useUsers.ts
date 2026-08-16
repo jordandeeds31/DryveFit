@@ -8,6 +8,8 @@ import {
   getPublicProfile,
   getPublicWorkoutHistory,
   getPublicActiveProgram,
+  getPublicNutritionHistory,
+  getPublicPosts,
 } from "@/lib/api/users.api";
 
 export const useCurrentUser = () => {
@@ -37,6 +39,22 @@ export const usePublicActiveProgram = (userId: string | null) => {
   return useQuery({
     queryKey: ["publicActiveProgram", userId],
     queryFn: () => getPublicActiveProgram(userId!),
+    enabled: !!userId,
+  });
+};
+
+export const usePublicNutritionHistory = (userId: string | null) => {
+  return useQuery({
+    queryKey: ["publicNutritionHistory", userId],
+    queryFn: () => getPublicNutritionHistory(userId!),
+    enabled: !!userId,
+  });
+};
+
+export const usePublicPosts = (userId: string | null) => {
+  return useQuery({
+    queryKey: ["publicPosts", userId],
+    queryFn: () => getPublicPosts(userId!),
     enabled: !!userId,
   });
 };

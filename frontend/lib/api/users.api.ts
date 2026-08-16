@@ -3,8 +3,10 @@ import {
   UserProfile,
   PublicProfile,
   PublicWorkoutLog,
+  PublicNutritionDay,
 } from "@/types/user.types";
 import { ProgramWithWeeks } from "@/types/programs.types";
+import { Post } from "@/types/posts.types";
 
 export const getCurrentUser = async (): Promise<UserProfile> => {
   const { data } = await apiClient.get("/api/users/me");
@@ -30,6 +32,18 @@ export const getPublicActiveProgram = async (
 ): Promise<ProgramWithWeeks | null> => {
   const { data } = await apiClient.get(`/api/users/${userId}/active-program`);
   return data.result.program;
+};
+
+export const getPublicNutritionHistory = async (
+  userId: string,
+): Promise<PublicNutritionDay[]> => {
+  const { data } = await apiClient.get(`/api/users/${userId}/nutrition`);
+  return data.result.days;
+};
+
+export const getPublicPosts = async (userId: string): Promise<Post[]> => {
+  const { data } = await apiClient.get(`/api/users/${userId}/posts`);
+  return data.result.posts;
 };
 
 export const updateProfile = async (

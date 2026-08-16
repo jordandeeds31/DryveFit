@@ -1,7 +1,11 @@
 import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import AppleHealthKit from "react-native-health";
-import type { HealthInputOptions, HealthKitPermissions, HealthValue } from "react-native-health";
+import type {
+  HealthInputOptions,
+  HealthKitPermissions,
+  HealthValue,
+} from "react-native-health";
 
 // react-native-health's index.d.ts declares `HealthPermission`, `HealthUnit`,
 // and `HealthStatusCode` as real enums, but the compiled index.js never
@@ -10,9 +14,51 @@ import type { HealthInputOptions, HealthKitPermissions, HealthValue } from "reac
 // Its own source (src/constants/Permissions.js, Units.js) confirms every
 // member's string value is identical to its key, so plain string literals
 // are used here instead, matching the type shapes without the broken import.
+// Broad on purpose — asking for only the 3-4 types this app actively
+// queries today (see queryRecentHeartRateAndEnergy below) made iOS's
+// connect sheet show just those few toggles, which read as "barely
+// integrated" and left every other stat (distance, body measurements,
+// sleep, nutrition) unavailable to any feature that might want it later
+// without re-prompting for authorization all over again. Requesting the
+// full set relevant to a fitness + nutrition app up front means the sheet
+// shows everything Health tracks that this app could plausibly use.
 const permissions: HealthKitPermissions = {
   permissions: {
-    read: ["HeartRate", "ActiveEnergyBurned", "StepCount", "Workout"] as HealthKitPermissions["permissions"]["read"],
+    read: [
+      // Activity
+      "StepCount",
+      "DistanceWalkingRunning",
+      "DistanceCycling",
+      "DistanceSwimming",
+      "FlightsClimbed",
+      "ActiveEnergyBurned",
+      "BasalEnergyBurned",
+      "AppleExerciseTime",
+      "AppleStandTime",
+      "Workout",
+      // Heart & vitals
+      "HeartRate",
+      "RestingHeartRate",
+      "HeartRateVariability",
+      "WalkingHeartRateAverage",
+      "Vo2Max",
+      // Body measurements
+      "BodyMass",
+      "BodyFatPercentage",
+      "LeanBodyMass",
+      "Height",
+      "BodyMassIndex",
+      // Sleep
+      "SleepAnalysis",
+      // Nutrition
+      "EnergyConsumed",
+      "Protein",
+      "Carbohydrates",
+      "FatTotal",
+      "Fiber",
+      "Sugar",
+      "Water",
+    ] as HealthKitPermissions["permissions"]["read"],
     write: [],
   },
 };
@@ -36,12 +82,28 @@ const markHealthKitConnected = async (): Promise<void> => {
   await SecureStore.setItemAsync(HEALTHKIT_CONNECTED_KEY, "true");
 };
 
+// iOS gives apps no API to revoke their own HealthKit authorization — only
+// the user can do that, from the Health app or Settings. This only flips
+// the local "connected" flag every read call in the app gates on
+// (queryRecentHeartRateAndEnergy's callers, Cardio's connect prompt, etc.),
+// so toggling off here stops Dryve from querying Health data even though
+// the underlying OS-level grant is still technically in place. Toggling
+// back on later re-runs requestHealthKitAuthorization, which resolves
+// immediately with no new prompt since iOS already has the grant on file.
+export const disconnectHealthKit = async (): Promise<void> => {
+  await SecureStore.deleteItemAsync(HEALTHKIT_CONNECTED_KEY);
+};
+
 // initHealthKit's completion only fires once the user responds to iOS's
 // native permission sheet. If that sheet never appears or gets dismissed
 // some other way (backgrounding the app, a Simulator rendering glitch),
 // the callback never fires and the caller would hang forever with no way
 // to recover — this guarantees the promise always settles.
-const withTimeout = <T,>(promise: Promise<T>, ms: number, fallback: T): Promise<T> =>
+const withTimeout = <T>(
+  promise: Promise<T>,
+  ms: number,
+  fallback: T,
+): Promise<T> =>
   Promise.race([
     promise,
     new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),

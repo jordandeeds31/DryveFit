@@ -80,6 +80,19 @@ const parseDateKey = (dateStr: string) => {
   };
 };
 
+// date is stored as local midnight (see parseDateKey above), not a real
+// timezone-aware instant — .toISOString() converts to UTC first, which
+// silently shifts the calendar day by one whenever the server process
+// isn't running in UTC. Building the key from local components instead
+// keeps it consistent with how parseDateKey constructed the value in the
+// first place.
+const toLocalDateKey = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 export const searchFood = async (query: string) => {
   const hits = await searchFoods(query);
 
@@ -296,7 +309,79 @@ export const getLoggedDateKeys = async (
     distinct: ["date"],
   });
 
-  return entries.map((entry) => entry.date.toISOString().split("T")[0]);
+  return entries.map((entry) => toLocalDateKey(entry.date));
+};
+
+const PUBLIC_NUTRITION_HISTORY_DAYS = 7;
+
+// Shown on another user's public profile's Nutrition tab — gated by the
+// same isLeaderboardVisible/username eligibility as
+// getPublicProfile/getPublicWorkoutHistory. Only calendar days that
+// actually have a logged entry appear (no empty-day placeholders), same
+// as the workout history section's "only real logs" convention.
+export const getPublicNutritionHistory = async (targetUserId: string) => {
+  const user = await prisma.user.findFirst({
+    where: {
+      id: targetUserId,
+      isLeaderboardVisible: true,
+      username: { not: null },
+    },
+    select: { id: true },
+  });
+
+  if (!user) {
+    throw new AppError(404, "Profile not found");
+  }
+
+  const today = new Date();
+  const windowStart = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate() - (PUBLIC_NUTRITION_HISTORY_DAYS - 1),
+  );
+
+  const entries = await prisma.foodLogEntry.findMany({
+    where: { userId: targetUserId, date: { gte: windowStart } },
+    orderBy: { createdAt: "asc" },
+  });
+
+  const dayMap = new Map<
+    string,
+    {
+      date: string;
+      totals: {
+        calories: number;
+        proteinG: number;
+        carbsG: number;
+        fatG: number;
+      };
+      meals: Record<MealType, typeof entries>;
+    }
+  >();
+
+  for (const entry of entries) {
+    const dateKey = toLocalDateKey(entry.date);
+    if (!dayMap.has(dateKey)) {
+      dayMap.set(dateKey, {
+        date: dateKey,
+        totals: { calories: 0, proteinG: 0, carbsG: 0, fatG: 0 },
+        meals: { breakfast: [], lunch: [], dinner: [], snacks: [] },
+      });
+    }
+
+    const day = dayMap.get(dateKey)!;
+    day.totals.calories += entry.calories;
+    day.totals.proteinG += entry.proteinG;
+    day.totals.carbsG += entry.carbsG;
+    day.totals.fatG += entry.fatG;
+    if (entry.mealType in day.meals) {
+      day.meals[entry.mealType as MealType].push(entry);
+    }
+  }
+
+  return Array.from(dayMap.values()).sort((a, b) =>
+    b.date.localeCompare(a.date),
+  );
 };
 
 interface NutritionProfileInput {
@@ -403,7 +488,10 @@ export const updateNutritionGoalOverride = async (
   input: GoalOverrideInput,
 ) => {
   if (input.calories < MIN_CALORIE_GOAL || input.calories > 10000) {
-    throw new AppError(400, `Calorie goal must be at least ${MIN_CALORIE_GOAL}`);
+    throw new AppError(
+      400,
+      `Calorie goal must be at least ${MIN_CALORIE_GOAL}`,
+    );
   }
   if (
     input.proteinG < 0 ||
@@ -462,21 +550,23 @@ export const getDailyRecap = async (userId: string, dateStr: string) => {
   ).size;
   const totalSets = allSets.length;
   const totalVolume = Math.round(
-    allSets.reduce(
-      (sum, set) => sum + (set.weight ?? 0) * (set.reps ?? 0),
-      0,
-    ),
+    allSets.reduce((sum, set) => sum + (set.weight ?? 0) * (set.reps ?? 0), 0),
   );
   const trained = totalSets > 0;
 
   const proteinActual = diary.totals.proteinG;
   const proteinGoal = diary.goal?.proteinG ?? null;
   const proteinPercentOfGoal =
-    proteinGoal != null ? Math.round((proteinActual / proteinGoal) * 100) : null;
-  const meetsProteinGoal = proteinGoal != null && proteinActual >= proteinGoal * 0.9;
+    proteinGoal != null
+      ? Math.round((proteinActual / proteinGoal) * 100)
+      : null;
+  const meetsProteinGoal =
+    proteinGoal != null && proteinActual >= proteinGoal * 0.9;
 
-  const proteinFloor = user.weightLbs != null ? user.weightLbs * PROTEIN_FLOOR_G_PER_LB : null;
-  const meetsProteinFloor = proteinFloor != null && proteinActual >= proteinFloor;
+  const proteinFloor =
+    user.weightLbs != null ? user.weightLbs * PROTEIN_FLOOR_G_PER_LB : null;
+  const meetsProteinFloor =
+    proteinFloor != null && proteinActual >= proteinFloor;
 
   const calorieActual = diary.totals.calories;
   const calorieGoal = diary.goal?.calories ?? null;
@@ -508,7 +598,11 @@ export const getDailyRecap = async (userId: string, dateStr: string) => {
       floorG: proteinFloor != null ? Math.round(proteinFloor) : null,
       meetsFloor: meetsProteinFloor,
     },
-    calories: { actual: calorieActual, goal: calorieGoal, status: calorieStatus },
+    calories: {
+      actual: calorieActual,
+      goal: calorieGoal,
+      status: calorieStatus,
+    },
     supportsMuscleGain,
   };
 };

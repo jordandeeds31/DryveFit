@@ -15,6 +15,8 @@ import {
 } from "./users.service";
 import { getPublicWorkoutHistory } from "../workoutLogs/workoutLogs.service";
 import { getPublicActiveProgram } from "../programs/programs.service";
+import { getPublicNutritionHistory } from "../nutrition/nutrition.service";
+import { getPublicPostsByUser } from "../posts/posts.service";
 
 export const getMeHandler = catchAsync(
   async (req: AuthRequest, res: Response) => {
@@ -123,6 +125,32 @@ export const getPublicActiveProgramHandler = catchAsync(
 
     const program = await getPublicActiveProgram(userId);
     sendSuccess(res, 200, "PUBLIC_ACTIVE_PROGRAM_FETCHED", { program });
+  },
+);
+
+export const getPublicNutritionHistoryHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const { userId } = req.params;
+
+    if (typeof userId !== "string") {
+      throw new AppError(400, "userId is required");
+    }
+
+    const days = await getPublicNutritionHistory(userId);
+    sendSuccess(res, 200, "PUBLIC_NUTRITION_HISTORY_FETCHED", { days });
+  },
+);
+
+export const getPublicPostsHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const { userId } = req.params;
+
+    if (typeof userId !== "string") {
+      throw new AppError(400, "userId is required");
+    }
+
+    const posts = await getPublicPostsByUser(req.userId!, userId);
+    sendSuccess(res, 200, "PUBLIC_POSTS_FETCHED", { posts });
   },
 );
 

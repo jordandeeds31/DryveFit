@@ -531,7 +531,7 @@ Respond ONLY with valid JSON — no markdown, no explanation, no code blocks. St
           "order": 1
         },
         {
-          "exerciseName": "Incline Dumbbell Press",
+          "exerciseName": "Dumbbell Incline Bench Press",
           "muscleGroup": "chest",
           "sets": 3,
           "reps": 10,
@@ -541,7 +541,7 @@ Respond ONLY with valid JSON — no markdown, no explanation, no code blocks. St
           "recommendedWeight": 45
         },
         {
-          "exerciseName": "Cable Crossover",
+          "exerciseName": "Cable Standing Up Straight Crossovers",
           "muscleGroup": "chest",
           "sets": 3,
           "reps": 12,
@@ -578,7 +578,7 @@ Respond ONLY with valid JSON — no markdown, no explanation, no code blocks. St
   ]
 }
 
-NOTE ON THE EXAMPLE ABOVE: this MON example has 5 exercises because that's what a real target count for a single-region day looks like at this fitness level — it is a full, complete example, not a truncated one. Your actual per-day exercise count comes from the target stated on that day's line in DAY-BY-DAY PLAN above (which may be higher or lower than 5 depending on fitness level and how many regions share the day) — match THAT number exactly, not the number shown in this example. Separately: "Barbell Bench Press" has NO "recommendedWeight" key — that's what it looks like when the USER'S LOGGED PERFORMANCE HISTORY section does not contain that exact exercise name. "Incline Dumbbell Press" DOES have a "recommendedWeight" — that's what it looks like ONLY when the history section above does contain that exact exercise name. The presence of prior logged history for that EXACT exercise name is the ONLY thing that decides whether the key appears at all. This is not a stylistic choice — most exercises in most weeks will have NO "recommendedWeight" key, and that's expected and correct.
+NOTE ON THE EXAMPLE ABOVE: this MON example has 5 exercises because that's what a real target count for a single-region day looks like at this fitness level — it is a full, complete example, not a truncated one. Your actual per-day exercise count comes from the target stated on that day's line in DAY-BY-DAY PLAN above (which may be higher or lower than 5 depending on fitness level and how many regions share the day) — match THAT number exactly, not the number shown in this example. Separately: "Barbell Bench Press" has NO "recommendedWeight" key — that's what it looks like when the USER'S LOGGED PERFORMANCE HISTORY section does not contain that exact exercise name. "Dumbbell Incline Bench Press" DOES have a "recommendedWeight" — that's what it looks like ONLY when the history section above does contain that exact exercise name. The presence of prior logged history for that EXACT exercise name is the ONLY thing that decides whether the key appears at all. This is not a stylistic choice — most exercises in most weeks will have NO "recommendedWeight" key, and that's expected and correct.
 
 IMPORTANT RULES:
 - "exerciseName" MUST be copied EXACTLY, character-for-character, from the ALLOWED EXERCISES list above. Do not combine, rename, merge, abbreviate, or paraphrase any exercise name — even if it seems like a reasonable variation. For example, if the list contains "Barbell Bent Over Row" and "One-Arm Dumbbell Row" as two separate items, do NOT invent a new name like "Dumbbell Bent Over Row" by blending them — pick one of the two exact names as listed, unmodified.
