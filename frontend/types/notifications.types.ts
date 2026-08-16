@@ -1,4 +1,4 @@
-export type NotificationType = "post_like" | "post_comment";
+export type NotificationType = "post_like" | "post_comment" | "follow";
 
 export interface NotificationActor {
   id: string;

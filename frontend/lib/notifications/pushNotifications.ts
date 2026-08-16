@@ -1,4 +1,4 @@
-import { Alert, Platform } from "react-native";
+import { Platform } from "react-native";
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
 import Constants from "expo-constants";
@@ -18,18 +18,24 @@ Notifications.setNotificationHandler({
 
 // Requests permission (if not already granted/denied) and, once granted,
 // registers this device's Expo push token + IANA timezone with the
-// backend's workout-reminder job. Safe to call on every app launch —
-// re-sent each time so a token Expo rotates behind the scenes, or a
-// timezone change from travel, stays current.
-export const registerForWorkoutReminders = async (): Promise<void> => {
+// backend — used for the workout-reminder job as well as social pushes
+// (post likes/comments). Safe to call on every app launch — re-sent each
+// time so a token Expo rotates behind the scenes, or a timezone change
+// from travel, stays current.
+export const registerForPushNotifications = async (): Promise<void> => {
   // Expo push tokens aren't issued to simulators/emulators — only a real
   // device can receive an actual push.
   if (!Device.isDevice) return;
 
-  // Every step from here on can throw in ways that are otherwise
-  // completely invisible on a TestFlight build (no Metro, no attached
-  // debugger) — surfaced as an alert rather than silently swallowed, so a
-  // failure is at least visible on the device itself.
+  // Runs on every authenticated app launch (see _layout.tsx) — a failure
+  // here (denied permission, an older OS/device quirk, a flaky APNs
+  // handshake, ...) is background plumbing the user never asked for and
+  // has no way to act on, so it's logged rather than surfaced. This used
+  // to Alert.alert on any failure for TestFlight visibility, but that
+  // meant anyone who hit a real device-specific failure (e.g. an older
+  // iPhone) got a blocking "Push notification setup failed" popup every
+  // single time they opened the app — worse than the silent failure it
+  // was meant to catch.
   try {
     if (Platform.OS === "android") {
       await Notifications.setNotificationChannelAsync("default", {
@@ -48,9 +54,8 @@ export const registerForWorkoutReminders = async (): Promise<void> => {
 
     const projectId = Constants.expoConfig?.extra?.eas?.projectId;
     if (!projectId) {
-      Alert.alert(
-        "Push setup issue",
-        "No EAS project ID found (Constants.expoConfig?.extra?.eas?.projectId is missing).",
+      console.warn(
+        "Push setup skipped: no EAS project ID found (Constants.expoConfig?.extra?.eas?.projectId is missing).",
       );
       return;
     }
@@ -62,38 +67,64 @@ export const registerForWorkoutReminders = async (): Promise<void> => {
 
     await updatePushToken({ expoPushToken, timezone });
   } catch (err) {
-    Alert.alert(
-      "Push notification setup failed",
-      err instanceof Error ? err.message : String(err),
-    );
+    console.warn("Push notification registration failed:", err);
   }
 };
 
-interface WorkoutReminderData {
+interface PushNotificationData {
+  // Only set on a social push (post_like/post_comment/follow) — a workout
+  // reminder's payload never carries this, which is what tells the two
+  // apart below.
+  type?: "post_like" | "post_comment" | "follow";
+  postId?: string;
+  commentId?: string;
+  actorId?: string;
   programId?: string;
   date?: string;
 }
 
-const openWorkoutFromNotification = (response: Notifications.NotificationResponse) => {
-  const data = response.notification.request.content.data as WorkoutReminderData;
-  if (!data?.programId || !data?.date) return;
+const handleNotificationTap = (response: Notifications.NotificationResponse) => {
+  const data = response.notification.request.content
+    .data as PushNotificationData;
 
-  router.push({
-    pathname: "/cinematic-mode",
-    params: { programId: data.programId, date: data.date },
-  });
+  if (data?.type === "post_like" || data?.type === "post_comment") {
+    if (!data.postId) return;
+    // Same "reply to the specific comment" deep link the in-app
+    // notifications screen uses for a comment tap — see notifications.tsx.
+    const replyParam =
+      data.type === "post_comment" && data.commentId
+        ? `?replyTo=${data.commentId}`
+        : "";
+    router.push(`/post/${data.postId}${replyParam}`);
+    return;
+  }
+
+  // A follow has no post to open — the only meaningful destination is
+  // the new follower's own profile, same as the in-app notification row.
+  if (data?.type === "follow") {
+    if (!data.actorId) return;
+    router.push(`/user/${data.actorId}`);
+    return;
+  }
+
+  if (data?.programId && data?.date) {
+    router.push({
+      pathname: "/cinematic-mode",
+      params: { programId: data.programId, date: data.date },
+    });
+  }
 };
 
 // Handles both ways a tap can reach the app: already running in the
 // background/foreground (the listener), or launched fresh by the tap
 // itself (the cold-start check). Returns an unsubscribe function.
-export const setupWorkoutReminderTapHandling = (): (() => void) => {
+export const setupNotificationTapHandling = (): (() => void) => {
   Notifications.getLastNotificationResponseAsync().then((response) => {
-    if (response) openWorkoutFromNotification(response);
+    if (response) handleNotificationTap(response);
   });
 
   const subscription = Notifications.addNotificationResponseReceivedListener(
-    openWorkoutFromNotification,
+    handleNotificationTap,
   );
   return () => subscription.remove();
 };

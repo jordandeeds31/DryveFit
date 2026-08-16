@@ -1,8 +1,16 @@
+import { Expo } from "expo-server-sdk";
 import prisma from "../../lib/prisma";
+import expo from "../../lib/expoPush";
 
 const PAGE_SIZE = 30;
 
-export type NotificationType = "post_like" | "post_comment";
+export type NotificationType = "post_like" | "post_comment" | "follow";
+
+const PUSH_TITLES: Record<NotificationType, (actorName: string) => string> = {
+  post_like: (actorName) => `${actorName} liked your post`,
+  post_comment: (actorName) => `${actorName} commented on your post`,
+  follow: (actorName) => `${actorName} started following you`,
+};
 
 interface CreateNotificationInput {
   userId: string;
@@ -10,6 +18,10 @@ interface CreateNotificationInput {
   type: NotificationType;
   postId?: string;
   commentId?: string;
+  // Shown as the push notification's body — the liked post's caption, or
+  // the comment's own text. Left out (title-only push) when there's
+  // nothing meaningful to preview.
+  previewText?: string | null;
 }
 
 export const createNotification = async ({
@@ -18,13 +30,47 @@ export const createNotification = async ({
   type,
   postId,
   commentId,
+  previewText,
 }: CreateNotificationInput) => {
   // Nobody needs to be told they liked/commented on their own post.
   if (userId === actorId) return;
 
-  await prisma.notification.create({
-    data: { userId, actorId, type, postId, commentId },
-  });
+  const [, recipient, actor] = await Promise.all([
+    prisma.notification.create({
+      data: { userId, actorId, type, postId, commentId },
+    }),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { expoPushToken: true },
+    }),
+    prisma.user.findUnique({
+      where: { id: actorId },
+      select: { username: true, email: true },
+    }),
+  ]);
+
+  if (!recipient?.expoPushToken || !Expo.isExpoPushToken(recipient.expoPushToken)) {
+    return;
+  }
+
+  const actorName = actor?.username ?? actor?.email ?? "Someone";
+
+  // A failed push (bad/expired token, Expo hiccup, ...) is never worth
+  // failing the like/comment request over — the in-app notification row
+  // above already succeeded and is the source of truth either way.
+  try {
+    await expo.sendPushNotificationsAsync([
+      {
+        to: recipient.expoPushToken,
+        sound: "default",
+        title: PUSH_TITLES[type](actorName),
+        body: previewText ?? undefined,
+        data: { type, postId, commentId, actorId },
+      },
+    ]);
+  } catch (err) {
+    console.warn(`Failed to send ${type} push notification:`, err);
+  }
 };
 
 const actorSelect = {

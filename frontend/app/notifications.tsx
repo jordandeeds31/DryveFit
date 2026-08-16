@@ -48,6 +48,8 @@ const notificationText = (notification: AppNotification): string => {
       return "liked your post";
     case "post_comment":
       return "commented on your post";
+    case "follow":
+      return "started following you";
     default:
       return "";
   }
@@ -74,9 +76,14 @@ const NotificationsScreen = () => {
   // Tapping the post preview (image/caption) opens the standalone post
   // screen — same "name goes to profile, content goes to the post" split
   // used everywhere else a post shows up (Feed, a profile's Social tab).
-  // A comment notification also carries which comment to reply to.
-  const goToPost = (item: AppNotification) => {
-    if (!item.post) return;
+  // A comment notification also carries which comment to reply to. A
+  // follow notification has no post at all, so the row's only meaningful
+  // destination is the follower's own profile.
+  const handleRowPress = (item: AppNotification) => {
+    if (!item.post) {
+      goToActorProfile(item);
+      return;
+    }
     const replyParam =
       item.type === "post_comment" && item.commentId
         ? `?replyTo=${item.commentId}`
@@ -117,8 +124,7 @@ const NotificationsScreen = () => {
           renderItem={({ item }) => (
             <TouchableOpacity
               style={[styles.row, !item.isRead && styles.rowUnread]}
-              onPress={() => goToPost(item)}
-              disabled={!item.post}
+              onPress={() => handleRowPress(item)}
             >
               <TouchableOpacity onPress={() => goToActorProfile(item)}>
                 {item.actor.profileImageUrl && authImageHeaders ? (

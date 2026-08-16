@@ -56,7 +56,10 @@ export const getUserProfile = async (userId: string) => {
 // Deliberately excludes email (and anything else PROFILE_SELECT/
 // toProfileResponse would include) — this is shown to OTHER users, not the
 // account owner, unlike getUserProfile above.
-export const getPublicProfile = async (targetUserId: string) => {
+export const getPublicProfile = async (
+  viewerId: string,
+  targetUserId: string,
+) => {
   const user = await prisma.user.findFirst({
     // Same eligibility gate as the leaderboard query — appearing there is
     // the only thing that makes a profile viewable by other users.
@@ -69,6 +72,9 @@ export const getPublicProfile = async (targetUserId: string) => {
       id: true,
       username: true,
       profileImageMimeType: true,
+      _count: { select: { followers: true, following: true } },
+      // At most one row: whether the viewer already follows this profile.
+      followers: { where: { followerId: viewerId }, select: { id: true } },
     },
   });
 
@@ -82,7 +88,49 @@ export const getPublicProfile = async (targetUserId: string) => {
     profileImageUrl: user.profileImageMimeType
       ? `/api/users/${user.id}/profile-image`
       : null,
+    followerCount: user._count.followers,
+    followingCount: user._count.following,
+    isFollowedByViewer: user.followers.length > 0,
   };
+};
+
+const SEARCH_RESULTS_LIMIT = 20;
+
+// Same eligibility gate as getPublicProfile — a user can only be found
+// (and therefore followed) through this search if their profile would
+// actually be viewable, keeping "discoverable" and "viewable" in sync
+// rather than opening a second, looser way to look someone up by email.
+export const searchUsers = async (viewerId: string, query: string) => {
+  const trimmed = query.trim();
+  if (trimmed.length < 2) return [];
+
+  const users = await prisma.user.findMany({
+    where: {
+      id: { not: viewerId },
+      isLeaderboardVisible: true,
+      username: { not: null },
+      OR: [
+        { username: { contains: trimmed, mode: "insensitive" } },
+        { email: { contains: trimmed, mode: "insensitive" } },
+      ],
+    },
+    select: {
+      id: true,
+      username: true,
+      profileImageMimeType: true,
+      followers: { where: { followerId: viewerId }, select: { id: true } },
+    },
+    take: SEARCH_RESULTS_LIMIT,
+  });
+
+  return users.map((user) => ({
+    id: user.id,
+    username: user.username,
+    profileImageUrl: user.profileImageMimeType
+      ? `/api/users/${user.id}/profile-image`
+      : null,
+    isFollowedByViewer: user.followers.length > 0,
+  }));
 };
 
 interface UpdateProfileInput {
@@ -141,9 +189,33 @@ export const updatePushToken = async (
   userId: string,
   { expoPushToken, timezone }: { expoPushToken: string; timezone: string },
 ) => {
+  // A device's Expo push token is stable across whoever's logged into it,
+  // but only one account should ever be able to receive pushes on it at
+  // once — without this, switching accounts on the same device (or
+  // logging out without a clean unregister) leaves the token attached to
+  // the PREVIOUS account, which then keeps getting its pushes delivered
+  // to whoever's holding the device now. Reassigning it here — strip it
+  // from wherever it currently lives, then give it to this user — keeps
+  // that 1:1 invariant self-healing on every fresh registration.
+  await prisma.user.updateMany({
+    where: { expoPushToken, id: { not: userId } },
+    data: { expoPushToken: null },
+  });
+
   await prisma.user.update({
     where: { id: userId },
     data: { expoPushToken, timezone },
+  });
+};
+
+// Called on logout — an immediate cleanup on top of updatePushToken's
+// self-healing reassignment, so a signed-out account stops being able to
+// receive pushes on this device right away instead of only once someone
+// else happens to log in and reclaim the token.
+export const clearPushToken = async (userId: string) => {
+  await prisma.user.update({
+    where: { id: userId },
+    data: { expoPushToken: null },
   });
 };
 

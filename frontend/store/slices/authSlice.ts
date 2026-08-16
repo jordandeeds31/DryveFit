@@ -1,5 +1,6 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import { login, signup } from "@/lib/api/auth.api";
+import { clearPushToken } from "@/lib/api/users.api";
 import { getToken, setToken, clearToken } from "@/lib/storage/secureStore";
 import { queryClient } from "@/lib/api/queryClient";
 
@@ -66,8 +67,24 @@ export const registerThunk = createAsyncThunk(
 );
 
 export const logoutThunk = createAsyncThunk("auth/logout", async () => {
+  // Must happen before clearToken() below — this needs the still-present
+  // auth header. Without this, this device's push token stays attached
+  // to the account signing out; the next account that logs in on this
+  // same device gets a fresh token of their own (see updatePushToken's
+  // reassignment), but until then the signing-out account could still
+  // receive a push delivered to whoever's now holding the device. A
+  // failure here (offline, etc.) shouldn't block sign-out over it.
+  await clearPushToken().catch(() => {});
   await clearToken();
-  queryClient.clear();
+  // Deliberately NOT queryClient.clear() here — loginThunk/registerThunk
+  // already clear the cache before the next session's queries fire, and
+  // clearing it here instead, while screens with actively-polling queries
+  // (e.g. AppHeader's unread-notification count) are still mounted on the
+  // way out, made every one of them immediately refetch with no token,
+  // 401, and hit apiClient's interceptor, which redirects to signin on
+  // its own — a redundant second navigation stacked right behind the
+  // explicit one in the sign-out handler, which showed up as the signin
+  // screen flashing twice.
 });
 
 const authSlice = createSlice({

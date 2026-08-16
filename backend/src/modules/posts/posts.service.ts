@@ -260,7 +260,7 @@ export const deletePost = async (userId: string, postId: string) => {
 export const likePost = async (userId: string, postId: string) => {
   const post = await prisma.post.findUnique({
     where: { id: postId },
-    select: { id: true, userId: true },
+    select: { id: true, userId: true, caption: true },
   });
 
   if (!post) {
@@ -285,6 +285,7 @@ export const likePost = async (userId: string, postId: string) => {
     actorId: userId,
     type: "post_like",
     postId,
+    previewText: post.caption,
   });
 };
 
@@ -432,6 +433,7 @@ export const addComment = async (
     type: "post_comment",
     postId,
     commentId: comment.id,
+    previewText: trimmed,
   });
 
   return toCommentNode(comment, userId);

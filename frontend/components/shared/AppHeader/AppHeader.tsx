@@ -41,6 +41,13 @@ const AppHeader = ({ onCreateProgram }: AppHeaderProps) => {
         )}
         <TouchableOpacity
           style={styles.settingsButton}
+          onPress={() => router.push("/search")}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Feather name="search" size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.settingsButton}
           onPress={() => router.push("/notifications")}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >

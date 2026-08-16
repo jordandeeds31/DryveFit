@@ -4,6 +4,7 @@ import {
   PublicProfile,
   PublicWorkoutLog,
   PublicNutritionDay,
+  UserSearchResult,
 } from "@/types/user.types";
 import { ProgramWithWeeks } from "@/types/programs.types";
 import { Post } from "@/types/posts.types";
@@ -46,6 +47,23 @@ export const getPublicPosts = async (userId: string): Promise<Post[]> => {
   return data.result.posts;
 };
 
+export const searchUsers = async (
+  query: string,
+): Promise<UserSearchResult[]> => {
+  const { data } = await apiClient.get("/api/users/search", {
+    params: { query },
+  });
+  return data.result.users;
+};
+
+export const followUser = async (userId: string): Promise<void> => {
+  await apiClient.post(`/api/users/${userId}/follow`);
+};
+
+export const unfollowUser = async (userId: string): Promise<void> => {
+  await apiClient.delete(`/api/users/${userId}/follow`);
+};
+
 export const updateProfile = async (
   input: Partial<
     Pick<UserProfile, "username" | "city" | "gender" | "isLeaderboardVisible">
@@ -60,6 +78,10 @@ export const updatePushToken = async (input: {
   timezone: string;
 }): Promise<void> => {
   await apiClient.patch("/api/users/me/push-token", input);
+};
+
+export const clearPushToken = async (): Promise<void> => {
+  await apiClient.delete("/api/users/me/push-token");
 };
 
 export const uploadProfileImage = async (uri: string): Promise<UserProfile> => {

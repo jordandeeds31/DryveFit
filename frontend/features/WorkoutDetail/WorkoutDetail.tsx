@@ -337,7 +337,7 @@ const WorkoutDetail = ({
   const handlePostponeDay = () => {
     if (!dayDetail) return;
     Alert.alert(
-      "Move this workout to tomorrow?",
+      "Move this workout to the next day?",
       "Every day after it in this program shifts forward one day too, so the rest of your schedule stays in order.",
       [
         { text: "Cancel", style: "cancel" },
@@ -396,7 +396,7 @@ const WorkoutDetail = ({
                 color={colors.textSecondary}
               />
               <Text style={styles.revertButtonText}>
-                {isPostponing ? "MOVING..." : "MOVE TO TOMORROW"}
+                {isPostponing ? "MOVING..." : "MOVE TO NEXT DAY"}
               </Text>
             </TouchableOpacity>
           )}

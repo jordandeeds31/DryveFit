@@ -25,6 +25,7 @@ import {
   usePublicActiveProgram,
   usePublicNutritionHistory,
   usePublicPosts,
+  useToggleFollow,
 } from "@/hooks/useUsers";
 import { usePrograms, useInheritWorkoutDay } from "@/hooks/usePrograms";
 import { useAuthImageHeaders } from "@/hooks/useAuthImageHeaders";
@@ -90,6 +91,8 @@ const UserProfileScreen = () => {
   const { data: posts, isLoading: isPostsLoading } = usePublicPosts(
     userId ?? null,
   );
+  const { mutate: toggleFollow, isPending: isTogglingFollow } =
+    useToggleFollow();
   const { mutate: inheritWorkoutDay, isPending: isInheriting } =
     useInheritWorkoutDay();
   const { data: ownPrograms } = usePrograms();
@@ -256,6 +259,42 @@ const UserProfileScreen = () => {
               </View>
             )}
             <Text style={styles.username}>{profile.username}</Text>
+            <View style={styles.followStatsRow}>
+              <Text style={styles.followStat}>
+                <Text style={styles.followStatCount}>
+                  {profile.followerCount}
+                </Text>{" "}
+                {profile.followerCount === 1 ? "follower" : "followers"}
+              </Text>
+              <Text style={styles.followStat}>
+                <Text style={styles.followStatCount}>
+                  {profile.followingCount}
+                </Text>{" "}
+                following
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={[
+                styles.followButton,
+                profile.isFollowedByViewer && styles.followButtonActive,
+              ]}
+              onPress={() =>
+                toggleFollow({
+                  userId: profile.id,
+                  isFollowing: profile.isFollowedByViewer,
+                })
+              }
+              disabled={isTogglingFollow}
+            >
+              <Text
+                style={[
+                  styles.followButtonText,
+                  profile.isFollowedByViewer && styles.followButtonTextActive,
+                ]}
+              >
+                {profile.isFollowedByViewer ? "Following" : "Follow"}
+              </Text>
+            </TouchableOpacity>
           </View>
 
           <View style={styles.tabBar}>
@@ -664,6 +703,38 @@ const styles = StyleSheet.create({
   username: {
     fontSize: fontSizes.lg,
     fontWeight: fontWeights.bold,
+  },
+  followStatsRow: {
+    flexDirection: "row",
+    gap: spacing.md,
+  },
+  followStat: {
+    fontSize: fontSizes.sm,
+    color: colors.textSecondary,
+  },
+  followStatCount: {
+    fontWeight: fontWeights.bold,
+    color: "#000",
+  },
+  followButton: {
+    marginTop: spacing.xs,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xs,
+    borderRadius: 20,
+    backgroundColor: colors.primaryBlue,
+  },
+  followButtonActive: {
+    backgroundColor: colors.surfaceGrayLight,
+    borderWidth: 1,
+    borderColor: colors.borderGray,
+  },
+  followButtonText: {
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
+    color: "white",
+  },
+  followButtonTextActive: {
+    color: colors.textSecondary,
   },
   tabBar: {
     flexDirection: "row",

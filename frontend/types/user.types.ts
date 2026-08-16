@@ -15,6 +15,16 @@ export interface PublicProfile {
   id: string;
   username: string | null;
   profileImageUrl: string | null;
+  followerCount: number;
+  followingCount: number;
+  isFollowedByViewer: boolean;
+}
+
+export interface UserSearchResult {
+  id: string;
+  username: string | null;
+  profileImageUrl: string | null;
+  isFollowedByViewer: boolean;
 }
 
 export interface PublicWorkoutLogSet {

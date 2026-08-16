@@ -53,6 +53,8 @@ model User {
   commentLikes              CommentLike[]
   notificationsReceived     Notification[]  @relation("NotificationRecipient")
   notificationsSent         Notification[]  @relation("NotificationActor")
+  following                 Follow[]        @relation("Follower")
+  followers                 Follow[]        @relation("Following")
 
   @@index([city])
   @@map("users")
@@ -145,8 +147,8 @@ model Notification {
   // liker) — kept separate from userId (the recipient, the post's owner)
   // since they're almost always different people.
   actorId   String
-  // "post_like" | "post_comment" today, but a string (not an enum) so
-  // future notification types (follows, ...) don't need a migration.
+  // "post_like" | "post_comment" | "follow" — a string (not an enum) so
+  // future notification types don't need a migration.
   type      String
   postId    String?
   // Set for "post_comment" only — which comment (or reply) triggered
@@ -162,6 +164,20 @@ model Notification {
 
   @@index([userId, createdAt])
   @@map("notifications")
+}
+
+model Follow {
+  id          String   @id @default(uuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+  follower    User     @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User     @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  // One follow per pair — following twice is a no-op, not a second row.
+  @@unique([followerId, followingId])
+  @@index([followingId])
+  @@map("follows")
 }
 
 model FoodLogEntry {

@@ -7,16 +7,19 @@ import {
   getUserProfile,
   updateUserProfile,
   updatePushToken,
+  clearPushToken,
   uploadProfileImage,
   deleteProfileImage,
   getProfileImage,
   getPublicProfile,
+  searchUsers,
   deleteUserAccount,
 } from "./users.service";
 import { getPublicWorkoutHistory } from "../workoutLogs/workoutLogs.service";
 import { getPublicActiveProgram } from "../programs/programs.service";
 import { getPublicNutritionHistory } from "../nutrition/nutrition.service";
 import { getPublicPostsByUser } from "../posts/posts.service";
+import { followUser, unfollowUser } from "../follows/follows.service";
 
 export const getMeHandler = catchAsync(
   async (req: AuthRequest, res: Response) => {
@@ -66,6 +69,13 @@ export const updatePushTokenHandler = catchAsync(
   },
 );
 
+export const clearPushTokenHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    await clearPushToken(req.userId!);
+    sendSuccess(res, 200, "PUSH_TOKEN_CLEARED", { message: "Cleared" });
+  },
+);
+
 export const uploadProfileImageHandler = catchAsync(
   async (req: AuthRequest, res: Response) => {
     const file = req.file;
@@ -97,7 +107,7 @@ export const getPublicProfileHandler = catchAsync(
       throw new AppError(400, "userId is required");
     }
 
-    const user = await getPublicProfile(userId);
+    const user = await getPublicProfile(req.userId!, userId);
     sendSuccess(res, 200, "PUBLIC_PROFILE_FETCHED", { user });
   },
 );
@@ -151,6 +161,45 @@ export const getPublicPostsHandler = catchAsync(
 
     const posts = await getPublicPostsByUser(req.userId!, userId);
     sendSuccess(res, 200, "PUBLIC_POSTS_FETCHED", { posts });
+  },
+);
+
+export const searchUsersHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const { query } = req.query;
+
+    if (typeof query !== "string" || query.trim() === "") {
+      throw new AppError(400, "query is required");
+    }
+
+    const users = await searchUsers(req.userId!, query);
+    sendSuccess(res, 200, "USER_SEARCH_RESULTS", { users });
+  },
+);
+
+export const followUserHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const { userId } = req.params;
+
+    if (typeof userId !== "string") {
+      throw new AppError(400, "userId is required");
+    }
+
+    await followUser(req.userId!, userId);
+    sendSuccess(res, 200, "USER_FOLLOWED", { message: "Followed" });
+  },
+);
+
+export const unfollowUserHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const { userId } = req.params;
+
+    if (typeof userId !== "string") {
+      throw new AppError(400, "userId is required");
+    }
+
+    await unfollowUser(req.userId!, userId);
+    sendSuccess(res, 200, "USER_UNFOLLOWED", { message: "Unfollowed" });
   },
 );
 

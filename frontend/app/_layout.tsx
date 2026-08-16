@@ -12,8 +12,8 @@ import { queryClient } from "@/lib/api/queryClient";
 import { configurePurchases } from "@/lib/purchases/purchases";
 import { fetchSubscriptionStatus } from "@/store/slices/subscriptionSlice";
 import {
-    registerForWorkoutReminders,
-    setupWorkoutReminderTapHandling,
+    registerForPushNotifications,
+    setupNotificationTapHandling,
 } from "@/lib/notifications/pushNotifications";
 
 SplashScreen.preventAutoHideAsync();
@@ -43,12 +43,12 @@ const RootNavigator = () => {
     // rather than one gated together.
     useEffect(() => {
         if (isAuthenticated) {
-            registerForWorkoutReminders();
+            registerForPushNotifications();
         }
     }, [isAuthenticated]);
 
     useEffect(() => {
-        return setupWorkoutReminderTapHandling();
+        return setupNotificationTapHandling();
     }, []);
 
     return (
