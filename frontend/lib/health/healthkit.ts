@@ -71,8 +71,10 @@ const HEALTHKIT_CONNECTED_KEY_PREFIX = "healthKitConnected";
 // id), not global, or a second account signing in on the same phone would
 // silently inherit the first account's connected state instead of being
 // asked to opt in for itself.
+// expo-secure-store keys may only contain alphanumerics, ".", "-", and "_"
+// — no ":" — so the separator here has to be one of those, not a colon.
 const connectedKeyFor = (userId: string) =>
-  `${HEALTHKIT_CONNECTED_KEY_PREFIX}:${userId}`;
+  `${HEALTHKIT_CONNECTED_KEY_PREFIX}_${userId}`;
 
 // HealthKit deliberately never reveals true read-authorization status to
 // apps (getAuthStatus is only meaningful for write/share types, and even
@@ -103,6 +105,29 @@ const markHealthKitConnected = async (userId: string): Promise<void> => {
 // immediately with no new prompt since iOS already has the grant on file.
 export const disconnectHealthKit = async (userId: string): Promise<void> => {
   await SecureStore.deleteItemAsync(connectedKeyFor(userId));
+};
+
+const DEVICE_PROMPT_DISMISSED_KEY_PREFIX = "deviceSetupPromptDismissed";
+
+const devicePromptDismissedKeyFor = (userId: string) =>
+  `${DEVICE_PROMPT_DISMISSED_KEY_PREFIX}_${userId}`;
+
+// Scoped per-user for the same reason as connectedKeyFor above — a second
+// account signing in on this device shouldn't inherit the first account's
+// "already dismissed this" choice.
+export const hasDismissedDeviceSetupPrompt = async (
+  userId: string,
+): Promise<boolean> => {
+  const value = await SecureStore.getItemAsync(
+    devicePromptDismissedKeyFor(userId),
+  );
+  return value === "true";
+};
+
+export const dismissDeviceSetupPrompt = async (
+  userId: string,
+): Promise<void> => {
+  await SecureStore.setItemAsync(devicePromptDismissedKeyFor(userId), "true");
 };
 
 // initHealthKit's completion only fires once the user responds to iOS's

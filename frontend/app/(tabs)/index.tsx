@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ActivityIndicator,
   TouchableOpacity,
+  Platform,
 } from "react-native";
 import {
   KeyboardAwareScrollView,
@@ -12,6 +13,9 @@ import {
 } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSelector, useDispatch } from "react-redux";
+import { router } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import type { RootState, AppDispatch } from "@/store";
 import {
   clearPendingWorkout,
@@ -25,6 +29,7 @@ import { fontSizes, fontWeights } from "@/constants/typography";
 import NoPrograms from "@/components/shared/NoPrograms/NoPrograms";
 import { usePrograms, useSchedule, useProgramDay } from "@/hooks/usePrograms";
 import { useWorkoutLogsForDate } from "@/hooks/useWorkoutLogs";
+import { useCurrentUser } from "@/hooks/useUsers";
 import { getWeekDates, toDateKey, startOfDay } from "@/lib/utils/date.utils";
 import WeeklySchedule from "@/features/WeeklySchedule/WeeklySchedule";
 import { ScheduleEntry } from "@/types/programs.types";
@@ -36,6 +41,12 @@ import { ensureProAccess } from "@/lib/purchases/requirePro";
 import ActiveWorkoutBanner from "@/components/shared/ActiveWorkoutBanner/ActiveWorkoutBanner";
 import Toast from "@/components/shared/Toast/Toast";
 import Feed from "@/features/Feed/Feed";
+import {
+  isHealthKitAvailable,
+  hasCompletedHealthKitConnect,
+  hasDismissedDeviceSetupPrompt,
+  dismissDeviceSetupPrompt,
+} from "@/lib/health/healthkit";
 
 const HomeScreen = () => {
   const [referenceDate, setReferenceDate] = useState<Date>(new Date());
@@ -51,11 +62,13 @@ const HomeScreen = () => {
   const [isSavingWorkout, setIsSavingWorkout] = useState(false);
   const workoutLoggerRef = useRef<WorkoutLoggerHandle>(null);
   const scrollViewRef = useRef<KeyboardAwareScrollViewRef>(null);
+  const [showDeviceSetupBanner, setShowDeviceSetupBanner] = useState(false);
 
   const dispatch = useDispatch<AppDispatch>();
   const pendingWorkoutExercises = useSelector(
     (state: RootState) => state.pendingWorkout.exercises,
   );
+  const { data: currentUser } = useCurrentUser();
 
   // A workout inherited from someone's profile while the viewer had no
   // active program lands here via Redux (see pendingWorkoutSlice) rather
@@ -70,6 +83,39 @@ const HomeScreen = () => {
       dispatch(clearPendingWorkout());
     }
   }, [pendingWorkoutExercises, dispatch]);
+
+  // Re-checks on every focus, not just mount, so coming back from Profile
+  // after connecting (or dismissing from elsewhere) makes the banner
+  // disappear immediately, same pattern as Cardio's watch banner.
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== "ios" || !currentUser) {
+        setShowDeviceSetupBanner(false);
+        return;
+      }
+      let cancelled = false;
+      (async () => {
+        const available = await isHealthKitAvailable();
+        if (!available) {
+          if (!cancelled) setShowDeviceSetupBanner(false);
+          return;
+        }
+        const [connected, dismissed] = await Promise.all([
+          hasCompletedHealthKitConnect(currentUser.id),
+          hasDismissedDeviceSetupPrompt(currentUser.id),
+        ]);
+        if (!cancelled) setShowDeviceSetupBanner(!connected && !dismissed);
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [currentUser]),
+  );
+
+  const handleDismissDeviceSetupBanner = () => {
+    setShowDeviceSetupBanner(false);
+    if (currentUser) dismissDeviceSetupPrompt(currentUser.id);
+  };
 
   const handleCloseWorkoutLogger = (value: boolean) => {
     setIsWorkoutLoggerModalOpen(value);
@@ -264,6 +310,29 @@ const HomeScreen = () => {
         </TouchableOpacity>
       </View>
 
+      {showDeviceSetupBanner && (
+        <TouchableOpacity
+          style={styles.deviceSetupBanner}
+          onPress={() =>
+            router.push({
+              pathname: "/(tabs)/Profile",
+              params: { openDevices: "1" },
+            })
+          }
+        >
+          <Ionicons name="watch-outline" size={16} color={colors.primaryBlue} />
+          <Text style={styles.deviceSetupBannerText}>
+            Connect Apple Health to track heart rate, calories, and activity.
+          </Text>
+          <TouchableOpacity
+            hitSlop={8}
+            onPress={handleDismissDeviceSetupBanner}
+          >
+            <Ionicons name="close" size={16} color={colors.primaryBlue} />
+          </TouchableOpacity>
+        </TouchableOpacity>
+      )}
+
       {homeTab === "feed" ? (
         <Feed />
       ) : (
@@ -416,6 +485,23 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     borderRadius: 8,
   },
+  deviceSetupBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    backgroundColor: colors.surfaceBlueLight,
+    borderWidth: 1,
+    borderColor: colors.borderBlueLight,
+    borderRadius: 8,
+    padding: spacing.sm,
+    marginHorizontal: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  deviceSetupBannerText: {
+    flex: 1,
+    fontSize: fontSizes.xs,
+    color: colors.primaryBlue,
+  },
   homeTabActive: {
     backgroundColor: "white",
     shadowColor: "#000",
@@ -473,6 +559,7 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.semibold,
   },
   modalSaveButton: {
+    flex: 1,
     paddingVertical: 6,
     paddingHorizontal: spacing.md,
   },

@@ -14,7 +14,7 @@ import * as ImagePicker from "expo-image-picker";
 import Purchases from "react-native-purchases";
 import Feather from "@expo/vector-icons/Feather";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import Switch from "@/components/shared/Switch/Switch";
 import Input from "@/components/shared/TextInput/TextInput";
@@ -43,6 +43,7 @@ import { spacing } from "@/constants/spacing";
 import { fontSizes, fontWeights } from "@/constants/typography";
 
 const Profile = () => {
+  const { openDevices } = useLocalSearchParams<{ openDevices?: string }>();
   const { logout } = useAuth();
   const { data: currentUser } = useCurrentUser();
   const {
@@ -82,6 +83,16 @@ const Profile = () => {
   >("not_connected");
   const [isConnectingHealthKit, setIsConnectingHealthKit] = useState(false);
   const [isDevicesModalVisible, setIsDevicesModalVisible] = useState(false);
+
+  // Home's device-setup banner and Cardio's watch banner both redirect here
+  // with ?openDevices=1 rather than duplicating the modal on their own
+  // screens — this is what actually opens it for them.
+  useEffect(() => {
+    if (openDevices === "1") {
+      setIsDevicesModalVisible(true);
+      router.setParams({ openDevices: undefined });
+    }
+  }, [openDevices]);
 
   useEffect(() => {
     if (!currentUser) return;
