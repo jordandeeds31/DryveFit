@@ -66,6 +66,40 @@ const buildDefaultSets = (exercise: ProgramExercise): SetEntry[] => {
   ];
 };
 
+// The proxy fetches the gif from WorkoutX server-side and converts it on
+// every uncached request, which isn't instant — without this, the card
+// just shows blank space for that gap with no indication anything's
+// coming. Keyed by uri from the call site so switching exercises remounts
+// this (fresh isLoading=true) instead of carrying over the previous
+// exercise's loaded state for a frame.
+const CinematicExerciseImage = ({
+  uri,
+  headers,
+}: {
+  uri: string;
+  headers: Record<string, string>;
+}) => {
+  const [isLoading, setIsLoading] = useState(true);
+
+  return (
+    <View style={styles.imagePlaceholder}>
+      <Image
+        source={{ uri, headers }}
+        style={styles.image}
+        onLoad={() => setIsLoading(false)}
+        onError={() => setIsLoading(false)}
+      />
+      {isLoading && (
+        <ActivityIndicator
+          style={StyleSheet.absoluteFill}
+          size="small"
+          color="#9CA3AF"
+        />
+      )}
+    </View>
+  );
+};
+
 const CinematicMode = () => {
   const { programId, date } = useLocalSearchParams<{
     programId: string;
@@ -434,12 +468,10 @@ const CinematicMode = () => {
         keyboardShouldPersistTaps="handled"
       >
         {exercise.imageUrl && authImageHeaders ? (
-          <Image
-            source={{
-              uri: `${process.env.EXPO_PUBLIC_API_URL}${exercise.imageUrl}`,
-              headers: authImageHeaders,
-            }}
-            style={styles.image}
+          <CinematicExerciseImage
+            key={exercise.id}
+            uri={`${process.env.EXPO_PUBLIC_API_URL}${exercise.imageUrl}`}
+            headers={authImageHeaders}
           />
         ) : (
           <View style={styles.imagePlaceholder}>

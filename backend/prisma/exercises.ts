@@ -469,7 +469,7 @@ const exercises = [
       "Sit in the machine with your shins behind the pad, extend your legs straight out until fully extended, then lower with control back to the starting position.",
   },
   {
-    name: "Walking Lunges",
+    name: "Walking Lunge",
     muscleGroup: "quads",
     equipment: "dumbbell",
     isCompound: true,

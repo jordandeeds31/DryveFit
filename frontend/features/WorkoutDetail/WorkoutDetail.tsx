@@ -80,6 +80,45 @@ const CheckPreviousWorkoutButton = ({
   );
 };
 
+// The proxy fetches the gif from WorkoutX server-side and converts it on
+// every uncached request, which isn't instant — without this, the card
+// just shows blank space for that gap with no indication anything's
+// coming. Defaults to true (not false) so the spinner is there from the
+// very first render instead of flashing in only after expo-image fires
+// its own onLoadStart.
+const ExerciseThumbnail = ({
+  uri,
+  headers,
+  onPress,
+}: {
+  uri: string;
+  headers: Record<string, string>;
+  onPress: () => void;
+}) => {
+  const [isLoading, setIsLoading] = useState(true);
+
+  return (
+    <TouchableOpacity onPress={onPress}>
+      <View style={styles.exerciseImageWrapper}>
+        <Image
+          source={{ uri, headers }}
+          style={styles.exerciseImage}
+          contentFit="cover"
+          onLoad={() => setIsLoading(false)}
+          onError={() => setIsLoading(false)}
+        />
+        {isLoading && (
+          <ActivityIndicator
+            style={styles.exerciseImageLoading}
+            size="small"
+            color={colors.primaryBlue}
+          />
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+};
+
 const buildInitialSetsByExercise = (
   exercises: ProgramExercise[] | undefined,
 ): Record<string, SetEntry[]> => {
@@ -514,7 +553,9 @@ const WorkoutDetail = ({
               </View>
             </View>
             {exercise.imageUrl && authImageHeaders ? (
-              <TouchableOpacity
+              <ExerciseThumbnail
+                uri={`${process.env.EXPO_PUBLIC_API_URL}${exercise.imageUrl}`}
+                headers={authImageHeaders}
                 onPress={() => {
                   setEnlargedImageFailed(false);
                   setEnlargedImageRetryToken(0);
@@ -523,16 +564,7 @@ const WorkoutDetail = ({
                     name: exercise.exerciseName,
                   });
                 }}
-              >
-                <Image
-                  source={{
-                    uri: `${process.env.EXPO_PUBLIC_API_URL}${exercise.imageUrl}`,
-                    headers: authImageHeaders,
-                  }}
-                  style={styles.exerciseImage}
-                  contentFit="cover"
-                />
-              </TouchableOpacity>
+              />
             ) : (
               <View style={styles.exerciseImagePlaceholder}>
                 <Feather
