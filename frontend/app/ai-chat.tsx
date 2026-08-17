@@ -142,7 +142,7 @@ const AiChatScreen = () => {
             <Feather name="menu" size={22} color="#000" />
           </TouchableOpacity>
         </View>
-        <Text style={styles.headerTitle}>Dryve AI Coach</Text>
+        <Text style={styles.headerTitle}>DryveFit AI Coach</Text>
         <TouchableOpacity
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           onPress={handleNewChat}

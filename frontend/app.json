@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Dryve",
+    "name": "DryveFit",
     "slug": "dryve",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -48,7 +48,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow Dryve to access your photos so you can set a profile picture."
+          "photosPermission": "Allow DryveFit to access your photos so you can set a profile picture."
         }
       ],
       [
@@ -63,14 +63,14 @@
       [
         "react-native-health",
         {
-          "healthSharePermission": "Allow Dryve to read your workouts, activity, heart rate, body measurements, sleep, and nutrition data from Health.",
-          "healthUpdatePermission": "Dryve does not write data to Health."
+          "healthSharePermission": "Allow DryveFit to read your workouts, activity, heart rate, body measurements, sleep, and nutrition data from Health.",
+          "healthUpdatePermission": "DryveFit does not write data to Health."
         }
       ],
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Dryve uses your location to track the distance and route of your walks, runs, and rides."
+          "locationWhenInUsePermission": "DryveFit uses your location to show weights and distances in the right units for your region, and to track your walks, runs, and rides."
         }
       ],
       [

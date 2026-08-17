@@ -23,6 +23,8 @@ import { LeaderboardEntry } from "@/types/leaderboard.types";
 import { useCurrentUser } from "@/hooks/useUsers";
 import { useLeaderboard, usePopularExercise } from "@/hooks/useLeaderboard";
 import { useAuthImageHeaders } from "@/hooks/useAuthImageHeaders";
+import { useUnitSystem } from "@/hooks/useUnitSystem";
+import { formatWeight } from "@/lib/utils/units";
 
 type Scope = "city" | "global";
 type Gender = "male" | "female";
@@ -47,6 +49,7 @@ const LeaderboardScreen = () => {
 
   const { data: currentUser } = useCurrentUser();
   const authImageHeaders = useAuthImageHeaders();
+  const unitSystem = useUnitSystem();
   const { data: popularExercise } = usePopularExercise();
   const { data: leaderboard, isLoading, error } = useLeaderboard(
     selectedExercise?.name ?? null,
@@ -328,7 +331,7 @@ const LeaderboardScreen = () => {
                       entry.isCurrentUser && styles.textCurrentUser,
                     ]}
                   >
-                    {entry.estimated1RM} lbs
+                    {formatWeight(entry.estimated1RM, unitSystem)}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -381,7 +384,7 @@ const LeaderboardScreen = () => {
                 #{currentUserEntry.rank}
               </Text>
               <Text style={styles.yourRankWeight}>
-                {currentUserEntry.estimated1RM} lbs
+                {formatWeight(currentUserEntry.estimated1RM, unitSystem)}
               </Text>
             </View>
           )}

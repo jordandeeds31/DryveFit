@@ -3,7 +3,7 @@ const PRIVACY_POLICY_HTML = `<!doctype html>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Dryve Privacy Policy</title>
+<title>DryveFit Privacy Policy</title>
 <style>
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #1a1a1a; }
   h1 { font-size: 28px; }
@@ -13,10 +13,10 @@ const PRIVACY_POLICY_HTML = `<!doctype html>
 </style>
 </head>
 <body>
-<h1>Dryve Privacy Policy</h1>
+<h1>DryveFit Privacy Policy</h1>
 <p>Last updated: August 2026</p>
 
-<p>Dryve ("we," "us," or "our") provides an AI-generated workout program and tracking app. This policy explains what information we collect, how we use it, and your choices.</p>
+<p>DryveFit ("we," "us," or "our") provides an AI-generated workout program and tracking app. This policy explains what information we collect, how we use it, and your choices.</p>
 
 <h2>Information We Collect</h2>
 <ul>
@@ -55,7 +55,7 @@ const PRIVACY_POLICY_HTML = `<!doctype html>
 <h2>Contact Us</h2>
 <p>If you have questions about this policy or want to request deletion of your data, contact us at <a href="mailto:jordandeeds31@gmail.com">jordandeeds31@gmail.com</a>.</p>
 
-<footer>Dryve is developed by Jordan Deeds.</footer>
+<footer>DryveFit is developed by Jordan Deeds.</footer>
 </body>
 </html>`;
 

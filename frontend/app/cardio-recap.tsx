@@ -8,8 +8,12 @@ import { neonGlow, neonShadow } from "@/constants/cyberpunk";
 import { fontSizes, fontWeights } from "@/constants/typography";
 import { formatElapsed } from "@/lib/utils/duration.utils";
 import { CardioActivityType } from "@/types/cardio.types";
-
-const METERS_PER_MILE = 1609.344;
+import { useUnitSystem } from "@/hooks/useUnitSystem";
+import {
+  displayDistance,
+  distanceUnitLabel,
+  formatPace,
+} from "@/lib/utils/units";
 
 const ACTIVITY_LABELS: Record<CardioActivityType, string> = {
   walk: "Walk",
@@ -17,16 +21,8 @@ const ACTIVITY_LABELS: Record<CardioActivityType, string> = {
   bike: "Bike Ride",
 };
 
-const formatPace = (meters: number, durationSecs: number): string => {
-  const miles = meters / METERS_PER_MILE;
-  if (miles < 0.05 || durationSecs < 10) return "--:--";
-  const paceSecondsPerMile = durationSecs / miles;
-  const minutes = Math.floor(paceSecondsPerMile / 60);
-  const seconds = Math.round(paceSecondsPerMile % 60);
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-};
-
 const CardioRecap = () => {
+  const unitSystem = useUnitSystem();
   const {
     activityType,
     durationSecs,
@@ -47,7 +43,6 @@ const CardioRecap = () => {
 
   const duration = Number(durationSecs ?? "0");
   const distance = Number(distanceMeters ?? "0");
-  const miles = distance / METERS_PER_MILE;
 
   const handleDone = () => {
     router.replace("/(tabs)/Cardio");
@@ -67,12 +62,20 @@ const CardioRecap = () => {
 
         <View style={styles.statsRow}>
           <View style={styles.statBox}>
-            <Text style={styles.statValue}>{miles.toFixed(2)}</Text>
-            <Text style={styles.statLabel}>miles</Text>
+            <Text style={styles.statValue}>
+              {displayDistance(distance, unitSystem).toFixed(2)}
+            </Text>
+            <Text style={styles.statLabel}>
+              {unitSystem === "metric" ? "km" : "miles"}
+            </Text>
           </View>
           <View style={styles.statBox}>
-            <Text style={styles.statValue}>{formatPace(distance, duration)}</Text>
-            <Text style={styles.statLabel}>pace /mi</Text>
+            <Text style={styles.statValue}>
+              {formatPace(distance, duration, unitSystem)}
+            </Text>
+            <Text style={styles.statLabel}>
+              pace /{distanceUnitLabel(unitSystem)}
+            </Text>
           </View>
           {!!caloriesBurned && (
             <View style={styles.statBox}>

@@ -24,6 +24,13 @@ model User {
   // fixed interval but needs to know each user's actual local clock to
   // fire at 8:30pm *for them*, not 8:30pm server time.
   timezone                  String?
+  // "metric" | "imperial" — derived once from device location right after
+  // signup (see users.service.ts detectUnitSystem) and editable afterward
+  // in Profile settings. Null means it's never been determined yet; every
+  // read site treats that the same as "imperial" (matches what the whole
+  // app hardcoded before this field existed), so there's no separate
+  // default to keep in sync in two places.
+  unitSystem                String?
   lastWorkoutReminderSentAt DateTime?
   // Nutrition-goal inputs (Mifflin-St Jeor) — kept alongside the resolved
   // goals below so the calculator can be re-run if the user updates them,
@@ -395,6 +402,12 @@ model Exercise {
   equipment   String
   description String?
   imageUrl    String?
+  // Raw GIF bytes fetched from WorkoutX, persisted the first time this
+  // exercise's image is requested (see exercises.service.ts). Every
+  // request after that — including across server restarts — derives from
+  // these bytes instead of hitting WorkoutX again, since its quota is
+  // metered per unique GIF ever fetched, not per request served.
+  imageBytes  Bytes?
   createdAt   DateTime @default(now())
   isCompound  Boolean  @default(false)
 

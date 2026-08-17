@@ -35,6 +35,13 @@ import {
   isHealthKitAvailable,
   queryRecentHeartRateAndEnergy,
 } from "@/lib/health/healthkit";
+import { useUnitSystem } from "@/hooks/useUnitSystem";
+import {
+  displayWeight,
+  toStoredLbs,
+  weightUnitLabel,
+} from "@/lib/utils/units";
+import { UnitSystem } from "@/types/user.types";
 
 const HEALTH_POLL_INTERVAL_MS = 30_000;
 
@@ -44,7 +51,10 @@ interface SetEntry {
   reps: string;
 }
 
-const buildDefaultSets = (exercise: ProgramExercise): SetEntry[] => {
+const buildDefaultSets = (
+  exercise: ProgramExercise,
+  unitSystem: UnitSystem,
+): SetEntry[] => {
   // Resuming a session: if this exercise was already saved (e.g. via a
   // partial save on a previous X close), restore exactly what was
   // logged instead of starting blank.
@@ -52,7 +62,12 @@ const buildDefaultSets = (exercise: ProgramExercise): SetEntry[] => {
   if (existingLog) {
     return existingLog.sets.map((set) => ({
       id: set.id,
-      weight: set.weight?.toString() ?? "",
+      // Stored/loaded in lbs always — converted to the field's display
+      // unit here so a metric user edits/sees kg, not raw lbs.
+      weight:
+        set.weight != null
+          ? displayWeight(set.weight, unitSystem).toString()
+          : "",
       reps: set.reps?.toString() ?? "",
     }));
   }
@@ -60,7 +75,10 @@ const buildDefaultSets = (exercise: ProgramExercise): SetEntry[] => {
   return [
     {
       id: `${exercise.id}-0-${Date.now()}`,
-      weight: exercise.recommendedWeight?.toString() ?? "",
+      weight:
+        exercise.recommendedWeight != null
+          ? displayWeight(exercise.recommendedWeight, unitSystem).toString()
+          : "",
       reps: "",
     },
   ];
@@ -112,6 +130,7 @@ const CinematicMode = () => {
   );
   const { mutate: logExercise, isPending } = useLogExercisePerformance();
   const authImageHeaders = useAuthImageHeaders();
+  const unitSystem = useUnitSystem();
   const dispatch = useDispatch<AppDispatch>();
 
   const sessionKey = `${programId}:${date}`;
@@ -227,7 +246,9 @@ const CinematicMode = () => {
   }, []);
 
   useEffect(() => {
-    if (exercise) setSets(buildDefaultSets(exercise));
+    if (exercise) setSets(buildDefaultSets(exercise, unitSystem));
+    // unitSystem deliberately excluded — it changing mid-session shouldn't
+    // silently rewrite whatever the user's already typed for this set.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIndex, exercise?.id]);
 
@@ -239,7 +260,12 @@ const CinematicMode = () => {
           set.reps.trim() !== "",
       )
       .map((set) => ({
-        weight: isBodyweight ? null : parseFloat(set.weight),
+        // Always stored in lbs — set.weight is whatever the user typed
+        // in their OWN unit system, so it's converted back here
+        // regardless of which one that was.
+        weight: isBodyweight
+          ? null
+          : toStoredLbs(parseFloat(set.weight), unitSystem),
         reps: parseInt(set.reps, 10),
       }));
 
@@ -456,7 +482,7 @@ const CinematicMode = () => {
         <Text style={styles.prescription}>
           {exercise.sets} sets × {exercise.reps} reps
           {exercise.recommendedWeight != null
-            ? ` @ ${exercise.recommendedWeight} lbs`
+            ? ` @ ${displayWeight(exercise.recommendedWeight, unitSystem)} ${weightUnitLabel(unitSystem)}`
             : ""}
         </Text>
         <Text style={styles.timer}>{formatElapsed(elapsedSeconds)}</Text>
@@ -487,7 +513,7 @@ const CinematicMode = () => {
               {!isBodyweight && (
                 <TextInput
                   style={styles.input}
-                  placeholder="Weight"
+                  placeholder={`Weight (${weightUnitLabel(unitSystem)})`}
                   placeholderTextColor="#6B7280"
                   keyboardType="numeric"
                   value={set.weight}

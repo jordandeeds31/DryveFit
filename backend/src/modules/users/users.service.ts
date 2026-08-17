@@ -18,6 +18,7 @@ const PROFILE_SELECT = {
   gender: true,
   isLeaderboardVisible: true,
   profileImageMimeType: true,
+  unitSystem: true,
   createdAt: true,
 } as const;
 
@@ -29,6 +30,7 @@ type RawProfile = {
   gender: string | null;
   isLeaderboardVisible: boolean;
   profileImageMimeType: string | null;
+  unitSystem: string | null;
   createdAt: Date;
 };
 
@@ -133,16 +135,19 @@ export const searchUsers = async (viewerId: string, query: string) => {
   }));
 };
 
+const VALID_UNIT_SYSTEMS = ["metric", "imperial"] as const;
+
 interface UpdateProfileInput {
   username?: string;
   city?: string;
   gender?: string;
   isLeaderboardVisible?: boolean;
+  unitSystem?: string;
 }
 
 export const updateUserProfile = async (
   userId: string,
-  { username, city, gender, isLeaderboardVisible }: UpdateProfileInput,
+  { username, city, gender, isLeaderboardVisible, unitSystem }: UpdateProfileInput,
 ) => {
   if (username !== undefined && !USERNAME_REGEX.test(username)) {
     throw new AppError(
@@ -162,10 +167,17 @@ export const updateUserProfile = async (
     throw new AppError(400, "Invalid gender");
   }
 
+  if (
+    unitSystem !== undefined &&
+    !VALID_UNIT_SYSTEMS.includes(unitSystem as (typeof VALID_UNIT_SYSTEMS)[number])
+  ) {
+    throw new AppError(400, "Invalid unitSystem");
+  }
+
   try {
     const user = await prisma.user.update({
       where: { id: userId },
-      data: { username, city, gender, isLeaderboardVisible },
+      data: { username, city, gender, isLeaderboardVisible, unitSystem },
       select: PROFILE_SELECT,
     });
     return toProfileResponse(user);

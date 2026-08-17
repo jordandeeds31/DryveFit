@@ -66,7 +66,10 @@ export const unfollowUser = async (userId: string): Promise<void> => {
 
 export const updateProfile = async (
   input: Partial<
-    Pick<UserProfile, "username" | "city" | "gender" | "isLeaderboardVisible">
+    Pick<
+      UserProfile,
+      "username" | "city" | "gender" | "isLeaderboardVisible" | "unitSystem"
+    >
   >,
 ): Promise<UserProfile> => {
   const { data } = await apiClient.patch("/api/users/me", input);

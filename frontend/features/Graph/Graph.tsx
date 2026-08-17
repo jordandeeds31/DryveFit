@@ -5,6 +5,8 @@ import { spacing } from "@/constants/spacing";
 import { colors } from "@/constants/colors";
 import { fontSizes, fontWeights } from "@/constants/typography";
 import { formatCalendarDate } from "@/lib/utils/date.utils";
+import { useUnitSystem } from "@/hooks/useUnitSystem";
+import { displayWeight, weightUnitLabel } from "@/lib/utils/units";
 import { GraphProps } from "./Graph.types";
 
 // Very light background — the earlier dark-mode version made the line/grid
@@ -31,6 +33,7 @@ interface SelectedPoint {
 }
 
 const Graph = ({ history }: GraphProps) => {
+  const unitSystem = useUnitSystem();
   const [selectedPoint, setSelectedPoint] = useState<SelectedPoint | null>(
     null,
   );
@@ -47,7 +50,12 @@ const Graph = ({ history }: GraphProps) => {
     ),
     datasets: [
       {
-        data: sortedHistory.map((entry) => entry.estimated1RM),
+        // Stored/loaded in lbs always — converted here so the plotted
+        // values (and anything read back off them, e.g. onDataPointClick
+        // below) are already in the viewer's own unit.
+        data: sortedHistory.map((entry) =>
+          displayWeight(entry.estimated1RM, unitSystem),
+        ),
       },
     ],
   };
@@ -59,7 +67,7 @@ const Graph = ({ history }: GraphProps) => {
         data={chartData}
         width={chartWidth}
         height={CHART_HEIGHT}
-        yAxisSuffix=" lbs"
+        yAxisSuffix={` ${weightUnitLabel(unitSystem)}`}
         fromZero
         segments={5}
         chartConfig={{
@@ -106,7 +114,8 @@ const Graph = ({ history }: GraphProps) => {
           ]}
         >
           <Text style={styles.tooltipText}>
-            {selectedPoint.value} lbs · {selectedPoint.label}
+            {selectedPoint.value} {weightUnitLabel(unitSystem)} ·{" "}
+            {selectedPoint.label}
           </Text>
         </View>
       )}

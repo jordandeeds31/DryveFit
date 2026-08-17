@@ -14,12 +14,29 @@ import { Exercise } from "@/types/exercise.types";
 import styles from "./DropdownExerciseSelect.styles";
 import { DropdownExerciseSelectProps } from "./DropdownExerciseSelect.types";
 
+// Broader groupings over the catalog's fine-grained muscleGroup values
+// (e.g. "lats"/"traps"/"lower back" all read as "Back" here) — a tab per
+// exact muscleGroup would be 15 of them, which browses worse than it
+// filters. "All" always comes first and clears the filter entirely.
+const BODY_PART_CATEGORIES: { label: string; muscleGroups: string[] | null }[] = [
+  { label: "All", muscleGroups: null },
+  { label: "Chest", muscleGroups: ["chest"] },
+  { label: "Back", muscleGroups: ["back", "lats", "traps", "lower back"] },
+  { label: "Shoulders", muscleGroups: ["shoulders"] },
+  { label: "Arms", muscleGroups: ["biceps", "triceps", "forearms"] },
+  { label: "Legs", muscleGroups: ["quads", "hamstrings", "calves", "glutes"] },
+  { label: "Core", muscleGroups: ["abs", "obliques"] },
+];
+
 const DropdownExerciseSelect = ({
   selectedExercise,
   setSelectedExercise,
 }: DropdownExerciseSelectProps) => {
   const [searchText, setSearchText] = useState("");
   const [isOpen, setIsOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState(
+    BODY_PART_CATEGORIES[0].label,
+  );
   const inputRef = useRef<TextInput>(null);
 
   const isFocused = useIsFocused();
@@ -38,11 +55,21 @@ const DropdownExerciseSelect = ({
 
   const filteredExercises = useMemo(() => {
     if (!exercises) return [];
-    if (searchText.length === 0) return exercises;
-    return exercises.filter((exercise) =>
+
+    const category = BODY_PART_CATEGORIES.find(
+      (c) => c.label === selectedCategory,
+    );
+    const byCategory = !category?.muscleGroups
+      ? exercises
+      : exercises.filter((exercise: Exercise) =>
+          category.muscleGroups!.includes(exercise.muscleGroup),
+        );
+
+    if (searchText.length === 0) return byCategory;
+    return byCategory.filter((exercise: Exercise) =>
       exercise.name.toLowerCase().includes(searchText.toLowerCase()),
     );
-  }, [exercises, searchText]);
+  }, [exercises, searchText, selectedCategory]);
 
   const handleSelect = (exercise: Exercise) => {
     setSelectedExercise(exercise);
@@ -79,6 +106,29 @@ const DropdownExerciseSelect = ({
 
       {isOpen && (
         <View style={styles.dropdown}>
+          <View style={styles.categoryRow}>
+            {BODY_PART_CATEGORIES.map((category) => (
+              <TouchableOpacity
+                key={category.label}
+                style={[
+                  styles.categoryChip,
+                  selectedCategory === category.label &&
+                    styles.categoryChipActive,
+                ]}
+                onPress={() => setSelectedCategory(category.label)}
+              >
+                <Text
+                  style={[
+                    styles.categoryChipText,
+                    selectedCategory === category.label &&
+                      styles.categoryChipTextActive,
+                  ]}
+                >
+                  {category.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
           <ScrollView
             style={styles.list}
             contentContainerStyle={styles.listContent}

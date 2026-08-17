@@ -17,6 +17,12 @@ import {
   NutritionGoalType,
 } from "@/types/nutrition.types";
 import { Gender } from "@/types/user.types";
+import { useUnitSystem } from "@/hooks/useUnitSystem";
+import {
+  cmToInches,
+  kgToLbs,
+  weightUnitLabel,
+} from "@/lib/utils/units";
 import styles from "./NutritionSetup.styles";
 
 const formatDate = (date: Date): string =>
@@ -38,11 +44,17 @@ interface NutritionSetupProps {
 
 const NutritionSetup = ({ onSaved }: NutritionSetupProps) => {
   const { mutate: saveProfile, isPending, error } = useUpdateNutritionProfile();
+  const unitSystem = useUnitSystem();
+  const isMetric = unitSystem === "metric";
 
   const [gender, setGender] = useState<Gender | null>(null);
-  const [weightLbs, setWeightLbs] = useState("");
+  // Named for what's typed, not what's stored — this is kg when isMetric,
+  // converted to lbs (the field the backend/Mifflin-St Jeor calc actually
+  // expects) only at submit time in handleSubmit below.
+  const [weightInput, setWeightInput] = useState("");
   const [heightFeet, setHeightFeet] = useState("");
   const [heightInches, setHeightInches] = useState("");
+  const [heightCm, setHeightCm] = useState("");
   const [birthdate, setBirthdate] = useState(DEFAULT_BIRTHDATE);
   const [showPicker, setShowPicker] = useState(false);
   const [activityLevel, setActivityLevel] = useState<ActivityLevel | null>(null);
@@ -58,12 +70,17 @@ const NutritionSetup = ({ onSaved }: NutritionSetupProps) => {
   const parsedInches = parseFloat(heightInches) || 0;
   // 0-11 only — 12+ inches should be entered as another foot instead, same
   // as how anyone actually states a height.
-  const isInchesValid = parsedInches >= 0 && parsedInches <= 11;
-  const totalHeightInches = (parseFloat(heightFeet) || 0) * 12 + parsedInches;
+  const isInchesValid = isMetric || (parsedInches >= 0 && parsedInches <= 11);
+  // The backend/Mifflin-St Jeor calc always takes heightInches regardless
+  // of unitSystem — a metric user's single cm field is converted here,
+  // rather than the feet+inches split ever existing for them at all.
+  const totalHeightInches = isMetric
+    ? cmToInches(parseFloat(heightCm) || 0)
+    : (parseFloat(heightFeet) || 0) * 12 + parsedInches;
 
   const isValid =
     !!gender &&
-    parseFloat(weightLbs) > 0 &&
+    parseFloat(weightInput) > 0 &&
     totalHeightInches > 0 &&
     isInchesValid &&
     !!activityLevel &&
@@ -72,10 +89,14 @@ const NutritionSetup = ({ onSaved }: NutritionSetupProps) => {
   const handleSubmit = () => {
     if (!isValid || !gender || !activityLevel || !goalType) return;
 
+    const weightLbs = isMetric
+      ? kgToLbs(parseFloat(weightInput))
+      : parseFloat(weightInput);
+
     saveProfile(
       {
         gender,
-        weightLbs: parseFloat(weightLbs),
+        weightLbs,
         heightInches: totalHeightInches,
         birthdate: birthdate.toISOString(),
         activityLevel,
@@ -127,40 +148,51 @@ const NutritionSetup = ({ onSaved }: NutritionSetupProps) => {
 
       <View style={styles.section}>
         <Input
-          label="Weight (lbs)"
-          placeholder="e.g. 165"
+          label={`Weight (${weightUnitLabel(unitSystem)})`}
+          placeholder={isMetric ? "e.g. 75" : "e.g. 165"}
           keyboardType="numeric"
-          value={weightLbs}
-          onChangeText={setWeightLbs}
+          value={weightInput}
+          onChangeText={setWeightInput}
         />
       </View>
 
       <View style={styles.section}>
         <Text style={styles.label}>Height</Text>
-        <View style={styles.heightRow}>
-          <View style={styles.heightField}>
-            <Text style={styles.heightFieldLabel}>Feet</Text>
-            <Input
-              placeholder="e.g. 5"
-              keyboardType="numeric"
-              maxLength={1}
-              value={heightFeet}
-              onChangeText={setHeightFeet}
-            />
-          </View>
-          <View style={styles.heightField}>
-            <Text style={styles.heightFieldLabel}>Inches</Text>
-            <Input
-              placeholder="e.g. 10"
-              keyboardType="numeric"
-              maxLength={2}
-              value={heightInches}
-              onChangeText={setHeightInches}
-            />
-          </View>
-        </View>
-        {!isInchesValid && heightInches !== "" && (
-          <Text style={styles.fieldErrorText}>Inches must be 0-11</Text>
+        {isMetric ? (
+          <Input
+            placeholder="e.g. 178"
+            keyboardType="numeric"
+            value={heightCm}
+            onChangeText={setHeightCm}
+          />
+        ) : (
+          <>
+            <View style={styles.heightRow}>
+              <View style={styles.heightField}>
+                <Text style={styles.heightFieldLabel}>Feet</Text>
+                <Input
+                  placeholder="e.g. 5"
+                  keyboardType="numeric"
+                  maxLength={1}
+                  value={heightFeet}
+                  onChangeText={setHeightFeet}
+                />
+              </View>
+              <View style={styles.heightField}>
+                <Text style={styles.heightFieldLabel}>Inches</Text>
+                <Input
+                  placeholder="e.g. 10"
+                  keyboardType="numeric"
+                  maxLength={2}
+                  value={heightInches}
+                  onChangeText={setHeightInches}
+                />
+              </View>
+            </View>
+            {!isInchesValid && heightInches !== "" && (
+              <Text style={styles.fieldErrorText}>Inches must be 0-11</Text>
+            )}
+          </>
         )}
       </View>
 

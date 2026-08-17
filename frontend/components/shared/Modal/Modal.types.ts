@@ -15,4 +15,12 @@ export interface ModalProps {
   // and gives it more height — for content that tends to run long (lots
   // of exercises/sets) where centering just wastes space above and below.
   size?: "default" | "large";
+  // Whether the scroll area auto-scrolls to keep a focused input above the
+  // keyboard. Default true. RNModal renders in its own native window, and
+  // that combination with react-native-keyboard-controller's position
+  // tracking can misfire — for content that's already short enough to
+  // never need it (a search field near the very top of a small card),
+  // turning it off avoids the misfire entirely rather than trying to
+  // out-tune it.
+  keyboardAware?: boolean;
 }

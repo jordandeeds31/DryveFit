@@ -69,7 +69,7 @@ const sendPasswordResetEmail = async (email: string, code: string) => {
   await resend.emails.send({
     from: env.RESEND_FROM_EMAIL,
     to: email,
-    subject: "Reset your Dryve password",
+    subject: "Reset your DryveFit password",
     html: `<p>Your password reset code is:</p><h2 style="letter-spacing:4px">${code}</h2><p>This code expires in 15 minutes. If you didn't request this, you can safely ignore this email.</p>`,
   });
 };

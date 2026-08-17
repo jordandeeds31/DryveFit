@@ -16,7 +16,6 @@ import Feather from "@expo/vector-icons/Feather";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
-import Button from "@/components/shared/Button/Button";
 import Switch from "@/components/shared/Switch/Switch";
 import Input from "@/components/shared/TextInput/TextInput";
 import CityPicker from "@/components/shared/CityPicker/CityPicker";
@@ -31,7 +30,7 @@ import {
   useDeleteProfileImage,
   useDeleteAccount,
 } from "@/hooks/useUsers";
-import { Gender } from "@/types/user.types";
+import { Gender, UnitSystem } from "@/types/user.types";
 import { useAuthImageHeaders } from "@/hooks/useAuthImageHeaders";
 import {
   isHealthKitAvailable,
@@ -44,7 +43,7 @@ import { spacing } from "@/constants/spacing";
 import { fontSizes, fontWeights } from "@/constants/typography";
 
 const Profile = () => {
-  const { logout, isLoading } = useAuth();
+  const { logout } = useAuth();
   const { data: currentUser } = useCurrentUser();
   const {
     mutate: saveProfile,
@@ -63,8 +62,21 @@ const Profile = () => {
   const [username, setUsername] = useState("");
   const [city, setCity] = useState<string | null>(null);
   const [gender, setGender] = useState<Gender | null>(null);
+  // Defaults to "imperial" (not null) since that's what the rest of the
+  // app already assumes wherever unitSystem hasn't been set yet — the
+  // toggle should reflect the effective unit, not a raw unset state with
+  // no selection.
+  const [unitSystem, setUnitSystem] = useState<UnitSystem>("imperial");
   const [isLeaderboardVisible, setIsLeaderboardVisible] = useState(true);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  // Deliberately local, not the global auth isLoading — that flag is
+  // login/register's own pending state (see authSlice.ts's
+  // loginThunk.pending/registerThunk.pending); logoutThunk never touches
+  // it, so using it here meant this button could read as permanently
+  // "stuck" showing SIGNING OUT... whenever isLoading happened to be true
+  // for a completely unrelated reason, with no connection to whether
+  // sign-out was actually in progress.
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const [healthKitStatus, setHealthKitStatus] = useState<
     "unavailable" | "not_connected" | "connected"
   >("not_connected");
@@ -76,6 +88,7 @@ const Profile = () => {
     setUsername(currentUser.username ?? "");
     setCity(currentUser.city);
     setGender(currentUser.gender);
+    setUnitSystem(currentUser.unitSystem ?? "imperial");
     setIsLeaderboardVisible(currentUser.isLeaderboardVisible);
   }, [currentUser]);
 
@@ -93,6 +106,7 @@ const Profile = () => {
         setHealthKitStatus("unavailable");
         return;
       }
+      if (!currentUser) return;
       let cancelled = false;
       (async () => {
         const available = await isHealthKitAvailable();
@@ -101,14 +115,14 @@ const Profile = () => {
           setHealthKitStatus("unavailable");
           return;
         }
-        const connected = await hasCompletedHealthKitConnect();
+        const connected = await hasCompletedHealthKitConnect(currentUser.id);
         if (cancelled) return;
         setHealthKitStatus(connected ? "connected" : "not_connected");
       })();
       return () => {
         cancelled = true;
       };
-    }, []),
+    }, [currentUser]),
   );
 
   const usernameError =
@@ -125,6 +139,7 @@ const Profile = () => {
     (username.trim() !== (currentUser.username ?? "") ||
       city !== currentUser.city ||
       gender !== currentUser.gender ||
+      unitSystem !== (currentUser.unitSystem ?? "imperial") ||
       isLeaderboardVisible !== currentUser.isLeaderboardVisible);
 
   const handlePickImage = async () => {
@@ -164,6 +179,7 @@ const Profile = () => {
         username: trimmedUsername.length > 0 ? trimmedUsername : undefined,
         city: city ?? undefined,
         gender: gender ?? undefined,
+        unitSystem,
         isLeaderboardVisible,
       },
       {
@@ -175,14 +191,15 @@ const Profile = () => {
   };
 
   const handleConnectHealthKit = async () => {
+    if (!currentUser) return;
     setIsConnectingHealthKit(true);
-    const granted = await requestHealthKitAuthorization();
+    const granted = await requestHealthKitAuthorization(currentUser.id);
     setIsConnectingHealthKit(false);
 
     if (!granted) {
       Alert.alert(
         "Couldn't connect",
-        "Apple Health didn't respond. If a permission prompt appeared, try answering it again, or check Settings > Health > Data Access & Devices > Dryve.",
+        "Apple Health didn't respond. If a permission prompt appeared, try answering it again, or check Settings > Health > Data Access & Devices > DryveFit.",
       );
       return;
     }
@@ -191,7 +208,8 @@ const Profile = () => {
   };
 
   const handleDisconnectHealthKit = async () => {
-    await disconnectHealthKit();
+    if (!currentUser) return;
+    await disconnectHealthKit(currentUser.id);
     setHealthKitStatus("not_connected");
     setToastMessage("Apple Health turned off");
   };
@@ -203,8 +221,13 @@ const Profile = () => {
         text: "Sign Out",
         style: "destructive",
         onPress: async () => {
-          await logout();
-          router.replace("/(auth)/signin");
+          setIsSigningOut(true);
+          try {
+            await logout();
+            router.replace("/(auth)/signin");
+          } finally {
+            setIsSigningOut(false);
+          }
         },
       },
     ]);
@@ -385,6 +408,48 @@ const Profile = () => {
             </View>
           </View>
 
+          <View style={styles.fieldSpacer}>
+            <Text style={styles.fieldLabel}>Units</Text>
+            <Text style={styles.fieldHint}>
+              Detected automatically from your location when you signed up
+              — change it here if it's wrong.
+            </Text>
+            <View style={styles.unitsRow}>
+              <TouchableOpacity
+                style={[
+                  styles.unitsOption,
+                  unitSystem === "imperial" && styles.unitsOptionActive,
+                ]}
+                onPress={() => setUnitSystem("imperial")}
+              >
+                <Text
+                  style={[
+                    styles.unitsOptionText,
+                    unitSystem === "imperial" && styles.unitsOptionTextActive,
+                  ]}
+                >
+                  Imperial (lbs, mi)
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.unitsOption,
+                  unitSystem === "metric" && styles.unitsOptionActive,
+                ]}
+                onPress={() => setUnitSystem("metric")}
+              >
+                <Text
+                  style={[
+                    styles.unitsOptionText,
+                    unitSystem === "metric" && styles.unitsOptionTextActive,
+                  ]}
+                >
+                  Metric (kg, km)
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
           <View style={styles.switchRow}>
             <View style={styles.switchTextGroup}>
               <Text style={styles.switchLabel}>Show me on leaderboards</Text>
@@ -438,12 +503,18 @@ const Profile = () => {
           </TouchableOpacity>
 
           <View style={styles.buttonContainer}>
-            <Button
-              title={isLoading ? "SIGNING OUT..." : "SIGN OUT"}
-              backgroundColor={colors.dangerRed}
+            <TouchableOpacity
+              style={[
+                styles.signOutButton,
+                isSigningOut && styles.signOutButtonDisabled,
+              ]}
               onPress={handleSignOut}
-              disabled={isLoading}
-            />
+              disabled={isSigningOut}
+            >
+              <Text style={styles.signOutButtonText}>
+                {isSigningOut ? "SIGNING OUT..." : "SIGN OUT"}
+              </Text>
+            </TouchableOpacity>
           </View>
 
           <TouchableOpacity
@@ -585,6 +656,30 @@ const styles = StyleSheet.create({
   genderOptionTextActive: {
     color: colors.primaryBlue,
   },
+  unitsRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  unitsOption: {
+    flex: 1,
+    paddingVertical: spacing.sm,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: colors.borderGray,
+    borderRadius: 8,
+  },
+  unitsOptionActive: {
+    backgroundColor: colors.surfaceBlueLight,
+    borderColor: colors.borderBlueLight,
+  },
+  unitsOptionText: {
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.semibold,
+    color: colors.textSecondary,
+  },
+  unitsOptionTextActive: {
+    color: colors.primaryBlue,
+  },
   switchRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -634,6 +729,21 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     marginTop: spacing.xl,
+  },
+  signOutButton: {
+    backgroundColor: colors.dangerRed,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  signOutButtonDisabled: {
+    opacity: 0.6,
+  },
+  signOutButtonText: {
+    color: "white",
+    fontWeight: fontWeights.semibold,
   },
   deleteAccountButton: {
     alignItems: "center",

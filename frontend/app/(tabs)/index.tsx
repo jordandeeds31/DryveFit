@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ActivityIndicator,
   TouchableOpacity,
-  Keyboard,
 } from "react-native";
 import {
   KeyboardAwareScrollView,
@@ -52,29 +51,6 @@ const HomeScreen = () => {
   const [isSavingWorkout, setIsSavingWorkout] = useState(false);
   const workoutLoggerRef = useRef<WorkoutLoggerHandle>(null);
   const scrollViewRef = useRef<KeyboardAwareScrollViewRef>(null);
-  const isWorkoutLoggerModalOpenRef = useRef(isWorkoutLoggerModalOpen);
-  isWorkoutLoggerModalOpenRef.current = isWorkoutLoggerModalOpen;
-
-  // react-native-keyboard-controller's keyboard events are global, so
-  // Home's own KeyboardAwareScrollView reacts to the workout modal's
-  // keyboard too, even though none of Home's own inputs are involved —
-  // its internal scroll-position correction for that (unrelated) keyboard
-  // event can land after ours if we react to modal-close alone, leaving a
-  // stale scroll position (visible as blank space above the "working out
-  // right now" banner). Listening for the keyboard's own hide event and
-  // waiting past its ~250-300ms hide animation lets our reset win the race.
-  // Scoped to only while the workout modal is open so this doesn't fight
-  // the legitimate scroll-into-view behavior for WorkoutDetail's own
-  // inline set-logging inputs, which aren't affected by this bug.
-  useEffect(() => {
-    const subscription = Keyboard.addListener("keyboardDidHide", () => {
-      if (!isWorkoutLoggerModalOpenRef.current) return;
-      setTimeout(() => {
-        scrollViewRef.current?.scrollTo({ y: 0, animated: false });
-      }, 350);
-    });
-    return () => subscription.remove();
-  }, []);
 
   const dispatch = useDispatch<AppDispatch>();
   const pendingWorkoutExercises = useSelector(
@@ -100,12 +76,6 @@ const HomeScreen = () => {
     if (!value) {
       setPrefillExercises(undefined);
       setIsWorkoutFormDirty(false);
-      // The modal's own keyboard events are global, so Home's background
-      // KeyboardAwareScrollView reacts to them too even though none of its
-      // own inputs were involved — closing the modal can leave it scrolled
-      // to a stale, incorrect position (visible as blank space above the
-      // "working out right now" banner). Snap it back to the top.
-      scrollViewRef.current?.scrollTo({ y: 0, animated: false });
     }
   };
 
@@ -308,6 +278,15 @@ const HomeScreen = () => {
           ]}
           keyboardShouldPersistTaps="handled"
           bottomOffset={60}
+          // None of Home's directly-owned children have a TextInput — every
+          // input in the Workouts tab (WorkoutDetail's modals, WorkoutLogger)
+          // lives inside its own separate RNModal window. But keyboard
+          // events are global, so with this enabled, Home's ScrollView still
+          // reacted to those unrelated modals' keyboards, adding/removing
+          // bottom padding it never needed and drifting out of sync —
+          // visible as a stale gap once a modal closed. Disabling it removes
+          // the reactive behavior at the source instead of correcting for it.
+          enabled={false}
         >
           <ActiveWorkoutBanner />
 

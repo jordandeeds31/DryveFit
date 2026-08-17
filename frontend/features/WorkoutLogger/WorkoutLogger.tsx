@@ -22,6 +22,13 @@ import {
 } from "@/hooks/useWorkoutLogs";
 import { usePreviousSession } from "@/hooks/useExercises";
 import { formatCalendarDate } from "@/lib/utils/date.utils";
+import { useUnitSystem } from "@/hooks/useUnitSystem";
+import {
+  displayWeight,
+  toStoredLbs,
+  weightUnitLabel,
+} from "@/lib/utils/units";
+import { UnitSystem } from "@/types/user.types";
 import { colors } from "@/constants/colors";
 
 const formatSessionDate = (dateStr: string) =>
@@ -75,6 +82,7 @@ const createBlankEntry = (): ExerciseEntry => ({
 
 const mapWorkoutLogsToEntries = (
   workoutLogs: WorkoutLoggerProps["initialWorkoutLogs"],
+  unitSystem: UnitSystem,
 ): ExerciseEntry[] => {
   return workoutLogs.flatMap((workout) =>
     workout.exercises.map((exercise) => ({
@@ -86,7 +94,12 @@ const mapWorkoutLogsToEntries = (
       } as Exercise,
       sets: exercise.sets.map((set) => ({
         id: set.id,
-        weight: set.weight?.toString() ?? "",
+        // Stored/loaded in lbs always — converted to the field's display
+        // unit here so a metric user edits/sees kg, not raw lbs.
+        weight:
+          set.weight != null
+            ? displayWeight(set.weight, unitSystem).toString()
+            : "",
         reps: set.reps?.toString() ?? "",
       })),
     })),
@@ -113,8 +126,9 @@ const mapPrefillToEntries = (
 const buildInitialEntries = (
   initialWorkoutLogs: WorkoutLoggerProps["initialWorkoutLogs"],
   prefillExercises: WorkoutLoggerProps["prefillExercises"],
+  unitSystem: UnitSystem,
 ): ExerciseEntry[] => {
-  const mappedEntries = mapWorkoutLogsToEntries(initialWorkoutLogs);
+  const mappedEntries = mapWorkoutLogsToEntries(initialWorkoutLogs, unitSystem);
   if (mappedEntries.length > 0) return mappedEntries;
 
   const prefillEntries = mapPrefillToEntries(prefillExercises);
@@ -134,8 +148,9 @@ const WorkoutLogger = forwardRef<WorkoutLoggerHandle, WorkoutLoggerProps>(
     },
     ref,
   ) => {
+    const unitSystem = useUnitSystem();
     const [exerciseEntries, setExerciseEntries] = useState<ExerciseEntry[]>(
-      () => buildInitialEntries(initialWorkoutLogs, prefillExercises),
+      () => buildInitialEntries(initialWorkoutLogs, prefillExercises, unitSystem),
     );
     // Reported to the parent, which renders the actual Save button pinned
     // above the scrollable content (see index.tsx) — a button rendered here,
@@ -183,14 +198,16 @@ const WorkoutLogger = forwardRef<WorkoutLoggerHandle, WorkoutLoggerProps>(
 
     useEffect(() => {
       setExerciseEntries(
-        buildInitialEntries(initialWorkoutLogs, prefillExercises),
+        buildInitialEntries(initialWorkoutLogs, prefillExercises, unitSystem),
       );
       setIsDirty(false);
-      // prefillExercises deliberately excluded — it should only seed the
-      // form once, on whichever mount/date it was passed in for; the
-      // parent clears it from its own state right after, so including it
-      // here would just re-apply it on every unrelated initialWorkoutLogs
-      // change until that clear lands.
+      // prefillExercises/unitSystem deliberately excluded — prefillExercises
+      // should only seed the form once, on whichever mount/date it was
+      // passed in for (the parent clears it from its own state right
+      // after, so including it here would just re-apply it on every
+      // unrelated initialWorkoutLogs change until that clear lands);
+      // unitSystem changing mid-edit shouldn't silently rewrite whatever
+      // the user's already typed.
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [initialWorkoutLogs]);
 
@@ -297,7 +314,12 @@ const WorkoutLogger = forwardRef<WorkoutLoggerHandle, WorkoutLoggerProps>(
                 set.reps.trim() !== "",
             )
             .map((set) => ({
-              weight: isBodyweight ? null : parseFloat(set.weight),
+              // Always stored in lbs — set.weight is whatever the user
+              // typed in their OWN unit system, so it's converted back
+              // here regardless of which one that was.
+              weight: isBodyweight
+                ? null
+                : toStoredLbs(parseFloat(set.weight), unitSystem),
               reps: parseInt(set.reps, 10),
             }));
 
@@ -410,7 +432,7 @@ const WorkoutLogger = forwardRef<WorkoutLoggerHandle, WorkoutLoggerProps>(
                     {entry.exercise?.equipment !== "bodyweight" && (
                       <TextInput
                         style={styles.input}
-                        placeholder="Weight"
+                        placeholder={`Weight (${weightUnitLabel(unitSystem)})`}
                         keyboardType="numeric"
                         value={set.weight}
                         onChangeText={(value) =>
@@ -481,7 +503,9 @@ const WorkoutLogger = forwardRef<WorkoutLoggerHandle, WorkoutLoggerProps>(
                 <View key={set.setNumber} style={styles.setRow}>
                   <Text style={styles.setLabel}>Set {set.setNumber}</Text>
                   <Text style={styles.previousSetValue}>
-                    {set.weight != null ? `${set.weight} lbs x ` : ""}
+                    {set.weight != null
+                      ? `${displayWeight(set.weight, unitSystem)} ${weightUnitLabel(unitSystem)} x `
+                      : ""}
                     {set.reps ?? "-"} reps
                   </Text>
                 </View>

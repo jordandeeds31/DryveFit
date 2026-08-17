@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Platform,
   Alert,
+  LayoutChangeEvent,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image } from "expo-image";
@@ -52,6 +53,32 @@ const findCommentById = (
   return null;
 };
 
+const containsCommentId = (comments: PostComment[], id: string): boolean => {
+  for (const comment of comments) {
+    if (comment.id === id) return true;
+    if (containsCommentId(comment.replies, id)) return true;
+  }
+  return false;
+};
+
+// A reply is nested arbitrarily deep inside its thread, not appended at the
+// end of the FlatList's own `data` — so "scroll to it" really means "scroll
+// to the top-level thread it landed in," found by walking the top-level
+// comments and checking which one's subtree contains the reply target.
+const findRootCommentId = (
+  comments: PostComment[],
+  targetId: string,
+): string | null => {
+  for (const root of comments) {
+    if (root.id === targetId || containsCommentId(root.replies, targetId)) {
+      return root.id;
+    }
+  }
+  return null;
+};
+
+type ScrollTarget = { type: "end" } | { type: "comment"; rootId: string };
+
 // Paused by default (not autoplaying/looping) — same reasoning as the
 // feed's own video card.
 const PostVideo = ({ uri }: { uri: string }) => {
@@ -93,6 +120,16 @@ const PostScreen = () => {
   // a given target id should trigger it.
   const appliedInitialReplyId = useRef<string | null>(null);
 
+  const listRef = useRef<FlatList<PostComment>>(null);
+  // Measured top offset (within the FlatList's content) of each top-level
+  // comment, refreshed on every layout pass — used to scroll a reply's
+  // thread into view after sending, since the reply itself isn't a
+  // top-level FlatList item and can't be scrolled to directly.
+  const rootOffsetsRef = useRef<Record<string, number>>({});
+  // Set right before an add-comment mutation fires, consumed once the
+  // resulting `comments` refetch lands.
+  const pendingScrollTargetRef = useRef<ScrollTarget | null>(null);
+
   useEffect(() => {
     if (!replyTo || !comments) return;
     if (appliedInitialReplyId.current === replyTo) return;
@@ -103,6 +140,25 @@ const PostScreen = () => {
       appliedInitialReplyId.current = replyTo;
     }
   }, [comments, replyTo]);
+
+  useEffect(() => {
+    const target = pendingScrollTargetRef.current;
+    if (!target || !comments) return;
+    pendingScrollTargetRef.current = null;
+
+    requestAnimationFrame(() => {
+      if (target.type === "end") {
+        listRef.current?.scrollToEnd({ animated: true });
+        return;
+      }
+      const offset = rootOffsetsRef.current[target.rootId];
+      if (offset !== undefined) {
+        listRef.current?.scrollToOffset({ offset, animated: true });
+      } else {
+        listRef.current?.scrollToEnd({ animated: true });
+      }
+    });
+  }, [comments]);
 
   const handleDelete = () => {
     if (!post) return;
@@ -123,6 +179,14 @@ const PostScreen = () => {
     const trimmed = text.trim();
     if (!trimmed || !postId) return;
 
+    const rootId =
+      replyingTo && comments
+        ? findRootCommentId(comments, replyingTo.id)
+        : null;
+    pendingScrollTargetRef.current = rootId
+      ? { type: "comment", rootId }
+      : { type: "end" };
+
     addComment(
       { postId, content: trimmed, parentId: replyingTo?.id },
       {
@@ -132,6 +196,10 @@ const PostScreen = () => {
         },
       },
     );
+  };
+
+  const handleRootLayout = (id: string) => (event: LayoutChangeEvent) => {
+    rootOffsetsRef.current[id] = event.nativeEvent.layout.y;
   };
 
   return (
@@ -164,6 +232,7 @@ const PostScreen = () => {
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
           <FlatList
+            ref={listRef}
             data={comments ?? []}
             keyExtractor={(item) => item.id}
             keyboardShouldPersistTaps="handled"
@@ -272,12 +341,14 @@ const PostScreen = () => {
               </View>
             }
             renderItem={({ item }: { item: PostComment }) => (
-              <CommentItem
-                comment={item}
-                postId={post.id}
-                depth={0}
-                onReply={setReplyingTo}
-              />
+              <View onLayout={handleRootLayout(item.id)}>
+                <CommentItem
+                  comment={item}
+                  postId={post.id}
+                  depth={0}
+                  onReply={setReplyingTo}
+                />
+              </View>
             )}
             ListEmptyComponent={
               !isCommentsLoading ? (

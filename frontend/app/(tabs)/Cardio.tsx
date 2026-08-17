@@ -57,6 +57,7 @@ const CardioScreen = () => {
         setNeedsHealthKitConnect(false);
         return;
       }
+      if (!currentUser) return;
       let cancelled = false;
       (async () => {
         const available = await isHealthKitAvailable();
@@ -64,13 +65,13 @@ const CardioScreen = () => {
           if (!cancelled) setNeedsHealthKitConnect(false);
           return;
         }
-        const connected = await hasCompletedHealthKitConnect();
+        const connected = await hasCompletedHealthKitConnect(currentUser.id);
         if (!cancelled) setNeedsHealthKitConnect(!connected);
       })();
       return () => {
         cancelled = true;
       };
-    }, []),
+    }, [currentUser]),
   );
 
   const handleStart = (activityType: CardioActivityType) => {

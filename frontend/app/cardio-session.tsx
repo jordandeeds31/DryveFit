@@ -26,6 +26,7 @@ import {
   clearSession,
 } from "@/store/slices/cardioSessionSlice";
 import { useCreateCardioSession } from "@/hooks/useCardio";
+import { useCurrentUser } from "@/hooks/useUsers";
 import { CardioActivityType } from "@/types/cardio.types";
 import { spacing } from "@/constants/spacing";
 import { colors } from "@/constants/colors";
@@ -37,9 +38,14 @@ import {
   queryRecentHeartRateAndEnergy,
 } from "@/lib/health/healthkit";
 import { cyberpunk, neonGlow, neonShadow } from "@/constants/cyberpunk";
+import { useUnitSystem } from "@/hooks/useUnitSystem";
+import {
+  displayDistance,
+  distanceUnitLabel,
+  formatPace,
+} from "@/lib/utils/units";
 
 const HEALTH_POLL_INTERVAL_MS = 30_000;
-const METERS_PER_MILE = 1609.344;
 const MAP_DELTA = 0.005;
 
 const ACTIVITY_LABELS: Record<CardioActivityType, string> = {
@@ -48,22 +54,13 @@ const ACTIVITY_LABELS: Record<CardioActivityType, string> = {
   bike: "Bike Ride",
 };
 
-const formatMiles = (meters: number): string => (meters / METERS_PER_MILE).toFixed(2);
-
-const formatPace = (meters: number, elapsedSeconds: number): string => {
-  const miles = meters / METERS_PER_MILE;
-  if (miles < 0.05 || elapsedSeconds < 10) return "--:--";
-  const paceSecondsPerMile = elapsedSeconds / miles;
-  const minutes = Math.floor(paceSecondsPerMile / 60);
-  const seconds = Math.round(paceSecondsPerMile % 60);
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-};
-
 const CardioSessionScreen = () => {
   const { activityType } = useLocalSearchParams<{
     activityType: CardioActivityType;
   }>();
   const dispatch = useDispatch<AppDispatch>();
+  const unitSystem = useUnitSystem();
+  const { data: currentUser } = useCurrentUser();
   const { mutate: createSession, isPending: isSaving } =
     useCreateCardioSession();
 
@@ -140,6 +137,7 @@ const CardioSessionScreen = () => {
   }, []);
 
   useEffect(() => {
+    if (!currentUser) return;
     let cancelled = false;
     (async () => {
       const available = await isHealthKitAvailable();
@@ -148,7 +146,7 @@ const CardioSessionScreen = () => {
         setHealthKitStatus("unavailable");
         return;
       }
-      const connected = await hasCompletedHealthKitConnect();
+      const connected = await hasCompletedHealthKitConnect(currentUser.id);
       if (!cancelled) {
         setHealthKitStatus(connected ? "connected" : "not_connected");
       }
@@ -156,7 +154,7 @@ const CardioSessionScreen = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [currentUser]);
 
   // Same 30s-poll pattern as cinematic-mode: no live streaming API here,
   // just "most recent Watch-synced reading" pulled from HealthKit
@@ -404,14 +402,20 @@ const CardioSessionScreen = () => {
           <Text style={styles.statLabel}>time</Text>
         </View>
         <View style={styles.statBox}>
-          <Text style={styles.statValue}>{formatMiles(active.distanceMeters)}</Text>
-          <Text style={styles.statLabel}>miles</Text>
+          <Text style={styles.statValue}>
+            {displayDistance(active.distanceMeters, unitSystem).toFixed(2)}
+          </Text>
+          <Text style={styles.statLabel}>
+            {unitSystem === "metric" ? "km" : "miles"}
+          </Text>
         </View>
         <View style={styles.statBox}>
           <Text style={styles.statValue}>
-            {formatPace(active.distanceMeters, elapsedSeconds)}
+            {formatPace(active.distanceMeters, elapsedSeconds, unitSystem)}
           </Text>
-          <Text style={styles.statLabel}>pace /mi</Text>
+          <Text style={styles.statLabel}>
+            pace /{distanceUnitLabel(unitSystem)}
+          </Text>
         </View>
         {active.caloriesBurned > 0 && (
           <View style={styles.statBox}>

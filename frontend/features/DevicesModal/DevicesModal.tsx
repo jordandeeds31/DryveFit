@@ -29,7 +29,7 @@ const DevicesModal = ({
     }
     Alert.alert(
       "Turn off Apple Health?",
-      "Dryve will stop reading your heart rate, calories, and activity from Apple Health. You can turn it back on anytime.",
+      "DryveFit will stop reading your heart rate, calories, and activity from Apple Health. You can turn it back on anytime.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -46,7 +46,7 @@ const DevicesModal = ({
       <Text style={styles.title}>Devices</Text>
       <Text style={styles.subtitle}>
         Connect a health device to sync heart rate, calories, and activity into
-        Dryve.
+        DryveFit.
       </Text>
 
       {healthKitStatus !== "unavailable" && (

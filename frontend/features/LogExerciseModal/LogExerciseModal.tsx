@@ -7,6 +7,12 @@ import {
   useLogExercisePerformance,
   useDeleteExercisePerformance,
 } from "@/hooks/usePrograms";
+import { useUnitSystem } from "@/hooks/useUnitSystem";
+import {
+  displayWeight,
+  toStoredLbs,
+  weightUnitLabel,
+} from "@/lib/utils/units";
 
 const LogExerciseModal = ({
   visible,
@@ -16,6 +22,7 @@ const LogExerciseModal = ({
   onSetsChange,
   onSaved,
 }: LogExerciseModalProps) => {
+  const unitSystem = useUnitSystem();
   const { mutate: logPerformance, isPending: isSaving } =
     useLogExercisePerformance();
   const { mutate: deletePerformance, isPending: isDeleting } =
@@ -34,7 +41,12 @@ const LogExerciseModal = ({
           set.reps.trim() !== "",
       )
       .map((set) => ({
-        weight: isBodyweight ? null : parseFloat(set.weight),
+        // Always stored in lbs — set.weight is whatever the user typed
+        // in their OWN unit system, so it's converted back here
+        // regardless of which one that was.
+        weight: isBodyweight
+          ? null
+          : toStoredLbs(parseFloat(set.weight), unitSystem),
         reps: parseInt(set.reps, 10),
       }));
 
@@ -96,13 +108,14 @@ const LogExerciseModal = ({
         </Text>
         {exercise?.recommendedWeight != null && (
           <Text style={styles.recommendedWeight}>
-            Weight: {exercise.recommendedWeight} lbs
+            Weight: {displayWeight(exercise.recommendedWeight, unitSystem)}{" "}
+            {weightUnitLabel(unitSystem)}
           </Text>
         )}
         <Text style={styles.completionHint}>
           Log at least {exercise?.sets} sets of {exercise?.reps}+ reps
           {exercise?.recommendedWeight != null
-            ? ` at ${exercise.recommendedWeight}+ lbs`
+            ? ` at ${displayWeight(exercise.recommendedWeight, unitSystem)}+ ${weightUnitLabel(unitSystem)}`
             : ""}{" "}
           to mark this exercise LOGGED — anything less will show as IN
           PROGRESS.
@@ -113,7 +126,7 @@ const LogExerciseModal = ({
             {!isBodyweight && (
               <TextInput
                 style={styles.input}
-                placeholder="Weight"
+                placeholder={`Weight (${weightUnitLabel(unitSystem)})`}
                 keyboardType="numeric"
                 value={set.weight}
                 onChangeText={(value) =>

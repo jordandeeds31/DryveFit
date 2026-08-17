@@ -63,7 +63,16 @@ const permissions: HealthKitPermissions = {
   },
 };
 
-const HEALTHKIT_CONNECTED_KEY = "healthKitConnected";
+const HEALTHKIT_CONNECTED_KEY_PREFIX = "healthKitConnected";
+
+// iOS's own permission grant is per-app, not per-account — it stays
+// authorized underneath us no matter which Dryve account is signed in on
+// this device. Our own "connected" flag has to be scoped per-user (keyed by
+// id), not global, or a second account signing in on the same phone would
+// silently inherit the first account's connected state instead of being
+// asked to opt in for itself.
+const connectedKeyFor = (userId: string) =>
+  `${HEALTHKIT_CONNECTED_KEY_PREFIX}:${userId}`;
 
 // HealthKit deliberately never reveals true read-authorization status to
 // apps (getAuthStatus is only meaningful for write/share types, and even
@@ -73,13 +82,15 @@ const HEALTHKIT_CONNECTED_KEY = "healthKitConnected";
 // "the user completed the connect flow at least once," a fact the app
 // actually controls, and persisted locally so it survives app restarts and
 // re-logins.
-export const hasCompletedHealthKitConnect = async (): Promise<boolean> => {
-  const value = await SecureStore.getItemAsync(HEALTHKIT_CONNECTED_KEY);
+export const hasCompletedHealthKitConnect = async (
+  userId: string,
+): Promise<boolean> => {
+  const value = await SecureStore.getItemAsync(connectedKeyFor(userId));
   return value === "true";
 };
 
-const markHealthKitConnected = async (): Promise<void> => {
-  await SecureStore.setItemAsync(HEALTHKIT_CONNECTED_KEY, "true");
+const markHealthKitConnected = async (userId: string): Promise<void> => {
+  await SecureStore.setItemAsync(connectedKeyFor(userId), "true");
 };
 
 // iOS gives apps no API to revoke their own HealthKit authorization — only
@@ -90,8 +101,8 @@ const markHealthKitConnected = async (): Promise<void> => {
 // the underlying OS-level grant is still technically in place. Toggling
 // back on later re-runs requestHealthKitAuthorization, which resolves
 // immediately with no new prompt since iOS already has the grant on file.
-export const disconnectHealthKit = async (): Promise<void> => {
-  await SecureStore.deleteItemAsync(HEALTHKIT_CONNECTED_KEY);
+export const disconnectHealthKit = async (userId: string): Promise<void> => {
+  await SecureStore.deleteItemAsync(connectedKeyFor(userId));
 };
 
 // initHealthKit's completion only fires once the user responds to iOS's
@@ -119,13 +130,15 @@ export const isHealthKitAvailable = (): Promise<boolean> => {
   });
 };
 
-export const requestHealthKitAuthorization = (): Promise<boolean> => {
+export const requestHealthKitAuthorization = (
+  userId: string,
+): Promise<boolean> => {
   if (Platform.OS !== "ios") return Promise.resolve(false);
 
   const request = new Promise<boolean>((resolve) => {
     AppleHealthKit.initHealthKit(permissions, async (error) => {
       const success = !error;
-      if (success) await markHealthKitConnected();
+      if (success) await markHealthKitConnected(userId);
       resolve(success);
     });
   });

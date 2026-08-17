@@ -1,6 +1,8 @@
 import { View, Text } from "react-native";
 import { WorkoutLog } from "@/types/workoutLog.types";
 import Button from "@/components/shared/Button/Button";
+import { useUnitSystem } from "@/hooks/useUnitSystem";
+import { displayWeight, weightUnitLabel } from "@/lib/utils/units";
 import styles from "./WorkoutLogSummary.styles";
 
 interface WorkoutLogSummaryProps {
@@ -13,6 +15,7 @@ interface WorkoutLogSummaryProps {
 // shows in its place once a day has something logged: a summary plus a
 // button back into that same modal, pre-filled, to make changes.
 const WorkoutLogSummary = ({ workoutLogs, onEdit }: WorkoutLogSummaryProps) => {
+  const unitSystem = useUnitSystem();
   const exercises = workoutLogs.flatMap((log) => log.exercises);
 
   return (
@@ -24,7 +27,9 @@ const WorkoutLogSummary = ({ workoutLogs, onEdit }: WorkoutLogSummaryProps) => {
             <View key={set.id} style={styles.setRow}>
               <Text style={styles.setLabel}>Set {set.setNumber}</Text>
               <Text style={styles.setValue}>
-                {set.weight != null ? `${set.weight} lbs x ` : ""}
+                {set.weight != null
+                  ? `${displayWeight(set.weight, unitSystem)} ${weightUnitLabel(unitSystem)} x `
+                  : ""}
                 {set.reps ?? "-"} reps
               </Text>
             </View>

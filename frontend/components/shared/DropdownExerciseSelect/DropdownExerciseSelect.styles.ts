@@ -28,7 +28,34 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderGray,
     borderRadius: 8,
-    maxHeight: 240,
+    maxHeight: 320,
+  },
+  categoryRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs,
+    padding: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderGray,
+  },
+  categoryChip: {
+    borderWidth: 1,
+    borderColor: colors.borderGray,
+    borderRadius: 16,
+    paddingVertical: 4,
+    paddingHorizontal: spacing.sm,
+  },
+  categoryChipActive: {
+    backgroundColor: colors.surfaceBlueLight,
+    borderColor: colors.borderBlueLight,
+  },
+  categoryChipText: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.semibold,
+    color: colors.textSecondary,
+  },
+  categoryChipTextActive: {
+    color: colors.primaryBlue,
   },
   list: {
     maxHeight: 240,

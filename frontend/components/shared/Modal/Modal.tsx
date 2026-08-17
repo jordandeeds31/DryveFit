@@ -20,6 +20,7 @@ const Modal = ({
   closable = true,
   headerAction,
   size = "default",
+  keyboardAware = true,
 }: ModalProps) => {
   const insets = useSafeAreaInsets();
   const isLarge = size === "large";
@@ -77,6 +78,7 @@ const Modal = ({
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             bottomOffset={60}
+            enabled={keyboardAware}
           >
             {children}
           </KeyboardAwareScrollView>

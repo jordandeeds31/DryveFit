@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
     color: colors.primaryBlue,
   },
   imagePreviewWrapper: {
-    marginTop: spacing.sm,
+    marginTop: spacing.md,
   },
   imagePreview: {
     width: "100%",

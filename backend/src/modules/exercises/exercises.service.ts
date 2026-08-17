@@ -30,15 +30,13 @@ export const getAllExercises = async () => {
   }));
 };
 
-// Every exercise's image bytes, once successfully fetched from WorkoutX,
-// keyed by name+variant (static thumbnail vs. animated GIF are different
-// bytes). The catalog is small and fixed (~80 exercises), so this is
-// bounded and never needs eviction. Without this, every single modal open
-// hit WorkoutX live — any transient slowness/rate-limit/error there
-// surfaced to the user as the image just not appearing, with no retry.
-// Caching only successes (never failures) means a WorkoutX hiccup only
-// ever affects the first view of a given exercise, and self-heals on the
-// next request instead of staying broken.
+// Every exercise's DERIVED image bytes (static PNG vs. animated GIF are
+// different encodings of the same source), keyed by name+variant. The
+// catalog is small and fixed (~80 exercises), so this is bounded and
+// never needs eviction. This is only an in-process fast path on top of
+// the durable DB cache below (Exercise.imageBytes) — it resets on every
+// restart, but the raw GIF bytes it derives from don't, so a restart
+// costs a cheap local sharp conversion, never another WorkoutX request.
 const imageCache = new Map<string, { buffer: Buffer; contentType: string }>();
 
 // WorkoutX has no documented SLA — without a timeout, a hung upstream
@@ -49,47 +47,81 @@ const WORKOUTX_FETCH_TIMEOUT_MS = 8000;
 // Fetches the actual image bytes server-side (WorkoutX requires an API key
 // to load the GIF, not just to look it up) so the key never has to be
 // exposed to the client — the frontend hits our own /image proxy instead.
+//
+// WorkoutX's free tier meters usage per UNIQUE gif fetched, not per
+// request served — re-fetching the same exercise's gif on every server
+// restart (routine during local dev, where the process restarts on every
+// file save) burns through that quota for images we already have. Each
+// exercise's raw gif bytes are fetched from WorkoutX at most ONCE, ever:
+// persisted to Exercise.imageBytes the first time, and served from there
+// (deriving the static/animated variant locally) on every request after.
 export const getExerciseImage = async (
   exerciseName: string,
   animated: boolean = false,
 ): Promise<{ buffer: Buffer; contentType: string } | null> => {
-  if (!env.WORKOUTX_API_KEY) return null;
-
   const cacheKey = `${exerciseName}::${animated ? "animated" : "static"}`;
   const cached = imageCache.get(cacheKey);
   if (cached) return cached;
 
   const exercise = await prisma.exercise.findUnique({
     where: { name: exerciseName },
-    select: { imageUrl: true },
+    select: { imageUrl: true, imageBytes: true },
   });
 
   if (!exercise?.imageUrl) return null;
 
-  let response: Response;
-  try {
-    response = await fetch(exercise.imageUrl, {
-      headers: { "X-WorkoutX-Key": env.WORKOUTX_API_KEY },
-      signal: AbortSignal.timeout(WORKOUTX_FETCH_TIMEOUT_MS),
-    });
-  } catch (err) {
-    console.warn(`WorkoutX image fetch failed for "${exerciseName}":`, err);
-    return null;
+  let rawGifBytes: Buffer;
+
+  if (exercise.imageBytes) {
+    rawGifBytes = Buffer.from(exercise.imageBytes);
+  } else {
+    if (!env.WORKOUTX_API_KEY) return null;
+
+    let response: Response;
+    try {
+      response = await fetch(exercise.imageUrl, {
+        headers: { "X-WorkoutX-Key": env.WORKOUTX_API_KEY },
+        signal: AbortSignal.timeout(WORKOUTX_FETCH_TIMEOUT_MS),
+      });
+    } catch (err) {
+      console.warn(`WorkoutX image fetch failed for "${exerciseName}":`, err);
+      return null;
+    }
+
+    if (!response.ok) return null;
+
+    rawGifBytes = Buffer.from(await response.arrayBuffer());
+
+    // Best-effort — a failed write here shouldn't stop the image (already
+    // successfully fetched) from being served this one time; it just
+    // means the next request re-fetches from WorkoutX instead of hitting
+    // this cache.
+    await prisma.exercise
+      .update({
+        where: { name: exerciseName },
+        // Buffer.from(response.arrayBuffer()) types as Buffer<ArrayBufferLike>
+        // (ArrayBuffer | SharedArrayBuffer); Prisma's Bytes field wants the
+        // narrower Uint8Array<ArrayBuffer>. Always a real ArrayBuffer at
+        // runtime here (it's fetch output, never a SharedArrayBuffer).
+        data: { imageBytes: new Uint8Array(rawGifBytes) },
+      })
+      .catch((err) =>
+        console.warn(
+          `Failed to persist image bytes for "${exerciseName}":`,
+          err,
+        ),
+      );
   }
-
-  if (!response.ok) return null;
-
-  const arrayBuffer = await response.arrayBuffer();
 
   const image = animated
     ? // Pass the original animated GIF through untouched.
-      { buffer: Buffer.from(arrayBuffer), contentType: "image/gif" }
+      { buffer: rawGifBytes, contentType: "image/gif" }
     : // WorkoutX only serves animated GIFs — sharp defaults to reading just
       // the first frame of a multi-frame input, so this gives us a static
       // image instead of an animation. Used for the small list thumbnail,
       // where a static frame is enough and keeps payload size down.
       {
-        buffer: await sharp(Buffer.from(arrayBuffer)).png().toBuffer(),
+        buffer: await sharp(rawGifBytes).png().toBuffer(),
         contentType: "image/png",
       };
 

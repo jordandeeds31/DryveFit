@@ -32,6 +32,9 @@ import {
 import { colors } from "@/constants/colors";
 import { formatCalendarDate, startOfDay } from "@/lib/utils/date.utils";
 import { useAuthImageHeaders } from "@/hooks/useAuthImageHeaders";
+import { useUnitSystem } from "@/hooks/useUnitSystem";
+import { displayWeight, weightUnitLabel } from "@/lib/utils/units";
+import { UnitSystem } from "@/types/user.types";
 
 const formatSessionDate = (dateStr: string) =>
   formatCalendarDate(dateStr, {
@@ -121,6 +124,7 @@ const ExerciseThumbnail = ({
 
 const buildInitialSetsByExercise = (
   exercises: ProgramExercise[] | undefined,
+  unitSystem: UnitSystem,
 ): Record<string, SetEntry[]> => {
   if (!exercises) return {};
 
@@ -131,7 +135,12 @@ const buildInitialSetsByExercise = (
     if (existingLog) {
       result[exercise.id] = existingLog.sets.map((set) => ({
         id: set.id,
-        weight: set.weight?.toString() ?? "",
+        // Stored/loaded in lbs always — converted to the field's display
+        // unit here so a metric user edits/sees kg, not raw lbs.
+        weight:
+          set.weight != null
+            ? displayWeight(set.weight, unitSystem).toString()
+            : "",
         reps: set.reps?.toString() ?? "",
       }));
     } else if (exercise.recommendedWeight != null) {
@@ -140,7 +149,10 @@ const buildInitialSetsByExercise = (
       result[exercise.id] = [
         {
           id: `${exercise.id}-recommended`,
-          weight: exercise.recommendedWeight.toString(),
+          weight: displayWeight(
+            exercise.recommendedWeight,
+            unitSystem,
+          ).toString(),
           reps: "",
         },
       ];
@@ -157,6 +169,7 @@ const WorkoutDetail = ({
   onExerciseSaved,
 }: WorkoutDetailProps) => {
   const authImageHeaders = useAuthImageHeaders();
+  const unitSystem = useUnitSystem();
   const [logModalVisible, setLogModalVisible] = useState(false);
   const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(
     null,
@@ -208,14 +221,19 @@ const WorkoutDetail = ({
 
   const [setsByExercise, setSetsByExercise] = useState<
     Record<string, SetEntry[]>
-  >(() => buildInitialSetsByExercise(dayDetail?.exercises));
+  >(() => buildInitialSetsByExercise(dayDetail?.exercises, unitSystem));
 
   useEffect(() => {
-    setSetsByExercise(buildInitialSetsByExercise(dayDetail?.exercises));
+    setSetsByExercise(
+      buildInitialSetsByExercise(dayDetail?.exercises, unitSystem),
+    );
     // Depends on the whole dayDetail object, not just its id — a background
     // refetch (e.g. after logging performance elsewhere) can update fields
     // like recommendedWeight on the same day without the id ever changing,
-    // and that should still resync the pre-filled set values.
+    // and that should still resync the pre-filled set values. unitSystem
+    // deliberately excluded — it changing mid-edit shouldn't silently
+    // rewrite whatever the user's already typed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dayDetail]);
 
   if (isLoading) {
@@ -529,7 +547,8 @@ const WorkoutDetail = ({
               </Text>
               {exercise.recommendedWeight != null && (
                 <Text style={styles.recommendedWeight}>
-                  Weight: {exercise.recommendedWeight} lbs
+                  Weight: {displayWeight(exercise.recommendedWeight, unitSystem)}{" "}
+                  {weightUnitLabel(unitSystem)}
                 </Text>
               )}
               <View style={styles.cardButtonsRow}>
@@ -619,7 +638,9 @@ const WorkoutDetail = ({
                   Set {set.setNumber}
                 </Text>
                 <Text style={styles.previousSetValue}>
-                  {set.weight != null ? `${set.weight} lbs x ` : ""}
+                  {set.weight != null
+                    ? `${displayWeight(set.weight, unitSystem)} ${weightUnitLabel(unitSystem)} x `
+                    : ""}
                   {set.reps ?? "-"} reps
                 </Text>
               </View>
@@ -652,7 +673,11 @@ const WorkoutDetail = ({
             : null}
         </Text>
       </Modal>
-      <Modal visible={!!swapExerciseId} onClose={handleCloseSwapModal}>
+      <Modal
+        visible={!!swapExerciseId}
+        onClose={handleCloseSwapModal}
+        keyboardAware={false}
+      >
         <Text style={styles.descriptionModalTitle}>Swap Exercise</Text>
         <DropdownExerciseSelect
           selectedExercise={swapTargetExercise}
@@ -675,6 +700,7 @@ const WorkoutDetail = ({
       <Modal
         visible={isAddExerciseModalVisible}
         onClose={handleCloseAddExerciseModal}
+        keyboardAware={false}
       >
         <Text style={styles.descriptionModalTitle}>Add Exercise</Text>
         <DropdownExerciseSelect

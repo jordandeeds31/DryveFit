@@ -1,4 +1,5 @@
 export type Gender = "male" | "female";
+export type UnitSystem = "metric" | "imperial";
 
 export interface UserProfile {
   id: string;
@@ -8,6 +9,10 @@ export interface UserProfile {
   gender: Gender | null;
   isLeaderboardVisible: boolean;
   profileImageUrl: string | null;
+  // Null until detected (see lib/location/detectUnitSystem.ts) or set
+  // manually in Profile settings — every read site treats null the same
+  // as "imperial".
+  unitSystem: UnitSystem | null;
   createdAt: string;
 }
 

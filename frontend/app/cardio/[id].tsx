@@ -19,8 +19,12 @@ import { formatCalendarDate } from "@/lib/utils/date.utils";
 import { safeGoBack } from "@/lib/utils/navigation.utils";
 import { useCardioSession, useDeleteCardioSession } from "@/hooks/useCardio";
 import { CardioActivityType, CardioRoutePoint } from "@/types/cardio.types";
-
-const METERS_PER_MILE = 1609.344;
+import { useUnitSystem } from "@/hooks/useUnitSystem";
+import {
+  displayDistance,
+  distanceUnitLabel,
+  formatPace,
+} from "@/lib/utils/units";
 
 const ACTIVITY_LABELS: Record<CardioActivityType, string> = {
   walk: "Walk",
@@ -28,17 +32,9 @@ const ACTIVITY_LABELS: Record<CardioActivityType, string> = {
   bike: "Bike Ride",
 };
 
-const formatPace = (meters: number, durationSecs: number): string => {
-  const miles = meters / METERS_PER_MILE;
-  if (miles < 0.05 || durationSecs < 10) return "--:--";
-  const paceSecondsPerMile = durationSecs / miles;
-  const minutes = Math.floor(paceSecondsPerMile / 60);
-  const seconds = Math.round(paceSecondsPerMile % 60);
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-};
-
 const CardioSessionDetailScreen = () => {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const unitSystem = useUnitSystem();
   const { data: session, isLoading, error } = useCardioSession(id ?? null);
   const { mutate: deleteSession, isPending: isDeleting } =
     useDeleteCardioSession();
@@ -146,9 +142,11 @@ const CardioSessionDetailScreen = () => {
             <View style={styles.statsRow}>
               <View style={styles.statBox}>
                 <Text style={styles.statValue}>
-                  {(session.distanceMeters / METERS_PER_MILE).toFixed(2)}
+                  {displayDistance(session.distanceMeters, unitSystem).toFixed(2)}
                 </Text>
-                <Text style={styles.statLabel}>miles</Text>
+                <Text style={styles.statLabel}>
+                  {unitSystem === "metric" ? "km" : "miles"}
+                </Text>
               </View>
               <View style={styles.statBox}>
                 <Text style={styles.statValue}>
@@ -158,9 +156,15 @@ const CardioSessionDetailScreen = () => {
               </View>
               <View style={styles.statBox}>
                 <Text style={styles.statValue}>
-                  {formatPace(session.distanceMeters, session.durationSeconds)}
+                  {formatPace(
+                    session.distanceMeters,
+                    session.durationSeconds,
+                    unitSystem,
+                  )}
                 </Text>
-                <Text style={styles.statLabel}>pace /mi</Text>
+                <Text style={styles.statLabel}>
+                  pace /{distanceUnitLabel(unitSystem)}
+                </Text>
               </View>
               {session.caloriesBurned != null && (
                 <View style={styles.statBox}>

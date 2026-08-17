@@ -24,6 +24,8 @@ import {
   useDeleteFoodLogEntry,
 } from "@/hooks/useNutrition";
 import { useCurrentUser } from "@/hooks/useUsers";
+import { useUnitSystem } from "@/hooks/useUnitSystem";
+import { displayWeight, weightUnitLabel } from "@/lib/utils/units";
 import {
   getWeekDates,
   toDateKey,
@@ -145,6 +147,7 @@ const NutritionScreen = () => {
   const { data: recapData } = useDailyRecap(selectedDateKey);
   const recap: DailyRecap | undefined = recapData;
   const { data: currentUser } = useCurrentUser();
+  const unitSystem = useUnitSystem();
 
   // Nothing to log before the account existed — same "can't page past the
   // earliest real thing" pattern as the Home screen's program calendar.
@@ -359,7 +362,7 @@ const NutritionScreen = () => {
             <Feather name="activity" size={16} color={colors.textSecondary} />
             <Text style={styles.recapRowText}>
               {recap.training.trained
-                ? `${recap.training.exerciseCount} exercise${recap.training.exerciseCount === 1 ? "" : "s"} · ${recap.training.totalSets} sets · ${recap.training.totalVolume.toLocaleString()} lbs volume`
+                ? `${recap.training.exerciseCount} exercise${recap.training.exerciseCount === 1 ? "" : "s"} · ${recap.training.totalSets} sets · ${Math.round(displayWeight(recap.training.totalVolume, unitSystem)).toLocaleString()} ${weightUnitLabel(unitSystem)} volume`
                 : "No workout logged"}
             </Text>
           </View>
