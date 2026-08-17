@@ -15,6 +15,14 @@ const errorHandler = (
   const status = err.status || 500;
   const isOperational = err.isOperational ?? false;
 
+  // A masked (non-operational) error means the client only ever sees the
+  // generic "Something went wrong" — this was the ONLY record of what
+  // actually happened, and it wasn't being logged anywhere, making any
+  // production-only incident like this unfixable without a guess.
+  if (!isOperational) {
+    console.error(`Unhandled error on ${req.method} ${req.originalUrl}:`, err);
+  }
+
   if (env.NODE_ENV === "development") {
     res.status(status).json({
       status: "error",

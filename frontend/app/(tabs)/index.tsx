@@ -356,12 +356,12 @@ const HomeScreen = () => {
                   </Text>
                 </View>
               )}
-              <Button
-                title="Log Workout"
-                onPress={handleLogWorkout}
-                variant="outline"
+              <TouchableOpacity
                 style={styles.logWorkoutButton}
-              />
+                onPress={handleLogWorkout}
+              >
+                <Text style={styles.logWorkoutButtonText}>Log Workout</Text>
+              </TouchableOpacity>
             </View>
           )}
         </KeyboardAwareScrollView>
@@ -475,11 +475,23 @@ const styles = StyleSheet.create({
   logWorkoutButton: {
     alignSelf: "center",
     marginTop: spacing.sm,
+    backgroundColor: "white",
+    borderWidth: 1,
+    borderColor: colors.primaryBlue,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.03,
     shadowRadius: 1,
     elevation: 1,
+  },
+  logWorkoutButtonText: {
+    color: colors.primaryBlue,
+    fontWeight: fontWeights.semibold,
   },
   modalSaveButton: {
     paddingVertical: 6,

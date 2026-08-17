@@ -1,6 +1,7 @@
-import { Router } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import multer from "multer";
 import { authMiddleware } from "../../middleware/authMiddleware";
+import AppError from "../../utils/AppError";
 import {
   createPostHandler,
   getFeedHandler,
@@ -23,12 +24,37 @@ const upload = multer({
   limits: { fileSize: 50 * 1024 * 1024 },
 });
 
+// Multer reports upload problems (oversized file, malformed multipart
+// body, ...) by calling next(err) with a plain MulterError/Error — not an
+// AppError, so errorHandler's isOperational check masked it behind an
+// opaque "Something went wrong" in production with no way to tell what
+// actually happened. Wrapping the middleware and converting its errors to
+// an AppError with the real reason both fixes what the user sees and
+// makes the actual cause visible if it happens again.
+const uploadMediaMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  upload.single("media")(req, res, (err: unknown) => {
+    if (!err) return next();
+    if (err instanceof multer.MulterError) {
+      if (err.code === "LIMIT_FILE_SIZE") {
+        return next(
+          new AppError(
+            413,
+            "That file is too large — try a smaller photo or video (50MB max).",
+          ),
+        );
+      }
+      return next(new AppError(400, err.message));
+    }
+    next(err instanceof Error ? new AppError(400, err.message) : err);
+  });
+};
+
 const router = Router();
 
 router.use(authMiddleware);
 
 router.get("/", getFeedHandler);
-router.post("/", upload.single("media"), createPostHandler);
+router.post("/", uploadMediaMiddleware, createPostHandler);
 router.get("/:postId", getPostHandler);
 router.delete("/:postId", deletePostHandler);
 router.post("/:postId/like", likePostHandler);
