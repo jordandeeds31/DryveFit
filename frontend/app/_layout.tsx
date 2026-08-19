@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from "react";
+import { AppState } from "react-native";
 import { Stack } from "expo-router";
 import { Provider, useDispatch } from "react-redux";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -15,6 +16,11 @@ import {
     registerForPushNotifications,
     setupNotificationTapHandling,
 } from "@/lib/notifications/pushNotifications";
+import {
+    connect as connectDmSocket,
+    disconnect as disconnectDmSocket,
+} from "@/lib/messaging/websocketClient";
+import { useDmWebSocketBridge } from "@/hooks/useDirectMessages";
 
 SplashScreen.preventAutoHideAsync();
 configurePurchases();
@@ -51,6 +57,41 @@ const RootNavigator = () => {
         return setupNotificationTapHandling();
     }, []);
 
+    // Subscribes to the socket's own events (message:new, typing, read
+    // receipts) and patches React Query's cache / dispatches into
+    // messagingSlice — mounted once here so it stays active regardless of
+    // which screen is on top, not tied to a specific messages screen.
+    useDmWebSocketBridge();
+
+    // Opens the DM socket once authenticated, closes it on logout —
+    // connect()/disconnect() are both safe to call repeatedly (they no-op
+    // if already in the target state), so this doesn't need to track
+    // whether a connection already exists itself.
+    useEffect(() => {
+        if (isAuthenticated) {
+            connectDmSocket();
+        } else {
+            disconnectDmSocket();
+        }
+    }, [isAuthenticated]);
+
+    // iOS suspends JS execution shortly after backgrounding anyway, so a
+    // socket left open while backgrounded goes stale regardless — closing
+    // it explicitly on background/inactive avoids holding a connection the
+    // OS would otherwise kill messily, and reconnecting on "active" picks
+    // back up (with sync:missed replaying anything sent while away).
+    useEffect(() => {
+        const subscription = AppState.addEventListener("change", (state) => {
+            if (!isAuthenticated) return;
+            if (state === "active") {
+                connectDmSocket();
+            } else if (state === "background" || state === "inactive") {
+                disconnectDmSocket();
+            }
+        });
+        return () => subscription.remove();
+    }, [isAuthenticated]);
+
     return (
         <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen
@@ -71,6 +112,10 @@ const RootNavigator = () => {
             />
             <Stack.Screen
                 name="ai-chat"
+                options={{ presentation: "fullScreenModal", headerShown: false }}
+            />
+            <Stack.Screen
+                name="post/[postId]"
                 options={{ presentation: "fullScreenModal", headerShown: false }}
             />
         </Stack>

@@ -30,6 +30,7 @@ import NoPrograms from "@/components/shared/NoPrograms/NoPrograms";
 import { usePrograms, useSchedule, useProgramDay } from "@/hooks/usePrograms";
 import { useWorkoutLogsForDate } from "@/hooks/useWorkoutLogs";
 import { useCurrentUser } from "@/hooks/useUsers";
+import { useNewPostsCount, useMarkFeedViewed } from "@/hooks/usePosts";
 import { getWeekDates, toDateKey, startOfDay } from "@/lib/utils/date.utils";
 import WeeklySchedule from "@/features/WeeklySchedule/WeeklySchedule";
 import { ScheduleEntry } from "@/types/programs.types";
@@ -69,6 +70,8 @@ const HomeScreen = () => {
     (state: RootState) => state.pendingWorkout.exercises,
   );
   const { data: currentUser } = useCurrentUser();
+  const { data: newPostsCount } = useNewPostsCount();
+  const { mutate: markFeedViewed } = useMarkFeedViewed();
 
   // A workout inherited from someone's profile while the viewer had no
   // active program lands here via Redux (see pendingWorkoutSlice) rather
@@ -297,7 +300,10 @@ const HomeScreen = () => {
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.homeTab, homeTab === "feed" && styles.homeTabActive]}
-          onPress={() => setHomeTab("feed")}
+          onPress={() => {
+            setHomeTab("feed");
+            if (newPostsCount) markFeedViewed();
+          }}
         >
           <Text
             style={[
@@ -307,6 +313,16 @@ const HomeScreen = () => {
           >
             Feed
           </Text>
+          {/* Only while sitting on Workouts — clicking through to Feed
+              marks it viewed immediately (see onPress above), so showing
+              the badge here too would just be a one-frame flash. */}
+          {homeTab !== "feed" && !!newPostsCount && newPostsCount > 0 && (
+            <View style={styles.newPostsBadge}>
+              <Text style={styles.newPostsBadgeText}>
+                {newPostsCount > 9 ? "9+" : newPostsCount}
+              </Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -484,6 +500,26 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: spacing.sm,
     borderRadius: 8,
+    position: "relative",
+  },
+  newPostsBadge: {
+    position: "absolute",
+    top: 2,
+    right: "18%",
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 3,
+    backgroundColor: colors.dangerRed,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "white",
+  },
+  newPostsBadgeText: {
+    fontSize: 9,
+    fontWeight: fontWeights.bold,
+    color: "white",
   },
   deviceSetupBanner: {
     flexDirection: "row",

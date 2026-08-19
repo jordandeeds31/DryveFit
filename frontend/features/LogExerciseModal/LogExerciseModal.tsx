@@ -101,7 +101,20 @@ const LogExerciseModal = ({
 
   return (
     <View style={styles.container}>
-      <Modal visible={visible} onClose={onClose}>
+      <Modal
+        visible={visible}
+        onClose={onClose}
+        closable={!isPending}
+        headerAction={
+          <Button
+            title={isPending ? "SAVING..." : "SAVE"}
+            onPress={handleSave}
+            disabled={isPending}
+            style={styles.headerSaveButton}
+            textStyle={styles.headerSaveButtonText}
+          />
+        }
+      >
         <Text style={styles.title}>
           {exercise?.exerciseName} ({exercise?.sets} sets x {exercise?.reps}{" "}
           reps)
@@ -149,20 +162,9 @@ const LogExerciseModal = ({
         <Text style={styles.saveReminder}>
           Don't forget to tap Save — your sets aren't recorded until you do.
         </Text>
-        <View style={styles.buttonRow}>
-          <TouchableOpacity
-            style={[styles.addSetButton, styles.addSetButtonInRow]}
-            onPress={handleAddSet}
-          >
-            <Text style={styles.addSetText}>+ ADD SET</Text>
-          </TouchableOpacity>
-          <Button
-            title={isPending ? "SAVING..." : "SAVE"}
-            style={{ height: 40, flex: 1 }}
-            onPress={handleSave}
-            disabled={isPending}
-          />
-        </View>
+        <TouchableOpacity style={styles.addSetButton} onPress={handleAddSet}>
+          <Text style={styles.addSetText}>+ ADD SET</Text>
+        </TouchableOpacity>
       </Modal>
     </View>
   );

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { View, Text, TouchableOpacity, Platform } from "react-native";
 import DateTimePicker, {
   DateTimePickerEvent,
@@ -7,7 +7,11 @@ import Feather from "@expo/vector-icons/Feather";
 import Input from "@/components/shared/TextInput/TextInput";
 import Button from "@/components/shared/Button/Button";
 import { colors } from "@/constants/colors";
-import { useUpdateNutritionProfile } from "@/hooks/useNutrition";
+import {
+  useNutritionProfile,
+  useUpdateNutritionProfile,
+} from "@/hooks/useNutrition";
+import { useCurrentUser } from "@/hooks/useUsers";
 import {
   ACTIVITY_LEVELS,
   ACTIVITY_LEVEL_LABELS,
@@ -20,7 +24,9 @@ import { Gender } from "@/types/user.types";
 import { useUnitSystem } from "@/hooks/useUnitSystem";
 import {
   cmToInches,
+  inchesToCm,
   kgToLbs,
+  lbsToKg,
   weightUnitLabel,
 } from "@/lib/utils/units";
 import styles from "./NutritionSetup.styles";
@@ -46,6 +52,9 @@ const NutritionSetup = ({ onSaved }: NutritionSetupProps) => {
   const { mutate: saveProfile, isPending, error } = useUpdateNutritionProfile();
   const unitSystem = useUnitSystem();
   const isMetric = unitSystem === "metric";
+  const { data: currentUser, isLoading: isUserLoading } = useCurrentUser();
+  const { data: existingProfile, isLoading: isProfileLoading } =
+    useNutritionProfile();
 
   const [gender, setGender] = useState<Gender | null>(null);
   // Named for what's typed, not what's stored — this is kg when isMetric,
@@ -59,6 +68,57 @@ const NutritionSetup = ({ onSaved }: NutritionSetupProps) => {
   const [showPicker, setShowPicker] = useState(false);
   const [activityLevel, setActivityLevel] = useState<ActivityLevel | null>(null);
   const [goalType, setGoalType] = useState<NutritionGoalType | null>(null);
+
+  // Runs once, the first time both queries have settled — not on every
+  // refetch (e.g. right after saving), which would otherwise stomp on
+  // whatever the user is mid-typing with the just-saved values.
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    if (hydratedRef.current || isUserLoading || isProfileLoading) return;
+    hydratedRef.current = true;
+
+    // A gender already saved specifically for the nutrition calc wins over
+    // the general profile setting, but if this is the first time through,
+    // fall back to what's already set in Profile/Settings so the user
+    // isn't asked to pick something they've already told the app once.
+    const genderFallback =
+      (existingProfile?.gender as Gender | null | undefined) ??
+      currentUser?.gender ??
+      null;
+    setGender(genderFallback);
+
+    if (existingProfile?.weightLbs != null) {
+      setWeightInput(
+        isMetric
+          ? String(Math.round(lbsToKg(existingProfile.weightLbs) * 10) / 10)
+          : String(existingProfile.weightLbs),
+      );
+    }
+
+    if (existingProfile?.heightInches != null) {
+      if (isMetric) {
+        setHeightCm(
+          String(Math.round(inchesToCm(existingProfile.heightInches))),
+        );
+      } else {
+        const totalInches = existingProfile.heightInches;
+        setHeightFeet(String(Math.floor(totalInches / 12)));
+        setHeightInches(String(Math.round(totalInches % 12)));
+      }
+    }
+
+    if (existingProfile?.birthdate) {
+      setBirthdate(new Date(existingProfile.birthdate));
+    }
+
+    if (existingProfile?.activityLevel) {
+      setActivityLevel(existingProfile.activityLevel);
+    }
+
+    if (existingProfile?.nutritionGoalType) {
+      setGoalType(existingProfile.nutritionGoalType);
+    }
+  }, [currentUser, existingProfile, isUserLoading, isProfileLoading, isMetric]);
 
   const handleDateChange = (event: DateTimePickerEvent, date?: Date) => {
     if (event.type !== "dismissed" && date) {

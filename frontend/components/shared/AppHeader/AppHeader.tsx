@@ -5,6 +5,7 @@ import Feather from "@expo/vector-icons/Feather";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { colors } from "@/constants/colors";
 import { useUnreadNotificationCount } from "@/hooks/useNotifications";
+import { useDmConversations } from "@/hooks/useDirectMessages";
 import styles from "./AppHeader.styles";
 
 interface AppHeaderProps {
@@ -18,6 +19,14 @@ const AppHeader = ({ onCreateProgram }: AppHeaderProps) => {
   const insets = useSafeAreaInsets();
   const { data: unreadCount } = useUnreadNotificationCount();
   const hasUnread = !!unreadCount && unreadCount > 0;
+  // Derived from the already-fetched conversation list rather than a
+  // dedicated count endpoint — that list is cheap (one row per
+  // conversation, not per message) and already needs fetching for the
+  // conversation list screen itself.
+  const { data: dmConversations } = useDmConversations();
+  const hasUnreadDms = !!dmConversations?.some(
+    (c: { unreadCount: number }) => c.unreadCount > 0,
+  );
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -45,6 +54,18 @@ const AppHeader = ({ onCreateProgram }: AppHeaderProps) => {
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           <Feather name="search" size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.settingsButton}
+          onPress={() => router.push("/messages")}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Feather
+            name="message-circle"
+            size={20}
+            color={colors.textSecondary}
+          />
+          {hasUnreadDms && <View style={styles.unreadBadge} />}
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.settingsButton}

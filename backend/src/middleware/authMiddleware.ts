@@ -1,6 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import jwt from "jsonwebtoken";
-import { env } from "../config/env";
+import { verifyAccessToken } from "../lib/jwt";
 import AppError from "../utils/AppError";
 
 export interface AuthRequest extends Request {
@@ -21,9 +20,7 @@ export const authMiddleware = (
   const token = authHeader.split(" ")[1];
 
   try {
-    const payload = jwt.verify(token, env.JWT_ACCESS_SECRET) as {
-      userId: string;
-    };
+    const payload = verifyAccessToken(token);
     req.userId = payload.userId;
     next();
   } catch (err) {

@@ -92,6 +92,7 @@ const styles = StyleSheet.create({
   },
   caption: {
     fontSize: fontSizes.sm,
+    marginBottom: spacing.sm,
   },
   postImage: {
     width: "100%",
@@ -101,13 +102,15 @@ const styles = StyleSheet.create({
   },
   actionsRow: {
     flexDirection: "row",
-    gap: spacing.md,
+    gap: spacing.lg,
     marginTop: 2,
   },
   actionButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 6,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: 2,
   },
   actionText: {
     fontSize: fontSizes.xs,

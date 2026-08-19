@@ -150,6 +150,11 @@ const styles = StyleSheet.create({
     color: colors.completedGreen,
     marginBottom: spacing.xs,
   },
+  firstTimeNotice: {
+    fontSize: fontSizes.xs,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+  },
   descriptionModalTitle: {
     fontSize: fontSizes.md,
     fontWeight: fontWeights.bold,
@@ -158,6 +163,11 @@ const styles = StyleSheet.create({
   descriptionModalBody: {
     fontSize: fontSizes.sm,
     color: colors.textSecondary,
+  },
+  enlargedImageDescription: {
+    fontSize: fontSizes.sm,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
   },
   cardButtonsRow: {
     flexDirection: "row",

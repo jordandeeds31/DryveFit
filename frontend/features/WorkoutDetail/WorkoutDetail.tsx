@@ -174,15 +174,9 @@ const WorkoutDetail = ({
   const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(
     null,
   );
-  const [descriptionExerciseName, setDescriptionExerciseName] = useState<
-    string | null
-  >(null);
   const [previousExerciseId, setPreviousExerciseId] = useState<string | null>(
     null,
   );
-  const [firstTimeNoticeExerciseId, setFirstTimeNoticeExerciseId] = useState<
-    string | null
-  >(null);
   const [swapExerciseId, setSwapExerciseId] = useState<string | null>(null);
   const [enlargedImage, setEnlargedImage] = useState<{
     url: string;
@@ -338,10 +332,6 @@ const WorkoutDetail = ({
     (exercise) => exercise.id === previousExerciseId,
   );
 
-  const firstTimeNoticeExercise = dayDetail?.exercises.find(
-    (exercise) => exercise.id === firstTimeNoticeExerciseId,
-  );
-
   const { data: previousSession, isLoading: isPreviousLoading } =
     usePreviousSession(
       previousExercise?.exerciseName ?? null,
@@ -491,35 +481,6 @@ const WorkoutDetail = ({
               <View style={styles.exerciseNameRow}>
                 <Text style={styles.exerciseName}>{exercise.exerciseName}</Text>
                 <View style={styles.exerciseIconsRow}>
-                  {descriptionByName[exercise.exerciseName] && (
-                    <TouchableOpacity
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                      onPress={() =>
-                        setDescriptionExerciseName(exercise.exerciseName)
-                      }
-                    >
-                      <Feather
-                        name="info"
-                        size={16}
-                        color={colors.textSecondary}
-                      />
-                    </TouchableOpacity>
-                  )}
-                  {exercise.equipment !== "bodyweight" &&
-                    exercise.recommendedWeight == null && (
-                      <TouchableOpacity
-                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                        onPress={() =>
-                          setFirstTimeNoticeExerciseId(exercise.id)
-                        }
-                      >
-                        <Feather
-                          name="alert-circle"
-                          size={16}
-                          color={colors.primaryBlue}
-                        />
-                      </TouchableOpacity>
-                    )}
                   <TouchableOpacity
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     onPress={() => setSwapExerciseId(exercise.id)}
@@ -545,11 +506,18 @@ const WorkoutDetail = ({
               <Text style={styles.exerciseMeta}>
                 {exercise.sets} sets x {exercise.reps} reps
               </Text>
-              {exercise.recommendedWeight != null && (
+              {exercise.recommendedWeight != null ? (
                 <Text style={styles.recommendedWeight}>
                   Weight: {displayWeight(exercise.recommendedWeight, unitSystem)}{" "}
                   {weightUnitLabel(unitSystem)}
                 </Text>
+              ) : (
+                exercise.equipment !== "bodyweight" && (
+                  <Text style={styles.firstTimeNotice}>
+                    Uncharted territory. Go hard, own every rep, and we'll
+                    lock in your recommended weight for next time.
+                  </Text>
+                )
               )}
               <View style={styles.cardButtonsRow}>
                 <Button
@@ -649,31 +617,6 @@ const WorkoutDetail = ({
         )}
       </Modal>
       <Modal
-        visible={!!firstTimeNoticeExerciseId}
-        onClose={() => setFirstTimeNoticeExerciseId(null)}
-      >
-        <Text style={styles.descriptionModalTitle}>
-          {firstTimeNoticeExercise?.exerciseName}
-        </Text>
-        <Text style={styles.descriptionModalBody}>
-          First time doing this — pick a weight you can complete for every
-          set, and we'll set your recommended weight next time.
-        </Text>
-      </Modal>
-      <Modal
-        visible={!!descriptionExerciseName}
-        onClose={() => setDescriptionExerciseName(null)}
-      >
-        <Text style={styles.descriptionModalTitle}>
-          {descriptionExerciseName}
-        </Text>
-        <Text style={styles.descriptionModalBody}>
-          {descriptionExerciseName
-            ? descriptionByName[descriptionExerciseName]
-            : null}
-        </Text>
-      </Modal>
-      <Modal
         visible={!!swapExerciseId}
         onClose={handleCloseSwapModal}
         keyboardAware={false}
@@ -753,6 +696,11 @@ const WorkoutDetail = ({
         onClose={() => setEnlargedImage(null)}
       >
         <Text style={styles.descriptionModalTitle}>{enlargedImage?.name}</Text>
+        {enlargedImage && descriptionByName[enlargedImage.name] && (
+          <Text style={styles.enlargedImageDescription}>
+            {descriptionByName[enlargedImage.name]}
+          </Text>
+        )}
         {enlargedImage && authImageHeaders && !enlargedImageFailed && (
           <Image
             source={{

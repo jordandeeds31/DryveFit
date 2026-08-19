@@ -5,6 +5,8 @@ import AppError from "../../utils/AppError";
 import {
   createPostHandler,
   getFeedHandler,
+  getNewPostsCountHandler,
+  markFeedViewedHandler,
   getPostHandler,
   deletePostHandler,
   likePostHandler,
@@ -55,6 +57,10 @@ router.use(authMiddleware);
 
 router.get("/", getFeedHandler);
 router.post("/", uploadMediaMiddleware, createPostHandler);
+// Must come before the "/:postId" routes below — otherwise Express would
+// match "new-count"/"mark-feed-viewed" as a :postId param instead.
+router.get("/new-count", getNewPostsCountHandler);
+router.post("/mark-feed-viewed", markFeedViewedHandler);
 router.get("/:postId", getPostHandler);
 router.delete("/:postId", deletePostHandler);
 router.post("/:postId/like", likePostHandler);

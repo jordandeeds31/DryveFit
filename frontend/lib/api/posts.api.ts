@@ -8,6 +8,15 @@ export const getFeed = async (cursor?: string): Promise<FeedPage> => {
   return data.result;
 };
 
+export const getNewPostsCount = async (): Promise<number> => {
+  const { data } = await apiClient.get("/api/posts/new-count");
+  return data.result.count;
+};
+
+export const markFeedViewed = async (): Promise<void> => {
+  await apiClient.post("/api/posts/mark-feed-viewed");
+};
+
 export const getPost = async (postId: string): Promise<Post> => {
   const { data } = await apiClient.get(`/api/posts/${postId}`);
   return data.result.post;

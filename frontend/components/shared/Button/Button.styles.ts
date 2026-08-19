@@ -17,6 +17,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.primaryBlue,
   },
+  buttonDisabled: {
+    opacity: 0.5,
+  },
   text: {
     color: "white",
     fontWeight: fontWeights.semibold,

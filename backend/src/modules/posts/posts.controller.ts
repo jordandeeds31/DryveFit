@@ -6,6 +6,8 @@ import AppError from "../../utils/AppError";
 import {
   createPost,
   getFeed,
+  getNewPostsCount,
+  markFeedViewed,
   getPostById,
   deletePost,
   likePost,
@@ -55,6 +57,20 @@ export const getFeedHandler = catchAsync(
 
     const feed = await getFeed(req.userId!, cursor);
     sendSuccess(res, 200, "FEED_FETCHED", feed);
+  },
+);
+
+export const getNewPostsCountHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const result = await getNewPostsCount(req.userId!);
+    sendSuccess(res, 200, "NEW_POSTS_COUNT_FETCHED", result);
+  },
+);
+
+export const markFeedViewedHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    await markFeedViewed(req.userId!);
+    sendSuccess(res, 200, "FEED_MARKED_VIEWED", { message: "Marked viewed" });
   },
 );
 

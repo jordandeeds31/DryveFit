@@ -190,6 +190,31 @@ export const getFeed = async (viewerId: string, cursor?: string) => {
   };
 };
 
+// Own posts don't count toward the badge — you already know about a post
+// the moment you make it.
+export const getNewPostsCount = async (viewerId: string) => {
+  const user = await prisma.user.findUniqueOrThrow({
+    where: { id: viewerId },
+    select: { lastFeedViewedAt: true },
+  });
+
+  const count = await prisma.post.count({
+    where: {
+      createdAt: { gt: user.lastFeedViewedAt },
+      userId: { not: viewerId },
+    },
+  });
+
+  return { count };
+};
+
+export const markFeedViewed = async (viewerId: string) => {
+  await prisma.user.update({
+    where: { id: viewerId },
+    data: { lastFeedViewedAt: new Date() },
+  });
+};
+
 const PUBLIC_POSTS_LIMIT = 20;
 
 // Shown on another user's public profile's Social tab — gated by the same

@@ -47,31 +47,30 @@ const styles = StyleSheet.create({
     fontSize: 16,
     paddingHorizontal: 6,
   },
-  buttonRow: {
-    flexDirection: "row",
-    gap: spacing.sm,
-    alignItems: "center", // ensures they align vertically regardless of height differences
-  },
   addSetButton: {
     paddingVertical: 10,
     alignItems: "center",
     borderWidth: 1,
     borderColor: colors.primaryBlue,
     borderRadius: 8,
-    // marginTop removed — buttonRow's gap now handles spacing above this row instead
   },
   addSetText: {
     color: colors.primaryBlue,
     fontWeight: fontWeights.semibold,
-  },
-  addSetButtonInRow: {
-    flex: 1,
   },
   saveReminder: {
     fontSize: fontSizes.xs,
     color: colors.textSecondary,
     textAlign: "center",
     marginBottom: spacing.xs,
+  },
+  headerSaveButton: {
+    flex: 1,
+    paddingVertical: 6,
+    paddingHorizontal: spacing.md,
+  },
+  headerSaveButtonText: {
+    fontSize: fontSizes.sm,
   },
 });
 

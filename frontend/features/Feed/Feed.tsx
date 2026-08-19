@@ -19,6 +19,7 @@ import { colors } from "@/constants/colors";
 import { Post } from "@/types/posts.types";
 import Toast from "@/components/shared/Toast/Toast";
 import CreatePostModal from "./CreatePostModal";
+import PostDetailModal from "./PostDetailModal";
 import styles from "./Feed.styles";
 
 const formatPostDate = (dateStr: string) =>
@@ -57,6 +58,7 @@ const Feed = () => {
   const { mutate: deletePost } = useDeletePost();
   const { mutate: toggleLike } = useToggleLike();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [activePostId, setActivePostId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   // Deliberately not react-query's own isRefetching — that flips true for
   // ANY background refetch (posting, deleting, liking), which would flash
@@ -144,13 +146,14 @@ const Feed = () => {
       <View style={styles.actionsRow}>
         <TouchableOpacity
           style={styles.actionButton}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           onPress={() =>
             toggleLike({ postId: item.id, isLiked: item.isLikedByViewer })
           }
         >
           <Ionicons
             name={item.isLikedByViewer ? "heart" : "heart-outline"}
-            size={18}
+            size={22}
             color={
               item.isLikedByViewer ? colors.dangerRed : colors.textSecondary
             }
@@ -159,11 +162,12 @@ const Feed = () => {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => router.push(`/post/${item.id}`)}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          onPress={() => setActivePostId(item.id)}
         >
           <Feather
             name="message-circle"
-            size={18}
+            size={22}
             color={colors.textSecondary}
           />
           <Text style={styles.actionText}>{item.commentCount}</Text>
@@ -214,6 +218,11 @@ const Feed = () => {
         visible={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
         onPosted={setToastMessage}
+      />
+
+      <PostDetailModal
+        postId={activePostId}
+        onClose={() => setActivePostId(null)}
       />
 
       <Toast

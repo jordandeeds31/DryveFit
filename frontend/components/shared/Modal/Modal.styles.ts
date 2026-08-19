@@ -36,6 +36,7 @@ const styles = StyleSheet.create({
   },
   closeRowWithAction: {
     justifyContent: "space-between",
+    gap: spacing.sm,
   },
   scrollArea: {
     flexGrow: 0,

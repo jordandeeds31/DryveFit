@@ -32,6 +32,12 @@ model User {
   // default to keep in sync in two places.
   unitSystem                String?
   lastWorkoutReminderSentAt DateTime?
+  // Drives the Feed tab's "new posts" badge — posts created after this
+  // timestamp count as unseen. Defaults to now() so the migration itself
+  // doesn't retroactively count every existing post as "new" for
+  // already-registered users, and every newly-created user starts caught up
+  // too.
+  lastFeedViewedAt          DateTime        @default(now())
   // Nutrition-goal inputs (Mifflin-St Jeor) — kept alongside the resolved
   // goals below so the calculator can be re-run if the user updates them,
   // without losing whatever manual override they've made to the goals
@@ -62,6 +68,8 @@ model User {
   notificationsSent         Notification[]  @relation("NotificationActor")
   following                 Follow[]        @relation("Follower")
   followers                 Follow[]        @relation("Following")
+  dmParticipants            DmParticipant[]
+  dmMessages                DmMessage[]
 
   @@index([city])
   @@map("users")
@@ -185,6 +193,55 @@ model Follow {
   @@unique([followerId, followingId])
   @@index([followingId])
   @@map("follows")
+}
+
+// Distinct from Conversation/ChatMessage below, which back the AI coach
+// chat (single-user-owned, OpenAI-backed) — these are human-to-human DMs.
+// A join table (DmParticipant) rather than two fixed user columns on
+// DmConversation, so a future group-DM feature doesn't need a schema
+// migration — though every service/UI built against this today is 1:1
+// only, and there's no DB-level constraint stopping a duplicate 1:1
+// conversation between the same pair; that's guarded in the service layer
+// instead (see messages.service.ts's findOrCreateOneOnOneConversation).
+model DmConversation {
+  id           String          @id @default(uuid())
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  participants DmParticipant[]
+  messages     DmMessage[]
+
+  @@map("dm_conversations")
+}
+
+model DmParticipant {
+  id                String         @id @default(uuid())
+  conversationId    String
+  userId            String
+  // Read-cursor pattern (not a boolean/timestamp on the message itself) so
+  // unread state is per-participant and scales to group chat later.
+  // Updated together.
+  lastReadMessageId String?
+  lastReadAt        DateTime?
+  joinedAt          DateTime       @default(now())
+  conversation      DmConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+  @@map("dm_participants")
+}
+
+model DmMessage {
+  id             String         @id @default(uuid())
+  conversationId String
+  senderId       String
+  content        String
+  createdAt      DateTime       @default(now())
+  conversation   DmConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User           @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("dm_messages")
 }
 
 model FoodLogEntry {

@@ -16,6 +16,7 @@ import waitlistRoutes from "./modules/waitlist/waitlist.routes";
 import nutritionRoutes from "./modules/nutrition/nutrition.routes";
 import postsRoutes from "./modules/posts/posts.routes";
 import notificationsRoutes from "./modules/notifications/notifications.routes";
+import messagesRoutes from "./modules/messages/messages.routes";
 import PRIVACY_POLICY_HTML from "./privacyPolicy";
 import SUPPORT_PAGE_HTML from "./supportPage";
 
@@ -47,6 +48,7 @@ app.use("/api/waitlist", waitlistRoutes);
 app.use("/api/nutrition", nutritionRoutes);
 app.use("/api/posts", postsRoutes);
 app.use("/api/notifications", notificationsRoutes);
+app.use("/api/messages", messagesRoutes);
 
 app.use(errorHandler);
 

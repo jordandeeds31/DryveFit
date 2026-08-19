@@ -136,10 +136,18 @@ const Profile = () => {
     }, [currentUser]),
   );
 
+  // 409 = taken by someone else, 400 = failed the backend's format check
+  // (e.g. blank, or outside the 3-20 char / letters-numbers-underscores
+  // rule) — both are username-specific rejections from the same PATCH, so
+  // both surface here rather than only the conflict case.
   const usernameError =
-    saveError && (saveError as { status?: number }).status === 409
-      ? "That username is already taken"
+    saveError &&
+    [400, 409].includes((saveError as { status?: number }).status ?? 0)
+      ? ((saveError as { message?: string }).message ??
+        "That username isn't valid")
       : null;
+
+  const hasUsername = username.trim().length > 0;
 
   // Compares against currentUser (not a separate "initial values" snapshot)
   // since the hydration effect above already keeps local state in sync
@@ -185,9 +193,22 @@ const Profile = () => {
 
   const handleSave = () => {
     const trimmedUsername = username.trim();
+    // Only include username in the payload when it's actually changing —
+    // omitting it (undefined) means "leave alone" server-side. Substituting
+    // undefined here whenever the field was blank (the old behavior) meant
+    // clearing a previously-set username silently did nothing: the PATCH
+    // omitted the field entirely, the backend left the old value in place,
+    // and the hydration effect below then re-filled the input with that
+    // same old value once the (unrelated) save "succeeded" — so setting it
+    // back to what it was afterward looked unchanged and Save had nothing
+    // to do. Sending the real (possibly empty) value only when it differs
+    // from currentUser.username lets a genuine clear attempt reach the
+    // backend and get a real validation error instead of a silent no-op,
+    // while still not forcing a username on saves that never touched it.
+    const usernameChanged = trimmedUsername !== (currentUser?.username ?? "");
     saveProfile(
       {
-        username: trimmedUsername.length > 0 ? trimmedUsername : undefined,
+        username: usernameChanged ? trimmedUsername : undefined,
         city: city ?? undefined,
         gender: gender ?? undefined,
         unitSystem,
@@ -465,12 +486,20 @@ const Profile = () => {
             <View style={styles.switchTextGroup}>
               <Text style={styles.switchLabel}>Show me on leaderboards</Text>
               <Text style={styles.switchSubtext}>
-                Turn this off to hide your username and lifts from everyone
-                else's leaderboard.
+                {hasUsername
+                  ? "Turn this off to hide your username and lifts from everyone else's leaderboard."
+                  : "Set a username above to actually appear on the leaderboard."}
               </Text>
             </View>
             <Switch
-              value={isLeaderboardVisible}
+              // The backend's leaderboard query requires isLeaderboardVisible
+              // AND a non-null username — displaying the raw stored flag
+              // here would show ON for a brand-new user (defaults to true)
+              // who has no username yet and so can't actually appear.
+              // onValueChange still writes the raw intent, not this derived
+              // value, so setting a username later doesn't need the toggle
+              // re-flipped.
+              value={isLeaderboardVisible && hasUsername}
               onValueChange={setIsLeaderboardVisible}
             />
           </View>

@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from "react-native";
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -269,6 +270,19 @@ const CinematicMode = () => {
         reps: parseInt(set.reps, 10),
       }));
 
+  // A failed save (network hiccup, a stale/expired session, ...) used to
+  // leave STOP/X doing nothing — both only ever navigated away inside the
+  // mutation's onSuccess, so an error just left the screen sitting there
+  // with no feedback and no way out. Being unable to leave this screen is
+  // worse than losing an unsaved set, so errors now surface an alert and
+  // still let the user out.
+  const handleSaveError = () => {
+    Alert.alert(
+      "Couldn't save your sets",
+      "The sets you entered here weren't saved, but you can log them manually from the workout screen.",
+    );
+  };
+
   const handleClose = () => {
     if (!exercise) {
       safeGoBack();
@@ -299,6 +313,10 @@ const CinematicMode = () => {
       },
       {
         onSuccess: () => {
+          safeGoBack();
+        },
+        onError: () => {
+          handleSaveError();
           safeGoBack();
         },
       },
@@ -335,7 +353,13 @@ const CinematicMode = () => {
         sets: validSets,
         durationSecs: elapsedSeconds,
       },
-      { onSuccess: endSession },
+      {
+        onSuccess: endSession,
+        onError: () => {
+          handleSaveError();
+          endSession();
+        },
+      },
     );
   };
 

@@ -7,6 +7,7 @@ const Button = ({
   onPress,
   variant = "primary",
   backgroundColor,
+  disabled,
   style,
   textStyle,
 }: ButtonTypes) => {
@@ -18,9 +19,11 @@ const Button = ({
         styles.button,
         isOutline && styles.buttonOutline,
         backgroundColor !== undefined && { backgroundColor },
+        disabled && styles.buttonDisabled,
         style,
       ]}
       onPress={onPress}
+      disabled={disabled}
     >
       <Text style={[styles.text, isOutline && styles.textOutline, textStyle]}>
         {title}

@@ -29,6 +29,7 @@ import {
 } from "@/hooks/useUsers";
 import { usePrograms, useInheritWorkoutDay } from "@/hooks/usePrograms";
 import { useAuthImageHeaders } from "@/hooks/useAuthImageHeaders";
+import { useCreateDmConversation } from "@/hooks/useDirectMessages";
 import { ensureProAccess } from "@/lib/purchases/requirePro";
 import {
   PublicWorkoutLog,
@@ -93,6 +94,8 @@ const UserProfileScreen = () => {
   );
   const { mutate: toggleFollow, isPending: isTogglingFollow } =
     useToggleFollow();
+  const { mutate: createDmConversation, isPending: isStartingConversation } =
+    useCreateDmConversation();
   const { mutate: inheritWorkoutDay, isPending: isInheriting } =
     useInheritWorkoutDay();
   const { data: ownPrograms } = usePrograms();
@@ -273,28 +276,48 @@ const UserProfileScreen = () => {
                 following
               </Text>
             </View>
-            <TouchableOpacity
-              style={[
-                styles.followButton,
-                profile.isFollowedByViewer && styles.followButtonActive,
-              ]}
-              onPress={() =>
-                toggleFollow({
-                  userId: profile.id,
-                  isFollowing: profile.isFollowedByViewer,
-                })
-              }
-              disabled={isTogglingFollow}
-            >
-              <Text
+            <View style={styles.profileActionsRow}>
+              <TouchableOpacity
                 style={[
-                  styles.followButtonText,
-                  profile.isFollowedByViewer && styles.followButtonTextActive,
+                  styles.followButton,
+                  profile.isFollowedByViewer && styles.followButtonActive,
                 ]}
+                onPress={() =>
+                  toggleFollow({
+                    userId: profile.id,
+                    isFollowing: profile.isFollowedByViewer,
+                  })
+                }
+                disabled={isTogglingFollow}
               >
-                {profile.isFollowedByViewer ? "Following" : "Follow"}
-              </Text>
-            </TouchableOpacity>
+                <Text
+                  style={[
+                    styles.followButtonText,
+                    profile.isFollowedByViewer &&
+                      styles.followButtonTextActive,
+                  ]}
+                >
+                  {profile.isFollowedByViewer ? "Following" : "Follow"}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.messageButton}
+                onPress={() =>
+                  createDmConversation(profile.id, {
+                    onSuccess: (conversationId) =>
+                      router.push(`/messages/${conversationId}`),
+                  })
+                }
+                disabled={isStartingConversation}
+              >
+                <Feather
+                  name="message-circle"
+                  size={16}
+                  color={colors.primaryBlue}
+                />
+                <Text style={styles.messageButtonText}>Message</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={styles.tabBar}>
@@ -716,8 +739,12 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.bold,
     color: "#000",
   },
-  followButton: {
+  profileActionsRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
     marginTop: spacing.xs,
+  },
+  followButton: {
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.xs,
     borderRadius: 20,
@@ -735,6 +762,22 @@ const styles = StyleSheet.create({
   },
   followButtonTextActive: {
     color: colors.textSecondary,
+  },
+  messageButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xs,
+    borderRadius: 20,
+    backgroundColor: colors.surfaceBlueLight,
+    borderWidth: 1,
+    borderColor: colors.borderBlueLight,
+  },
+  messageButtonText: {
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
+    color: colors.primaryBlue,
   },
   tabBar: {
     flexDirection: "row",

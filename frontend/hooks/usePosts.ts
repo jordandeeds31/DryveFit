@@ -7,6 +7,8 @@ import {
 } from "@tanstack/react-query";
 import {
   getFeed,
+  getNewPostsCount,
+  markFeedViewed,
   getPost,
   createPost,
   deletePost,
@@ -27,6 +29,33 @@ export const useFeed = () => {
       getFeed(pageParam),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+  });
+};
+
+// Drives the Feed tab's badge — same polling pattern as
+// useUnreadNotificationCount, so a new post shows up within seconds without
+// needing a websocket/push round-trip.
+const NEW_POSTS_COUNT_POLL_INTERVAL_MS = 15000;
+
+export const useNewPostsCount = () => {
+  return useQuery({
+    queryKey: ["posts", "newCount"],
+    queryFn: getNewPostsCount,
+    refetchInterval: NEW_POSTS_COUNT_POLL_INTERVAL_MS,
+  });
+};
+
+export const useMarkFeedViewed = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: markFeedViewed,
+    // Zeroes the badge immediately rather than waiting for the next poll
+    // tick — the whole point is that it disappears the moment you tap the
+    // tab, not up to 15s later.
+    onSuccess: () => {
+      queryClient.setQueryData(["posts", "newCount"], 0);
+    },
   });
 };
 
