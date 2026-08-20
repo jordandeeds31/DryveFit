@@ -3,10 +3,14 @@ import { PRO_ENTITLEMENT_ID } from "./purchases";
 import { queryClient } from "@/lib/api/queryClient";
 import { getCurrentUser } from "@/lib/api/users.api";
 
-// Mirrors backend/src/utils/futureLogGuard.ts's UNRESTRICTED_TEST_EMAIL —
-// the developer's own account, exempted from paywalls the same way it's
-// exempted from other normally-enforced restrictions.
-const UNRESTRICTED_TEST_EMAIL = "jordandeeds31@gmail.com";
+// jordandeeds31@gmail.com mirrors backend/src/utils/futureLogGuard.ts's
+// UNRESTRICTED_TEST_EMAIL — the developer's own account, exempted from
+// paywalls the same way it's exempted from other normally-enforced
+// restrictions. Other addresses here are comped accounts.
+const UNRESTRICTED_EMAILS = [
+  "jordandeeds31@gmail.com",
+  "pineapplecrafty@gmail.com",
+];
 
 // Shows the RevenueCat paywall only if the user doesn't already have the
 // "pro" entitlement (presentPaywallIfNeeded checks that internally).
@@ -22,7 +26,11 @@ export const ensureProAccess = async (): Promise<boolean> => {
       queryKey: ["currentUser"],
       queryFn: getCurrentUser,
     });
-    if (currentUser?.email === UNRESTRICTED_TEST_EMAIL) return true;
+    if (
+      currentUser?.email &&
+      UNRESTRICTED_EMAILS.includes(currentUser.email)
+    )
+      return true;
   } catch {
     // Falls through to the normal paywall — this check should never be
     // what blocks a real user from getting to purchase.

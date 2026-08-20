@@ -155,6 +155,51 @@ export const isHealthKitAvailable = (): Promise<boolean> => {
   });
 };
 
+// initHealthKit's completion reports success as soon as the user responds
+// to the native prompt, whether they granted or declined every read type —
+// iOS deliberately never exposes true read-authorization status (see the
+// comment on hasCompletedHealthKitConnect above). To tell "declined" from
+// "granted" at connect time, this probes for real data across a handful of
+// metrics iOS itself writes continuously in the background (basal/active
+// energy in particular are estimated by the OS around the clock regardless
+// of whether the user owns a Watch or has ever opened Health), so an empty
+// result is a reliable signal the read grant was actually refused rather
+// than "this user just doesn't have data yet." A week-wide window keeps
+// this from false-negative-ing on a phone that was off/unused briefly.
+const probeHealthKitReadAccess = async (): Promise<boolean> => {
+  const sinceDate = new Date();
+  sinceDate.setDate(sinceDate.getDate() - 7);
+  const rangeOptions: HealthInputOptions = {
+    startDate: sinceDate.toISOString(),
+    endDate: new Date().toISOString(),
+  };
+
+  const [stepSamples, basalEnergySamples, activeEnergySamples] =
+    await Promise.all([
+      new Promise<HealthValue[]>((resolve) => {
+        AppleHealthKit.getDailyStepCountSamples(rangeOptions, (error, results) => {
+          resolve(error ? [] : results);
+        });
+      }),
+      new Promise<HealthValue[]>((resolve) => {
+        AppleHealthKit.getBasalEnergyBurned(rangeOptions, (error, results) => {
+          resolve(error ? [] : results);
+        });
+      }),
+      new Promise<HealthValue[]>((resolve) => {
+        AppleHealthKit.getActiveEnergyBurned(rangeOptions, (error, results) => {
+          resolve(error ? [] : results);
+        });
+      }),
+    ]);
+
+  return (
+    stepSamples.length > 0 ||
+    basalEnergySamples.length > 0 ||
+    activeEnergySamples.length > 0
+  );
+};
+
 export const requestHealthKitAuthorization = (
   userId: string,
 ): Promise<boolean> => {
@@ -162,9 +207,10 @@ export const requestHealthKitAuthorization = (
 
   const request = new Promise<boolean>((resolve) => {
     AppleHealthKit.initHealthKit(permissions, async (error) => {
-      const success = !error;
-      if (success) await markHealthKitConnected(userId);
-      resolve(success);
+      const initSucceeded = !error;
+      const granted = initSucceeded && (await probeHealthKitReadAccess());
+      if (granted) await markHealthKitConnected(userId);
+      resolve(granted);
     });
   });
 

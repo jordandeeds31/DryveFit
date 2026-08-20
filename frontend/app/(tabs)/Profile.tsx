@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Platform,
   KeyboardAvoidingView,
+  ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
@@ -45,7 +46,8 @@ import { fontSizes, fontWeights } from "@/constants/typography";
 const Profile = () => {
   const { openDevices } = useLocalSearchParams<{ openDevices?: string }>();
   const { logout } = useAuth();
-  const { data: currentUser } = useCurrentUser();
+  const { data: currentUser, isLoading: isCurrentUserLoading } =
+    useCurrentUser();
   const {
     mutate: saveProfile,
     isPending: isSaving,
@@ -322,6 +324,10 @@ const Profile = () => {
       ],
     );
   };
+
+  if (isCurrentUserLoading) {
+    return <ActivityIndicator style={{ flex: 1 }} />;
+  }
 
   return (
     <KeyboardAvoidingView
