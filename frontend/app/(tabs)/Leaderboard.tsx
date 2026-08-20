@@ -86,7 +86,6 @@ const LeaderboardScreen = () => {
   const hasCity = !!currentUser?.city;
   const hasUsername = !!currentUser?.username;
   const hasGender = !!currentUser?.gender;
-  const needsLeaderboardIdentity = !hasUsername || !hasCity;
 
   const scopeLabel = !selectedExercise
     ? null
@@ -225,12 +224,6 @@ const LeaderboardScreen = () => {
             </Text>
           </TouchableOpacity>
         </View>
-        {!hasCity && (
-          <Text style={styles.hintText}>
-            Set your city in Profile to use the city leaderboard.
-          </Text>
-        )}
-
         {!hasGender && (
           <TouchableOpacity
             style={styles.banner}
@@ -243,14 +236,24 @@ const LeaderboardScreen = () => {
           </TouchableOpacity>
         )}
 
-        {needsLeaderboardIdentity && (
+        {!hasUsername && (
           <TouchableOpacity
             style={styles.banner}
             onPress={() => router.push("/(tabs)/Profile")}
           >
             <Text style={styles.bannerText}>
-              If you want to show up on the leaderboard, set a username and
-              city in Profile.
+              Set a username in Profile to show up on the leaderboard.
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {!hasCity && (
+          <TouchableOpacity
+            style={styles.banner}
+            onPress={() => router.push("/(tabs)/Profile")}
+          >
+            <Text style={styles.bannerText}>
+              Set your city in Profile to show up on the city leaderboard.
             </Text>
           </TouchableOpacity>
         )}
@@ -494,11 +497,6 @@ const styles = StyleSheet.create({
   },
   segmentTextActive: {
     color: colors.primaryBlue,
-  },
-  hintText: {
-    fontSize: fontSizes.xs,
-    color: colors.textSecondary,
-    marginTop: spacing.xs,
   },
   banner: {
     backgroundColor: colors.surfaceBlueLight,
