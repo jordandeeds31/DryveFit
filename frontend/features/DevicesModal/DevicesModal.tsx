@@ -1,4 +1,5 @@
 import { View, Text, TouchableOpacity, Alert } from "react-native";
+import { router } from "expo-router";
 import Feather from "@expo/vector-icons/Feather";
 import Modal from "@/components/shared/Modal/Modal";
 import Switch from "@/components/shared/Switch/Switch";
@@ -70,6 +71,24 @@ const DevicesModal = ({
             disabled={isConnectingHealthKit}
           />
         </View>
+      )}
+
+      {healthKitStatus === "connected" && (
+        <TouchableOpacity
+          style={styles.row}
+          onPress={() => {
+            onClose();
+            router.push("/health-stats");
+          }}
+        >
+          <View style={styles.rowIcon}>
+            <Feather name="activity" size={18} color={colors.primaryBlue} />
+          </View>
+          <View style={styles.rowTextGroup}>
+            <Text style={styles.rowLabel}>View Health Stats</Text>
+          </View>
+          <Feather name="chevron-right" size={18} color={colors.textMuted} />
+        </TouchableOpacity>
       )}
 
       {COMING_SOON_DEVICES.map((device) => (

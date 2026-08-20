@@ -4,6 +4,7 @@ import AppleHealthKit from "react-native-health";
 import type {
   HealthInputOptions,
   HealthKitPermissions,
+  HealthUnitOptions,
   HealthValue,
   HealthValueOptions,
 } from "react-native-health";
@@ -341,7 +342,7 @@ const CARDIO_ACTIVITY_TO_HEALTHKIT: Record<"walk" | "run" | "bike", string> = {
   bike: "Cycling",
 };
 
-export const saveCardioSessionToHealthKit = (
+export const saveCardioSessionToHealthKit = async (
   userId: string,
   session: {
     activityType: "walk" | "run" | "bike";
@@ -349,9 +350,10 @@ export const saveCardioSessionToHealthKit = (
     endedAt: string;
     distanceMeters: number;
     caloriesBurned: number | null;
+    stepCount: number | null;
   },
-): Promise<void> =>
-  saveWorkoutToHealthKit(userId, {
+): Promise<void> => {
+  await saveWorkoutToHealthKit(userId, {
     type: CARDIO_ACTIVITY_TO_HEALTHKIT[session.activityType],
     startDate: session.startedAt,
     endDate: session.endedAt,
@@ -363,12 +365,37 @@ export const saveCardioSessionToHealthKit = (
     }),
   });
 
-// No real start/end time exists for a standalone strength log (see
-// anchorTimeForDate) — duration is a rough estimate (~90s working + ~90s
-// resting per set, floored at 10 minutes) rather than a measurement, so
-// this is deliberately approximate, not authoritative.
+  // A separate write, not part of the workout itself — HealthKit tracks
+  // step count as its own quantity type, so the session's stepCount (when
+  // the device's pedometer captured one) is written independently,
+  // scoped to the same start/end window as the workout.
+  if (session.stepCount != null && session.stepCount > 0) {
+    if (Platform.OS !== "ios") return;
+    if (!(await hasCompletedHealthKitConnect(userId))) return;
+
+    const stepOptions: HealthValueOptions = {
+      value: session.stepCount,
+      startDate: session.startedAt,
+      endDate: session.endedAt,
+    };
+    await new Promise<void>((resolve) => {
+      AppleHealthKit.saveSteps(stepOptions, (error) => {
+        if (error) console.warn("Failed to save steps to HealthKit:", error);
+        resolve();
+      });
+    });
+  }
+};
+
+// No real start/end time (or calorie burn) exists for a standalone
+// strength log — duration and calories are both rough estimates rather
+// than measurements: ~90s working + ~90s resting per set (floored at 10
+// minutes) for duration, and ~6 kcal/min (a commonly-cited average for
+// moderate resistance training) for calories. Deliberately approximate,
+// not authoritative — see anchorTimeForDate for the same caveat on timing.
 const ESTIMATED_SECONDS_PER_SET = 180;
 const MIN_STRENGTH_WORKOUT_SECONDS = 600;
+const ESTIMATED_KCAL_PER_MINUTE = 6;
 
 export const saveStrengthWorkoutToHealthKit = (
   userId: string,
@@ -382,12 +409,17 @@ export const saveStrengthWorkoutToHealthKit = (
     workout.setCount * ESTIMATED_SECONDS_PER_SET,
   );
   const startDate = new Date(endDate.getTime() - durationSeconds * 1000);
+  const estimatedCalories = Math.round(
+    (durationSeconds / 60) * ESTIMATED_KCAL_PER_MINUTE,
+  );
 
   return saveWorkoutToHealthKit(userId, {
     type: "TraditionalStrengthTraining",
     startDate: startDate.toISOString(),
     endDate: endDate.toISOString(),
     duration: durationSeconds,
+    energyBurned: estimatedCalories,
+    energyBurnedUnit: "kilocalorie",
   });
 };
 
@@ -474,4 +506,202 @@ export const saveBodyMeasurementsToHealthKit = async (
   }
 
   await Promise.all(saves);
+};
+
+// Generic helpers for the read-only overview below — every call here
+// already tolerates its own failure (a type the user never granted, or one
+// with no data yet) by resolving a safe fallback instead of throwing, so
+// one missing metric never blocks the rest of the overview from loading.
+const getValue = (
+  fn: (
+    options: HealthInputOptions,
+    callback: (error: string, results: HealthValue) => void,
+  ) => void,
+  options: HealthInputOptions,
+): Promise<number | null> =>
+  new Promise((resolve) => {
+    fn(options, (error, result) => resolve(error || !result ? null : result.value));
+  });
+
+const getSamples = (
+  fn: (
+    options: HealthInputOptions,
+    callback: (error: string, results: HealthValue[]) => void,
+  ) => void,
+  options: HealthInputOptions,
+): Promise<HealthValue[]> =>
+  new Promise((resolve) => {
+    fn(options, (error, results) => resolve(error ? [] : results));
+  });
+
+const getLatestValue = (
+  fn: (
+    options: HealthUnitOptions,
+    callback: (error: string, results: HealthValue) => void,
+  ) => void,
+): Promise<number | null> =>
+  new Promise((resolve) => {
+    fn({}, (error, result) => resolve(error || !result ? null : result.value));
+  });
+
+const sumValues = (samples: HealthValue[]): number =>
+  samples.reduce((sum, sample) => sum + sample.value, 0);
+
+const mostRecent = (samples: HealthValue[]): HealthValue | null =>
+  samples.length === 0
+    ? null
+    : samples.reduce((latest, sample) =>
+        new Date(sample.endDate) > new Date(latest.endDate) ? sample : latest,
+      );
+
+export interface HealthStatsOverview {
+  activity: {
+    stepsToday: number;
+    activeEnergyTodayKcal: number;
+    basalEnergyTodayKcal: number;
+    exerciseMinutesToday: number;
+    standHoursToday: number;
+    flightsClimbedToday: number;
+    walkingRunningDistanceMetersToday: number;
+    cyclingDistanceMetersToday: number;
+    swimmingDistanceMetersToday: number;
+  };
+  vitals: {
+    restingHeartRate: number | null;
+    heartRateVariability: number | null;
+    walkingHeartRateAverage: number | null;
+    vo2Max: number | null;
+  };
+  body: {
+    weightLbs: number | null;
+    heightInches: number | null;
+    bodyFatPercentage: number | null;
+    leanBodyMassLbs: number | null;
+    bmi: number | null;
+  };
+  // Sums every returned sleep-analysis segment (in bed, asleep, and awake
+  // alike) in the lookback window — HealthKit's exact stage codes vary by
+  // iOS version and aren't reliably distinguishable through this library,
+  // so this is "time tracked as sleep," not strictly time asleep.
+  sleep: {
+    lastNightHours: number | null;
+  };
+}
+
+// Surfaces every read permission already requested above (see the read
+// list's comment) that nothing in the app displays anywhere yet.
+// stepsToday/activeEnergy/latestHeartRate/caloriesBurned are deliberately
+// NOT duplicated here — those already have a home in
+// queryRecentHeartRateAndEnergy (used during live cardio/cinematic-mode
+// tracking) — actually stepsToday IS included below since that overview is
+// scoped to "during a session," not "today as a whole."
+export const getHealthStatsOverview = async (): Promise<HealthStatsOverview> => {
+  const now = new Date();
+  const startOfToday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  );
+  const todayRange: HealthInputOptions = {
+    startDate: startOfToday.toISOString(),
+    endDate: now.toISOString(),
+  };
+
+  const lookback90 = new Date(now);
+  lookback90.setDate(lookback90.getDate() - 90);
+  const recentRange: HealthInputOptions = {
+    startDate: lookback90.toISOString(),
+    endDate: now.toISOString(),
+  };
+
+  const sleepLookback = new Date(now);
+  sleepLookback.setHours(sleepLookback.getHours() - 24);
+  const sleepRange: HealthInputOptions = {
+    startDate: sleepLookback.toISOString(),
+    endDate: now.toISOString(),
+  };
+
+  const [
+    stepSamples,
+    activeEnergySamples,
+    basalEnergySamples,
+    exerciseTimeSamples,
+    standTimeSamples,
+    flightsClimbed,
+    walkingRunningDistance,
+    cyclingDistance,
+    swimmingDistance,
+    restingHeartRate,
+    hrvSamples,
+    walkingHrSamples,
+    vo2MaxSamples,
+    weight,
+    height,
+    bodyFatPercentage,
+    leanBodyMass,
+    bmi,
+    sleepSamples,
+  ] = await Promise.all([
+    getSamples(AppleHealthKit.getDailyStepCountSamples, todayRange),
+    getSamples(AppleHealthKit.getActiveEnergyBurned, todayRange),
+    getSamples(AppleHealthKit.getBasalEnergyBurned, todayRange),
+    getSamples(AppleHealthKit.getAppleExerciseTime, todayRange),
+    getSamples(AppleHealthKit.getAppleStandTime, todayRange),
+    getValue(AppleHealthKit.getFlightsClimbed, todayRange),
+    getValue(AppleHealthKit.getDistanceWalkingRunning, todayRange),
+    getValue(AppleHealthKit.getDistanceCycling, todayRange),
+    getValue(AppleHealthKit.getDistanceSwimming, todayRange),
+    getValue(AppleHealthKit.getRestingHeartRate, recentRange),
+    getSamples(AppleHealthKit.getHeartRateVariabilitySamples, recentRange),
+    getSamples(AppleHealthKit.getWalkingHeartRateAverage, recentRange),
+    getSamples(AppleHealthKit.getVo2MaxSamples, recentRange),
+    getLatestValue(AppleHealthKit.getLatestWeight),
+    getLatestValue(AppleHealthKit.getLatestHeight),
+    getLatestValue(AppleHealthKit.getLatestBodyFatPercentage),
+    getLatestValue(AppleHealthKit.getLatestLeanBodyMass),
+    getLatestValue(AppleHealthKit.getLatestBmi),
+    getSamples(AppleHealthKit.getSleepSamples, sleepRange),
+  ]);
+
+  const sleepHours =
+    sleepSamples.length === 0
+      ? null
+      : sleepSamples.reduce(
+          (hours, sample) =>
+            hours +
+            (new Date(sample.endDate).getTime() -
+              new Date(sample.startDate).getTime()) /
+              3_600_000,
+          0,
+        );
+
+  return {
+    activity: {
+      stepsToday: Math.round(sumValues(stepSamples)),
+      activeEnergyTodayKcal: Math.round(sumValues(activeEnergySamples)),
+      basalEnergyTodayKcal: Math.round(sumValues(basalEnergySamples)),
+      exerciseMinutesToday: Math.round(sumValues(exerciseTimeSamples)),
+      standHoursToday: Math.round(sumValues(standTimeSamples)),
+      flightsClimbedToday: Math.round(flightsClimbed ?? 0),
+      walkingRunningDistanceMetersToday: walkingRunningDistance ?? 0,
+      cyclingDistanceMetersToday: cyclingDistance ?? 0,
+      swimmingDistanceMetersToday: swimmingDistance ?? 0,
+    },
+    vitals: {
+      restingHeartRate: restingHeartRate != null ? Math.round(restingHeartRate) : null,
+      heartRateVariability: mostRecent(hrvSamples)?.value ?? null,
+      walkingHeartRateAverage: mostRecent(walkingHrSamples)?.value ?? null,
+      vo2Max: mostRecent(vo2MaxSamples)?.value ?? null,
+    },
+    body: {
+      weightLbs: weight,
+      heightInches: height,
+      bodyFatPercentage,
+      leanBodyMassLbs: leanBodyMass,
+      bmi,
+    },
+    sleep: {
+      lastNightHours: sleepHours != null ? Math.round(sleepHours * 10) / 10 : null,
+    },
+  };
 };
