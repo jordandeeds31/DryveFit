@@ -149,14 +149,14 @@ export const getLoggedDateKeysHandler = catchAsync(
 
 export const updateNutritionProfileHandler = catchAsync(
   async (req: AuthRequest, res: Response) => {
-    const { gender, weightLbs, heightInches, birthdate, activityLevel, goalType } =
+    const { gender, weightLbs, heightInches, age, activityLevel, goalType } =
       req.body;
 
     if (
       typeof gender !== "string" ||
       typeof weightLbs !== "number" ||
       typeof heightInches !== "number" ||
-      typeof birthdate !== "string" ||
+      typeof age !== "number" ||
       typeof activityLevel !== "string" ||
       typeof goalType !== "string"
     ) {
@@ -167,7 +167,7 @@ export const updateNutritionProfileHandler = catchAsync(
       gender,
       weightLbs,
       heightInches,
-      birthdate,
+      age,
       activityLevel,
       goalType: goalType as "lose" | "maintain" | "gain",
     });

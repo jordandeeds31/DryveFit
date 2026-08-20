@@ -16,6 +16,11 @@ import {
   updateNutritionProfile,
   updateNutritionGoal,
 } from "@/lib/api/nutrition.api";
+import { MEAL_TYPE_LABELS } from "@/types/nutrition.types";
+import {
+  saveFoodToHealthKit,
+  saveBodyMeasurementsToHealthKit,
+} from "@/lib/health/healthkit";
 
 export const useFoodSearch = (query: string) => {
   return useQuery({
@@ -81,6 +86,21 @@ export const useLogFood = () => {
         queryKey: ["dailyRecap", variables.date],
       });
       invalidateLoggedDateKeys(queryClient);
+
+      const userId = queryClient.getQueryData<{ id: string }>([
+        "currentUser",
+      ])?.id;
+      if (userId) {
+        saveFoodToHealthKit(userId, {
+          foodName: variables.foodName,
+          mealType: MEAL_TYPE_LABELS[variables.mealType],
+          date: variables.date,
+          calories: variables.calories,
+          proteinG: variables.proteinG,
+          carbsG: variables.carbsG,
+          fatG: variables.fatG,
+        }).catch(() => {});
+      }
     },
   });
 };
@@ -111,9 +131,19 @@ export const useUpdateNutritionProfile = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: updateNutritionProfile,
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["nutritionProfile"] });
       queryClient.invalidateQueries({ queryKey: ["diary"] });
+
+      const userId = queryClient.getQueryData<{ id: string }>([
+        "currentUser",
+      ])?.id;
+      if (userId) {
+        saveBodyMeasurementsToHealthKit(userId, {
+          weightLbs: variables.weightLbs,
+          heightInches: variables.heightInches,
+        }).catch(() => {});
+      }
     },
   });
 };

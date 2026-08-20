@@ -5,6 +5,7 @@ import {
   createCardioSession,
   deleteCardioSession,
 } from "@/lib/api/cardio.api";
+import { saveCardioSessionToHealthKit } from "@/lib/health/healthkit";
 
 export const useCardioSessions = () => {
   return useQuery({
@@ -26,8 +27,15 @@ export const useCreateCardioSession = () => {
 
   return useMutation({
     mutationFn: createCardioSession,
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["cardioSessions"] });
+
+      const userId = queryClient.getQueryData<{ id: string }>([
+        "currentUser",
+      ])?.id;
+      if (userId) {
+        saveCardioSessionToHealthKit(userId, variables).catch(() => {});
+      }
     },
   });
 };

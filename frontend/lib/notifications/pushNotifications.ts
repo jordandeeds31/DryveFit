@@ -72,15 +72,16 @@ export const registerForPushNotifications = async (): Promise<void> => {
 };
 
 interface PushNotificationData {
-  // Only set on a social push (post_like/post_comment/follow) — a workout
-  // reminder's payload never carries this, which is what tells the two
-  // apart below.
-  type?: "post_like" | "post_comment" | "follow";
+  // Only set on a social push (post_like/post_comment/follow) or a DM
+  // (dm_message) — a workout reminder's payload never carries this, which
+  // is what tells the two apart below.
+  type?: "post_like" | "post_comment" | "follow" | "dm_message";
   postId?: string;
   commentId?: string;
   actorId?: string;
   programId?: string;
   date?: string;
+  conversationId?: string;
 }
 
 const handleNotificationTap = (response: Notifications.NotificationResponse) => {
@@ -104,6 +105,12 @@ const handleNotificationTap = (response: Notifications.NotificationResponse) => 
   if (data?.type === "follow") {
     if (!data.actorId) return;
     router.push(`/user/${data.actorId}`);
+    return;
+  }
+
+  if (data?.type === "dm_message") {
+    if (!data.conversationId) return;
+    router.push(`/messages/${data.conversationId}`);
     return;
   }
 

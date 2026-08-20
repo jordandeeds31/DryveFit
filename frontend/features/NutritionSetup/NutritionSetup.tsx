@@ -1,12 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, Platform } from "react-native";
-import DateTimePicker, {
-  DateTimePickerEvent,
-} from "@react-native-community/datetimepicker";
-import Feather from "@expo/vector-icons/Feather";
+import { View, Text, TouchableOpacity } from "react-native";
 import Input from "@/components/shared/TextInput/TextInput";
 import Button from "@/components/shared/Button/Button";
-import { colors } from "@/constants/colors";
 import {
   useNutritionProfile,
   useUpdateNutritionProfile,
@@ -31,19 +26,6 @@ import {
 } from "@/lib/utils/units";
 import styles from "./NutritionSetup.styles";
 
-const formatDate = (date: Date): string =>
-  date.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-
-const MAX_BIRTHDATE = new Date();
-const MIN_BIRTHDATE = new Date();
-MIN_BIRTHDATE.setFullYear(MIN_BIRTHDATE.getFullYear() - 100);
-const DEFAULT_BIRTHDATE = new Date();
-DEFAULT_BIRTHDATE.setFullYear(DEFAULT_BIRTHDATE.getFullYear() - 30);
-
 interface NutritionSetupProps {
   onSaved: () => void;
 }
@@ -64,8 +46,7 @@ const NutritionSetup = ({ onSaved }: NutritionSetupProps) => {
   const [heightFeet, setHeightFeet] = useState("");
   const [heightInches, setHeightInches] = useState("");
   const [heightCm, setHeightCm] = useState("");
-  const [birthdate, setBirthdate] = useState(DEFAULT_BIRTHDATE);
-  const [showPicker, setShowPicker] = useState(false);
+  const [ageInput, setAgeInput] = useState("");
   const [activityLevel, setActivityLevel] = useState<ActivityLevel | null>(null);
   const [goalType, setGoalType] = useState<NutritionGoalType | null>(null);
 
@@ -107,8 +88,8 @@ const NutritionSetup = ({ onSaved }: NutritionSetupProps) => {
       }
     }
 
-    if (existingProfile?.birthdate) {
-      setBirthdate(new Date(existingProfile.birthdate));
+    if (existingProfile?.age != null) {
+      setAgeInput(String(existingProfile.age));
     }
 
     if (existingProfile?.activityLevel) {
@@ -120,12 +101,9 @@ const NutritionSetup = ({ onSaved }: NutritionSetupProps) => {
     }
   }, [currentUser, existingProfile, isUserLoading, isProfileLoading, isMetric]);
 
-  const handleDateChange = (event: DateTimePickerEvent, date?: Date) => {
-    if (event.type !== "dismissed" && date) {
-      setBirthdate(date);
-    }
-    setShowPicker(false);
-  };
+  const parsedAge = parseInt(ageInput, 10);
+  const isAgeValid =
+    ageInput !== "" && Number.isInteger(parsedAge) && parsedAge >= 13 && parsedAge <= 120;
 
   const parsedInches = parseFloat(heightInches) || 0;
   // 0-11 only — 12+ inches should be entered as another foot instead, same
@@ -143,6 +121,7 @@ const NutritionSetup = ({ onSaved }: NutritionSetupProps) => {
     parseFloat(weightInput) > 0 &&
     totalHeightInches > 0 &&
     isInchesValid &&
+    isAgeValid &&
     !!activityLevel &&
     !!goalType;
 
@@ -158,7 +137,7 @@ const NutritionSetup = ({ onSaved }: NutritionSetupProps) => {
         gender,
         weightLbs,
         heightInches: totalHeightInches,
-        birthdate: birthdate.toISOString(),
+        age: parsedAge,
         activityLevel,
         goalType,
       },
@@ -257,23 +236,16 @@ const NutritionSetup = ({ onSaved }: NutritionSetupProps) => {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.label}>Birthdate</Text>
-        <TouchableOpacity
-          style={styles.dateButton}
-          onPress={() => setShowPicker((prev) => !prev)}
-        >
-          <Feather name="calendar" size={16} color={colors.textSecondary} />
-          <Text style={styles.dateText}>{formatDate(birthdate)}</Text>
-        </TouchableOpacity>
-        {showPicker && (
-          <DateTimePicker
-            value={birthdate}
-            mode="date"
-            display={Platform.OS === "ios" ? "inline" : "default"}
-            minimumDate={MIN_BIRTHDATE}
-            maximumDate={MAX_BIRTHDATE}
-            onChange={handleDateChange}
-          />
+        <Input
+          label="Age"
+          placeholder="e.g. 30"
+          keyboardType="numeric"
+          maxLength={3}
+          value={ageInput}
+          onChangeText={setAgeInput}
+        />
+        {!isAgeValid && ageInput !== "" && (
+          <Text style={styles.fieldErrorText}>Age must be 13-120</Text>
         )}
       </View>
 

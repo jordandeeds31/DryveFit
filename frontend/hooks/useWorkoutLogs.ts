@@ -5,6 +5,7 @@ import {
   deleteWorkoutLogSet,
   deleteWorkoutLogsForDate,
 } from "@/lib/api/workoutLogs.api";
+import { saveStrengthWorkoutToHealthKit } from "@/lib/health/healthkit";
 
 export const useLogStandaloneWorkout = () => {
   const queryClient = useQueryClient();
@@ -30,6 +31,20 @@ export const useLogStandaloneWorkout = () => {
       queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
       queryClient.invalidateQueries({ queryKey: ["workingOutCount"] });
       queryClient.invalidateQueries({ queryKey: ["previousSession"] });
+
+      const userId = queryClient.getQueryData<{ id: string }>([
+        "currentUser",
+      ])?.id;
+      if (userId) {
+        const setCount = variables.exercises.reduce(
+          (sum, exercise) => sum + exercise.sets.length,
+          0,
+        );
+        saveStrengthWorkoutToHealthKit(userId, {
+          date: variables.date,
+          setCount,
+        }).catch(() => {});
+      }
     },
   });
 };

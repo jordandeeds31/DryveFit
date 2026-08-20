@@ -128,7 +128,7 @@ export interface NutritionProfile {
   gender: string | null;
   weightLbs: number | null;
   heightInches: number | null;
-  birthdate: string | null;
+  age: number | null;
   activityLevel: ActivityLevel | null;
   nutritionGoalType: NutritionGoalType | null;
   dailyCalorieGoal: number | null;

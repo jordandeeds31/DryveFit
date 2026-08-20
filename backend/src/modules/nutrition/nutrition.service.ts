@@ -388,7 +388,7 @@ interface NutritionProfileInput {
   gender: string;
   weightLbs: number;
   heightInches: number;
-  birthdate: string;
+  age: number;
   activityLevel: string;
   goalType: NutritionGoalType;
 }
@@ -429,14 +429,21 @@ export const updateNutritionProfile = async (
     throw new AppError(400, "Invalid goal type");
   }
 
-  const birthdate = new Date(input.birthdate);
-  if (Number.isNaN(birthdate.getTime())) {
-    throw new AppError(400, "Invalid birthdate");
+  if (!Number.isInteger(input.age) || input.age < 13 || input.age > 120) {
+    throw new AppError(400, "Invalid age");
   }
-  const age = calculateAge(birthdate);
-  if (age < 13 || age > 120) {
-    throw new AppError(400, "Invalid birthdate");
-  }
+  const age = input.age;
+  // No exact birthdate is collected anymore (see NutritionSetup.tsx) — the
+  // User.birthdate column still exists for storage/history, so age is
+  // re-derived from today's month/day going forward, which keeps
+  // calculateAge(birthdate) reproducing this same age if read back later
+  // this year.
+  const today = new Date();
+  const birthdate = new Date(
+    today.getFullYear() - age,
+    today.getMonth(),
+    today.getDate(),
+  );
 
   const weightKg = input.weightLbs * 0.453592;
   const heightCm = input.heightInches * 2.54;
@@ -608,7 +615,7 @@ export const getDailyRecap = async (userId: string, dateStr: string) => {
 };
 
 export const getNutritionProfile = async (userId: string) => {
-  return prisma.user.findUniqueOrThrow({
+  const { birthdate, ...user } = await prisma.user.findUniqueOrThrow({
     where: { id: userId },
     select: {
       gender: true,
@@ -620,4 +627,6 @@ export const getNutritionProfile = async (userId: string) => {
       ...GOAL_SELECT,
     },
   });
+
+  return { ...user, age: birthdate ? calculateAge(birthdate) : null };
 };

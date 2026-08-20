@@ -5,6 +5,7 @@ import type {
   HealthInputOptions,
   HealthKitPermissions,
   HealthValue,
+  HealthValueOptions,
 } from "react-native-health";
 
 // react-native-health's index.d.ts declares `HealthPermission`, `HealthUnit`,
@@ -59,7 +60,22 @@ const permissions: HealthKitPermissions = {
       "Sugar",
       "Water",
     ] as HealthKitPermissions["permissions"]["read"],
-    write: [],
+    // Only types Dryve actually generates data for — a workout (strength
+    // logs + cardio sessions), the nutrients captured by food logging, and
+    // the weight/height collected in the nutrition setup form. Everything
+    // else above is read-only because Dryve has no source of truth for it
+    // (steps, heart rate, sleep, etc. come from the Watch/phone sensors or
+    // other apps) — requesting write access nobody ever calls just bloats
+    // the permission sheet and reads oddly in App Review.
+    write: [
+      "Workout",
+      "EnergyConsumed",
+      "Protein",
+      "Carbohydrates",
+      "FatTotal",
+      "BodyMass",
+      "Height",
+    ] as HealthKitPermissions["permissions"]["write"],
   },
 };
 
@@ -274,4 +290,188 @@ export const queryRecentHeartRateAndEnergy = async (
   );
 
   return { latestHeartRate, caloriesBurned, stepCount };
+};
+
+// A day-key ("YYYY-MM-DD", the same format workout logs and food logs use)
+// carries no time-of-day, but every HealthKit write needs a real
+// start/end. Today's entries anchor to the actual current time (the
+// realistic case — logging right after eating/training); anything backfilled
+// to a past day has no true time-of-day to recover, so it anchors to a fixed
+// early-evening time rather than implying a precision the app doesn't have.
+const anchorTimeForDate = (dateKey: string): Date => {
+  const todayKey = new Date().toISOString().slice(0, 10);
+  if (dateKey === todayKey) return new Date();
+  return new Date(`${dateKey}T18:00:00`);
+};
+
+// react-native-health's index.d.ts under-declares this call — the native
+// side (RCTAppleHealthKit+Methods_Workout.m) also reads `duration` (seconds),
+// `energyBurned`/`energyBurnedUnit`, and `distance`/`distanceUnit` from the
+// same options object, none of which HealthActivityOptions's type includes.
+interface WorkoutSaveOptions {
+  type: string;
+  startDate: string;
+  endDate: string;
+  duration?: number;
+  energyBurned?: number;
+  energyBurnedUnit?: string;
+  distance?: number;
+  distanceUnit?: string;
+}
+
+const saveWorkoutToHealthKit = async (
+  userId: string,
+  options: WorkoutSaveOptions,
+): Promise<void> => {
+  if (Platform.OS !== "ios") return;
+  if (!(await hasCompletedHealthKitConnect(userId))) return;
+
+  return new Promise((resolve) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    AppleHealthKit.saveWorkout(options as any, (error) => {
+      if (error) console.warn("Failed to save workout to HealthKit:", error);
+      resolve();
+    });
+  });
+};
+
+const CARDIO_ACTIVITY_TO_HEALTHKIT: Record<"walk" | "run" | "bike", string> = {
+  walk: "Walking",
+  run: "Running",
+  bike: "Cycling",
+};
+
+export const saveCardioSessionToHealthKit = (
+  userId: string,
+  session: {
+    activityType: "walk" | "run" | "bike";
+    startedAt: string;
+    endedAt: string;
+    distanceMeters: number;
+    caloriesBurned: number | null;
+  },
+): Promise<void> =>
+  saveWorkoutToHealthKit(userId, {
+    type: CARDIO_ACTIVITY_TO_HEALTHKIT[session.activityType],
+    startDate: session.startedAt,
+    endDate: session.endedAt,
+    distance: session.distanceMeters,
+    distanceUnit: "meter",
+    ...(session.caloriesBurned != null && {
+      energyBurned: session.caloriesBurned,
+      energyBurnedUnit: "kilocalorie",
+    }),
+  });
+
+// No real start/end time exists for a standalone strength log (see
+// anchorTimeForDate) — duration is a rough estimate (~90s working + ~90s
+// resting per set, floored at 10 minutes) rather than a measurement, so
+// this is deliberately approximate, not authoritative.
+const ESTIMATED_SECONDS_PER_SET = 180;
+const MIN_STRENGTH_WORKOUT_SECONDS = 600;
+
+export const saveStrengthWorkoutToHealthKit = (
+  userId: string,
+  workout: { date: string; setCount: number },
+): Promise<void> => {
+  if (workout.setCount <= 0) return Promise.resolve();
+
+  const endDate = anchorTimeForDate(workout.date);
+  const durationSeconds = Math.max(
+    MIN_STRENGTH_WORKOUT_SECONDS,
+    workout.setCount * ESTIMATED_SECONDS_PER_SET,
+  );
+  const startDate = new Date(endDate.getTime() - durationSeconds * 1000);
+
+  return saveWorkoutToHealthKit(userId, {
+    type: "TraditionalStrengthTraining",
+    startDate: startDate.toISOString(),
+    endDate: endDate.toISOString(),
+    duration: durationSeconds,
+  });
+};
+
+// saveFood writes every nutrient in one HealthKit correlation entry —
+// react-native-health's .d.ts types this call as a plain HealthInputOptions,
+// but the native side (RCTAppleHealthKit+Methods_Dietary.m) reads
+// foodName/mealType/date plus each nutrient (energy in kilocalories,
+// everything else in grams) straight off the same options object.
+export const saveFoodToHealthKit = (
+  userId: string,
+  entry: {
+    foodName: string;
+    mealType: string;
+    date: string;
+    calories: number;
+    proteinG: number;
+    carbsG: number;
+    fatG: number;
+  },
+): Promise<void> => {
+  if (Platform.OS !== "ios") return Promise.resolve();
+
+  return hasCompletedHealthKitConnect(userId).then((connected) => {
+    if (!connected) return;
+
+    return new Promise<void>((resolve) => {
+      AppleHealthKit.saveFood(
+        {
+          foodName: entry.foodName,
+          mealType: entry.mealType,
+          date: anchorTimeForDate(entry.date).toISOString(),
+          energy: entry.calories,
+          protein: entry.proteinG,
+          carbohydrates: entry.carbsG,
+          fatTotal: entry.fatG,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any,
+        (error) => {
+          if (error) console.warn("Failed to save food to HealthKit:", error);
+          resolve();
+        },
+      );
+    });
+  });
+};
+
+export const saveBodyMeasurementsToHealthKit = async (
+  userId: string,
+  measurements: { weightLbs?: number | null; heightInches?: number | null },
+): Promise<void> => {
+  if (Platform.OS !== "ios") return;
+  if (!(await hasCompletedHealthKitConnect(userId))) return;
+
+  const saves: Promise<void>[] = [];
+
+  if (measurements.weightLbs != null) {
+    const weightOptions: HealthValueOptions = {
+      value: measurements.weightLbs,
+      unit: "pound" as HealthValueOptions["unit"],
+    };
+    saves.push(
+      new Promise((resolve) => {
+        AppleHealthKit.saveWeight(weightOptions, (error) => {
+          if (error) console.warn("Failed to save weight to HealthKit:", error);
+          resolve();
+        });
+      }),
+    );
+  }
+
+  if (measurements.heightInches != null) {
+    const heightOptions: HealthValueOptions = {
+      value: measurements.heightInches,
+      unit: "inch" as HealthValueOptions["unit"],
+    };
+    saves.push(
+      new Promise((resolve) => {
+        AppleHealthKit.saveHeight(heightOptions, (error) => {
+          if (error) console.warn("Failed to save height to HealthKit:", error);
+          resolve();
+        });
+      }),
+    );
+  }
+
+  await Promise.all(saves);
 };

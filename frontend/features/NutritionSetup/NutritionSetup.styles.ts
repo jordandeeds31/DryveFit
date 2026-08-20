@@ -75,20 +75,6 @@ const styles = StyleSheet.create({
   optionTextActive: {
     color: colors.primaryBlue,
   },
-  dateButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.borderGray,
-    borderRadius: 8,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-  },
-  dateText: {
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.semibold,
-  },
   errorText: {
     color: colors.dangerRed,
     fontSize: fontSizes.sm,

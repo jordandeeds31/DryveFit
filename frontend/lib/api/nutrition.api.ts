@@ -82,7 +82,7 @@ export const updateNutritionProfile = async (input: {
   gender: string;
   weightLbs: number;
   heightInches: number;
-  birthdate: string;
+  age: number;
   activityLevel: ActivityLevel;
   goalType: NutritionGoalType;
 }): Promise<NutritionProfile> => {
