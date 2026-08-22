@@ -11,8 +11,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.jordandeeds.dryve",
+      "appleTeamId": "4424MLU9XJ",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSSupportsLiveActivities": true
       }
     },
     "android": {
@@ -86,7 +88,8 @@
       ],
       "./plugins/withFmtCxx17Fix.js",
       "expo-asset",
-      "expo-video"
+      "expo-video",
+      "@bacons/apple-targets"
     ],
     "experiments": {
       "typedRoutes": true

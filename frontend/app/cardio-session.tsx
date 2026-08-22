@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   Alert,
   ActivityIndicator,
   Linking,
+  AppState,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
@@ -17,18 +18,13 @@ import type { AppDispatch, RootState } from "@/store";
 import {
   startSession,
   restoreSession,
-  addRoutePoint,
   pauseSession,
   resumeSession,
-  recordHeartRateSample,
-  setCaloriesBurned,
-  setStepCount,
   clearSession,
 } from "@/store/slices/cardioSessionSlice";
 import {
   startBackgroundLocationUpdates,
   stopBackgroundLocationUpdates,
-  drainPendingRoutePoints,
 } from "@/lib/location/cardioBackgroundLocation";
 import {
   saveSessionSnapshot,
@@ -45,7 +41,6 @@ import { formatElapsed } from "@/lib/utils/duration.utils";
 import {
   isHealthKitAvailable,
   hasCompletedHealthKitConnect,
-  queryRecentHeartRateAndEnergy,
 } from "@/lib/health/healthkit";
 import { cyberpunk, neonGlow, neonShadow } from "@/constants/cyberpunk";
 import { useUnitSystem } from "@/hooks/useUnitSystem";
@@ -54,8 +49,12 @@ import {
   distanceUnitLabel,
   formatPace,
 } from "@/lib/utils/units";
+import {
+  isLiveActivitySupported,
+  startCardioLiveActivity,
+  endCardioLiveActivity,
+} from "@/modules/live-activity";
 
-const HEALTH_POLL_INTERVAL_MS = 30_000;
 const MAP_DELTA = 0.005;
 
 const ACTIVITY_LABELS: Record<CardioActivityType, string> = {
@@ -65,8 +64,12 @@ const ACTIVITY_LABELS: Record<CardioActivityType, string> = {
 };
 
 const CardioSessionScreen = () => {
-  const { activityType } = useLocalSearchParams<{
+  const { activityType, action } = useLocalSearchParams<{
     activityType: CardioActivityType;
+    // Set by the Live Activity's Finish button (a plain deep link, see
+    // targets/cardio-live-activity/CardioLiveActivityWidget.swift) —
+    // triggers the same handleFinish flow tapping Finish in-app does.
+    action?: string;
   }>();
   const dispatch = useDispatch<AppDispatch>();
   const unitSystem = useUnitSystem();
@@ -105,7 +108,7 @@ const CardioSessionScreen = () => {
       if (snapshot) {
         dispatch(restoreSession(snapshot));
       } else if (activityType) {
-        dispatch(startSession(activityType));
+        dispatch(startSession({ activityType, unitSystem }));
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -145,22 +148,46 @@ const CardioSessionScreen = () => {
     };
   }, []);
 
-  // The background task (cardioBackgroundLocation.ts) can't dispatch into
-  // Redux directly — it may run in a minimal JS context with no React tree
-  // mounted, especially right after iOS relaunches the app to deliver a
-  // location batch. It buffers points to disk instead, and this drains
-  // that buffer into the visible route: once immediately on mount (picks up
-  // anything collected before this screen was there to see it, including
-  // across a full relaunch) and then every few seconds while mounted.
+  // The background task (cardioBackgroundLocation.ts) is now the sole
+  // place distance/route/calories/steps/heart-rate actually get computed
+  // — it can't dispatch into Redux directly (it may run in a minimal JS
+  // context with no React tree mounted, especially right after iOS
+  // relaunches the app to deliver a location batch), so it writes
+  // straight to the persisted snapshot instead. This effect just
+  // periodically re-reads that snapshot into Redux so the UI reflects
+  // whatever the background task has already computed — once immediately
+  // on mount, every few seconds while mounted, and immediately again on
+  // returning to the foreground (rather than waiting up to 5s for the
+  // interval, since a lot can happen while this screen wasn't visible).
   useEffect(() => {
-    const drain = async () => {
-      const points = await drainPendingRoutePoints();
-      points.forEach((point) => dispatch(addRoutePoint(point)));
+    let cancelled = false;
+    const reload = async () => {
+      const snapshot = await loadSessionSnapshot();
+      if (!cancelled && snapshot) dispatch(restoreSession(snapshot));
     };
-    drain();
-    const interval = setInterval(drain, 5000);
-    return () => clearInterval(interval);
+    reload();
+    const interval = setInterval(reload, 5000);
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") reload();
+    });
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      subscription.remove();
+    };
   }, [dispatch]);
+
+  // Starts (or, on a relaunch, re-attaches to) the Lock Screen Live
+  // Activity for this session. Safe to fire on every startedAt/activityType
+  // change rather than guard against duplicate calls here — the native
+  // side (LiveActivityModule.swift) already checks for an existing Activity
+  // of this type first and re-attaches instead of creating a second one.
+  useEffect(() => {
+    if (!active || !isLiveActivitySupported()) return;
+    startCardioLiveActivity(active.activityType, active.startedAt).catch(
+      (err) => console.warn("Failed to start cardio Live Activity:", err),
+    );
+  }, [active?.activityType, active?.startedAt]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -182,60 +209,16 @@ const CardioSessionScreen = () => {
     };
   }, [currentUser]);
 
-  // Same 30s-poll pattern as cinematic-mode: no live streaming API here,
-  // just "most recent Watch-synced reading" pulled from HealthKit
-  // periodically. Samples/calories are dispatched into Redux (not local
-  // state) so they survive the screen remounting mid-session, and so an
-  // average/max heart rate can be computed from the full history at Finish.
-  useEffect(() => {
-    if (!isHealthKitAvailableOnDevice || !active) return;
-
-    let cancelled = false;
-    const poll = async () => {
-      const { latestHeartRate, caloriesBurned: calories, stepCount } =
-        await queryRecentHeartRateAndEnergy(new Date(active.startedAt));
-      if (cancelled) return;
-      if (latestHeartRate != null) {
-        dispatch(recordHeartRateSample(latestHeartRate));
-      }
-      dispatch(setCaloriesBurned(Math.round(calories)));
-      dispatch(setStepCount(stepCount));
-    };
-
-    poll();
-    const interval = setInterval(poll, HEALTH_POLL_INTERVAL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isHealthKitAvailableOnDevice, active?.startedAt]);
-
-  if (!active) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <ActivityIndicator style={{ flex: 1 }} color="white" />
-      </SafeAreaView>
-    );
-  }
-
-  const elapsedSeconds = Math.max(
-    0,
-    Math.floor(
-      ((isPaused ? active.pausedAt! : Date.now()) -
-        active.startedAt -
-        active.totalPausedMs) /
-        1000,
-    ),
-  );
-
-  const latestPoint = active.routePoints[active.routePoints.length - 1];
-
-  const handleTogglePause = () => {
+  // handleTogglePause/handleDiscard/handleFinish are declared here (above
+  // the `if (!active)` guard below) rather than after it, each with their
+  // own internal `if (!active) return` — the Finish deep-link effect further
+  // down needs to call handleFinish from a hook, and hooks can't come after
+  // a conditional return.
+  const handleTogglePause = useCallback(() => {
     dispatch(isPaused ? resumeSession() : pauseSession());
-  };
+  }, [dispatch, isPaused]);
 
-  const handleDiscard = () => {
+  const handleDiscard = useCallback(() => {
     Alert.alert(
       "Discard this activity?",
       "Your route and distance for this session will not be saved.",
@@ -246,6 +229,7 @@ const CardioSessionScreen = () => {
           style: "destructive",
           onPress: () => {
             stopBackgroundLocationUpdates();
+            endCardioLiveActivity();
             clearSessionSnapshot();
             dispatch(clearSession());
             router.back();
@@ -253,10 +237,24 @@ const CardioSessionScreen = () => {
         },
       ],
     );
-  };
+  }, [dispatch]);
 
-  const handleFinish = () => {
+  const elapsedSeconds = active
+    ? Math.max(
+        0,
+        Math.floor(
+          ((isPaused ? active.pausedAt! : Date.now()) -
+            active.startedAt -
+            active.totalPausedMs) /
+            1000,
+        ),
+      )
+    : 0;
+
+  const handleFinish = useCallback(() => {
+    if (!active) return;
     stopBackgroundLocationUpdates();
+    endCardioLiveActivity();
     clearSessionSnapshot();
 
     if (active.routePoints.length < 2) {
@@ -316,7 +314,29 @@ const CardioSessionScreen = () => {
         },
       },
     );
-  };
+  }, [active, elapsedSeconds, dispatch, createSession]);
+
+  // The Live Activity's Finish button deep-links back in with
+  // ?action=finish — same handleFinish flow as tapping Finish in-app
+  // (which has no confirmation dialog either, so none is added here for
+  // consistency). Clears the param afterward so backgrounding/foregrounding
+  // again without a fresh tap doesn't re-trigger it.
+  useEffect(() => {
+    if (action === "finish" && active) {
+      handleFinish();
+      router.setParams({ action: "" });
+    }
+  }, [action, active, handleFinish]);
+
+  if (!active) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ActivityIndicator style={{ flex: 1 }} color="white" />
+      </SafeAreaView>
+    );
+  }
+
+  const latestPoint = active.routePoints[active.routePoints.length - 1];
 
   return (
     <SafeAreaView style={styles.container}>

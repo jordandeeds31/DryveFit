@@ -1,9 +1,15 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { CardioActivityType, CardioRoutePoint } from "@/types/cardio.types";
-import { haversineDistanceMeters } from "@/lib/utils/geo.utils";
+import { UnitSystem } from "@/types/user.types";
 
 export interface ActiveCardioSession {
   activityType: CardioActivityType;
+  // Denormalized from the user's profile at session-start time, rather
+  // than looked up live — the background location task (see
+  // cardioBackgroundLocation.ts) runs outside the React tree entirely (no
+  // hooks, no query cache) but still needs this to format the Live
+  // Activity's distance/pace text in the right unit system.
+  unitSystem: UnitSystem;
   // Real timestamp (Date.now()), not a running counter — elapsed time is
   // always derived as `Date.now() - startedAt - totalPausedMs`, the same
   // pattern cinematicTimerSlice uses, so it survives the screen
@@ -34,9 +40,16 @@ const cardioSessionSlice = createSlice({
   name: "cardioSession",
   initialState,
   reducers: {
-    startSession: (state, action: PayloadAction<CardioActivityType>) => {
+    startSession: (
+      state,
+      action: PayloadAction<{
+        activityType: CardioActivityType;
+        unitSystem: UnitSystem;
+      }>,
+    ) => {
       state.active = {
-        activityType: action.payload,
+        activityType: action.payload.activityType,
+        unitSystem: action.payload.unitSystem,
         startedAt: Date.now(),
         pausedAt: null,
         totalPausedMs: 0,
@@ -56,22 +69,6 @@ const cardioSessionSlice = createSlice({
     restoreSession: (state, action: PayloadAction<ActiveCardioSession>) => {
       state.active = action.payload;
     },
-    addRoutePoint: (state, action: PayloadAction<CardioRoutePoint>) => {
-      if (!state.active || state.active.pausedAt != null) return;
-
-      const point = action.payload;
-      const lastPoint =
-        state.active.routePoints[state.active.routePoints.length - 1];
-
-      if (lastPoint) {
-        state.active.distanceMeters += haversineDistanceMeters(
-          lastPoint,
-          point,
-        );
-      }
-
-      state.active.routePoints.push(point);
-    },
     pauseSession: (state) => {
       if (state.active && state.active.pausedAt == null) {
         state.active.pausedAt = Date.now();
@@ -83,19 +80,6 @@ const cardioSessionSlice = createSlice({
         state.active.pausedAt = null;
       }
     },
-    recordHeartRateSample: (state, action: PayloadAction<number>) => {
-      state.active?.heartRateSamples.push(action.payload);
-    },
-    setCaloriesBurned: (state, action: PayloadAction<number>) => {
-      if (state.active) {
-        state.active.caloriesBurned = action.payload;
-      }
-    },
-    setStepCount: (state, action: PayloadAction<number>) => {
-      if (state.active) {
-        state.active.stepCount = action.payload;
-      }
-    },
     clearSession: (state) => {
       state.active = null;
     },
@@ -105,12 +89,8 @@ const cardioSessionSlice = createSlice({
 export const {
   startSession,
   restoreSession,
-  addRoutePoint,
   pauseSession,
   resumeSession,
-  recordHeartRateSample,
-  setCaloriesBurned,
-  setStepCount,
   clearSession,
 } = cardioSessionSlice.actions;
 export default cardioSessionSlice.reducer;
