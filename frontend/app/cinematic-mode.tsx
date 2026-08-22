@@ -34,8 +34,10 @@ import {
 } from "@/store/slices/cinematicTimerSlice";
 import {
   isHealthKitAvailable,
+  hasCompletedHealthKitConnect,
   queryRecentHeartRateAndEnergy,
 } from "@/lib/health/healthkit";
+import { useCurrentUser } from "@/hooks/useUsers";
 import { useUnitSystem } from "@/hooks/useUnitSystem";
 import {
   displayWeight,
@@ -185,8 +187,18 @@ const CinematicMode = () => {
       state.cinematicTimer.healthMetricsBySession[sessionKey],
   );
 
+  const { data: currentUser } = useCurrentUser();
+
   const [isHealthKitAvailableOnDevice, setIsHealthKitAvailableOnDevice] =
     useState(false);
+  // Distinct from device availability above — this is specifically whether
+  // THIS user completed the Devices connect flow (see healthkit.ts's
+  // hasCompletedHealthKitConnect), so someone who never connected a
+  // watch/HealthKit, or explicitly disconnected it, doesn't see a stats
+  // section promising data that isn't coming. The poll effect below
+  // deliberately stays gated on device availability only (not this), per
+  // its own comment — this flag only controls what's rendered.
+  const [hasHealthKitConnected, setHasHealthKitConnected] = useState(false);
 
   // HealthKit deliberately never reveals true read-authorization status to
   // apps, so gating the poll below on an "authorized" check (as this used
@@ -194,15 +206,22 @@ const CinematicMode = () => {
   // only real device availability is checked here; the query itself just
   // returns nothing if access truly was denied.
   useEffect(() => {
+    if (!currentUser) return;
     let cancelled = false;
     (async () => {
-      const available = await isHealthKitAvailable();
-      if (!cancelled) setIsHealthKitAvailableOnDevice(available);
+      const [available, connected] = await Promise.all([
+        isHealthKitAvailable(),
+        hasCompletedHealthKitConnect(currentUser.id),
+      ]);
+      if (!cancelled) {
+        setIsHealthKitAvailableOnDevice(available);
+        setHasHealthKitConnected(connected);
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [currentUser]);
 
   // Polls HealthKit roughly every 30s while a session is active — there's
   // no native Watch app here, so a fresh Watch → Health sync (and thus a
@@ -252,6 +271,26 @@ const CinematicMode = () => {
     // silently rewrite whatever the user's already typed for this set.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIndex, exercise?.id]);
+
+  // Real HealthKit-tracked values (see the poll effect above) — only ever
+  // populated if the device has an Apple Watch actively reporting heart
+  // rate, which can lag several seconds to a minute behind the workout
+  // actually starting (no native Watch app here to push samples instantly,
+  // so this waits on whatever the Watch → Health sync happens to land).
+  const heartRateSamples = healthMetrics?.heartRateSamples ?? [];
+  const latestHeartRate =
+    heartRateSamples.length > 0
+      ? heartRateSamples[heartRateSamples.length - 1]
+      : null;
+  const avgHeartRate =
+    heartRateSamples.length > 0
+      ? Math.round(
+          heartRateSamples.reduce((sum, bpm) => sum + bpm, 0) /
+            heartRateSamples.length,
+        )
+      : null;
+  const caloriesBurned = healthMetrics?.caloriesBurned ?? 0;
+  const hasRealMetrics = latestHeartRate != null || caloriesBurned > 0;
 
   const buildValidSets = () =>
     sets
@@ -510,6 +549,43 @@ const CinematicMode = () => {
             : ""}
         </Text>
         <Text style={styles.timer}>{formatElapsed(elapsedSeconds)}</Text>
+
+        {isHealthKitAvailableOnDevice && hasHealthKitConnected && (
+          <View style={styles.statsRow}>
+            <View style={styles.statTile}>
+              {caloriesBurned > 0 ? (
+                <Text style={styles.statValue}>
+                  {Math.round(caloriesBurned)}
+                </Text>
+              ) : (
+                <Text style={styles.statPending}>syncing…</Text>
+              )}
+              <Text style={styles.statLabel}>CALORIES</Text>
+            </View>
+            <View style={styles.statTile}>
+              {latestHeartRate != null ? (
+                <Text style={styles.statValue}>{latestHeartRate}</Text>
+              ) : (
+                <Text style={styles.statPending}>syncing…</Text>
+              )}
+              <Text style={styles.statLabel}>HEART RATE</Text>
+            </View>
+            <View style={styles.statTile}>
+              {avgHeartRate != null ? (
+                <Text style={styles.statValue}>{avgHeartRate}</Text>
+              ) : (
+                <Text style={styles.statPending}>syncing…</Text>
+              )}
+              <Text style={styles.statLabel}>AVG BPM</Text>
+            </View>
+          </View>
+        )}
+
+        {isHealthKitAvailableOnDevice && hasHealthKitConnected && !hasRealMetrics && (
+          <Text style={styles.statsPlaceholder}>
+            Wearing an Apple Watch? Stats may take a moment to sync in.
+          </Text>
+        )}
       </View>
 
       <ScrollView
@@ -647,6 +723,40 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.extrabold,
     marginTop: spacing.xs,
     fontVariant: ["tabular-nums"],
+  },
+  statsRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: spacing.xl,
+    marginTop: spacing.sm,
+  },
+  statTile: {
+    alignItems: "center",
+    gap: 2,
+  },
+  statValue: {
+    color: "white",
+    fontSize: fontSizes.lg,
+    fontWeight: fontWeights.bold,
+    fontVariant: ["tabular-nums"],
+  },
+  statPending: {
+    color: "#6B7280",
+    fontSize: fontSizes.lg,
+    fontWeight: fontWeights.bold,
+  },
+  statLabel: {
+    color: "#9CA3AF",
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.semibold,
+  },
+  statsPlaceholder: {
+    color: "#6B7280",
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.semibold,
+    textAlign: "center",
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.lg,
   },
   body: {
     flex: 1,

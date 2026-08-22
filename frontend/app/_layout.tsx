@@ -21,6 +21,12 @@ import {
     disconnect as disconnectDmSocket,
 } from "@/lib/messaging/websocketClient";
 import { useDmWebSocketBridge } from "@/hooks/useDirectMessages";
+// Side-effect import only — this registers the background location task
+// (TaskManager.defineTask) at module scope, unconditionally, so it's
+// defined even if iOS relaunches the app purely to deliver a background
+// location batch during a cardio session, before the cardio screen itself
+// would ever be imported through normal navigation.
+import "@/lib/location/cardioBackgroundLocation";
 
 SplashScreen.preventAutoHideAsync();
 configurePurchases();
@@ -116,6 +122,10 @@ const RootNavigator = () => {
             />
             <Stack.Screen
                 name="post/[postId]"
+                options={{ presentation: "fullScreenModal", headerShown: false }}
+            />
+            <Stack.Screen
+                name="blog/[blogPostId]"
                 options={{ presentation: "fullScreenModal", headerShown: false }}
             />
         </Stack>

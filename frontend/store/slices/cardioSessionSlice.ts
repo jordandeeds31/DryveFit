@@ -2,7 +2,7 @@ import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { CardioActivityType, CardioRoutePoint } from "@/types/cardio.types";
 import { haversineDistanceMeters } from "@/lib/utils/geo.utils";
 
-interface ActiveCardioSession {
+export interface ActiveCardioSession {
   activityType: CardioActivityType;
   // Real timestamp (Date.now()), not a running counter — elapsed time is
   // always derived as `Date.now() - startedAt - totalPausedMs`, the same
@@ -46,6 +46,15 @@ const cardioSessionSlice = createSlice({
         caloriesBurned: 0,
         stepCount: 0,
       };
+    },
+    // Rehydrates a session from the persisted snapshot (see
+    // cardioSessionPersistence.ts) — used when this screen mounts and finds
+    // no in-memory `active` session (Redux is purely in-memory, so a full
+    // app relaunch during a backgrounded walk loses it) but a snapshot was
+    // saved to disk before that relaunch. Distinct from startSession, which
+    // always begins a brand new session at Date.now().
+    restoreSession: (state, action: PayloadAction<ActiveCardioSession>) => {
+      state.active = action.payload;
     },
     addRoutePoint: (state, action: PayloadAction<CardioRoutePoint>) => {
       if (!state.active || state.active.pausedAt != null) return;
@@ -95,6 +104,7 @@ const cardioSessionSlice = createSlice({
 
 export const {
   startSession,
+  restoreSession,
   addRoutePoint,
   pauseSession,
   resumeSession,

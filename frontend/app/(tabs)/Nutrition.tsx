@@ -185,10 +185,6 @@ const NutritionScreen = () => {
     });
   };
 
-  if (isProfileLoading) {
-    return <ActivityIndicator style={{ flex: 1 }} />;
-  }
-
   const totals = diary?.totals ?? {
     calories: 0,
     proteinG: 0,
@@ -237,7 +233,9 @@ const NutritionScreen = () => {
           </View>
         )}
 
-        {!hasGoal ? (
+        {isProfileLoading ? (
+          <ActivityIndicator style={{ marginVertical: spacing.lg }} />
+        ) : !hasGoal ? (
           <TouchableOpacity
             style={styles.setupPrompt}
             onPress={() => setIsSetupOpen(true)}

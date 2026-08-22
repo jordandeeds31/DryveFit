@@ -64,13 +64,17 @@
         "react-native-health",
         {
           "healthSharePermission": "Allow DryveFit to read your workouts, activity, heart rate, body measurements, sleep, and nutrition data from Health.",
-          "healthUpdatePermission": "DryveFit does not write data to Health."
+          "healthUpdatePermission": "Allow DryveFit to save your logged workouts, food, weight, and height to Health."
         }
       ],
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "DryveFit uses your location to show weights and distances in the right units for your region, and to track your walks, runs, and rides."
+          "locationWhenInUsePermission": "DryveFit uses your location to show weights and distances in the right units for your region, and to track your walks, runs, and rides.",
+          "locationAlwaysAndWhenInUsePermission": "DryveFit needs Always location access to keep tracking your walk, run, or ride's route and distance while your phone is locked or you're using another app.",
+          "locationAlwaysPermission": "DryveFit needs Always location access to keep tracking your walk, run, or ride's route and distance while your phone is locked or you're using another app.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true
         }
       ],
       [

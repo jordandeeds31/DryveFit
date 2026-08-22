@@ -61,6 +61,7 @@ model User {
   foodLogEntries            FoodLogEntry[]
   trainer                   Trainer?
   posts                     Post[]
+  blogPosts                 BlogPost[]
   postLikes                 PostLike[]
   postComments              PostComment[]
   commentLikes              CommentLike[]
@@ -103,6 +104,27 @@ model Post {
 
   @@index([createdAt])
   @@map("posts")
+}
+
+// User-authored long-form posts, distinct from Post (the Feed's short
+// caption+media social posts) — these are mixed into the News tab
+// alongside external RSS articles rather than the Feed, and always carry a
+// title/body since that's the point of a blog post, unlike Feed's
+// caption-or-media-or-both flexibility.
+model BlogPost {
+  id                 String   @id @default(uuid())
+  userId             String
+  title              String
+  body               String
+  // Optional — same Cloudinary-hosted-URL approach as Post.mediaUrl (see
+  // that field's comment re: public visibility), just image-only here.
+  coverImageUrl      String?
+  coverImagePublicId String?
+  createdAt          DateTime @default(now())
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@map("blog_posts")
 }
 
 model PostLike {

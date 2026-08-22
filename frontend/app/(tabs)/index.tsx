@@ -42,6 +42,7 @@ import { ensureProAccess } from "@/lib/purchases/requirePro";
 import ActiveWorkoutBanner from "@/components/shared/ActiveWorkoutBanner/ActiveWorkoutBanner";
 import Toast from "@/components/shared/Toast/Toast";
 import Feed from "@/features/Feed/Feed";
+import News from "@/features/News/News";
 import {
   isHealthKitAvailable,
   hasCompletedHealthKitConnect,
@@ -55,7 +56,9 @@ const HomeScreen = () => {
   const [isWorkoutLoggerModalOpen, setIsWorkoutLoggerModalOpen] =
     useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [homeTab, setHomeTab] = useState<"workouts" | "feed">("workouts");
+  const [homeTab, setHomeTab] = useState<"workouts" | "feed" | "news">(
+    "workouts",
+  );
   const [prefillExercises, setPrefillExercises] = useState<
     PendingWorkoutExercise[] | undefined
   >(undefined);
@@ -275,10 +278,6 @@ const HomeScreen = () => {
     if (granted) setIsWorkoutLoggerModalOpen(true);
   };
 
-  if (isProgramsLoading) {
-    return <ActivityIndicator style={{ flex: 1 }} />;
-  }
-
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
       <View style={styles.homeTabBar}>
@@ -324,6 +323,19 @@ const HomeScreen = () => {
             </View>
           )}
         </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.homeTab, homeTab === "news" && styles.homeTabActive]}
+          onPress={() => setHomeTab("news")}
+        >
+          <Text
+            style={[
+              styles.homeTabText,
+              homeTab === "news" && styles.homeTabTextActive,
+            ]}
+          >
+            News
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {showDeviceSetupBanner && (
@@ -351,6 +363,8 @@ const HomeScreen = () => {
 
       {homeTab === "feed" ? (
         <Feed />
+      ) : homeTab === "news" ? (
+        <News />
       ) : (
         <KeyboardAwareScrollView
           ref={scrollViewRef}
@@ -387,10 +401,15 @@ const HomeScreen = () => {
             isCurrentProgramWeek={isCurrentProgramWeek}
           />
 
-          {!hasPrograms && !hasLoggedStandaloneWorkout && (
-            <View style={styles.noProgramsContainer}>
-              <NoPrograms />
-            </View>
+          {isProgramsLoading ? (
+            <ActivityIndicator style={{ marginVertical: spacing.md }} />
+          ) : (
+            !hasPrograms &&
+            !hasLoggedStandaloneWorkout && (
+              <View style={styles.noProgramsContainer}>
+                <NoPrograms />
+              </View>
+            )
           )}
 
           {isSwitchingDay ? (

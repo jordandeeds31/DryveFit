@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -11,12 +11,12 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { useDispatch, useSelector } from "react-redux";
-import * as Location from "expo-location";
 import MapView, { Polyline } from "react-native-maps";
 import Feather from "@expo/vector-icons/Feather";
 import type { AppDispatch, RootState } from "@/store";
 import {
   startSession,
+  restoreSession,
   addRoutePoint,
   pauseSession,
   resumeSession,
@@ -25,6 +25,16 @@ import {
   setStepCount,
   clearSession,
 } from "@/store/slices/cardioSessionSlice";
+import {
+  startBackgroundLocationUpdates,
+  stopBackgroundLocationUpdates,
+  drainPendingRoutePoints,
+} from "@/lib/location/cardioBackgroundLocation";
+import {
+  saveSessionSnapshot,
+  loadSessionSnapshot,
+  clearSessionSnapshot,
+} from "@/lib/location/cardioSessionPersistence";
 import { useCreateCardioSession } from "@/hooks/useCardio";
 import { useCurrentUser } from "@/hooks/useUsers";
 import { CardioActivityType } from "@/types/cardio.types";
@@ -82,15 +92,22 @@ const CardioSessionScreen = () => {
   // as cinematic-mode's timer.
   const [, forceTick] = useState(0);
 
-  const watchSubscription = useRef<Location.LocationSubscription | null>(null);
-
-  // Starts (or resumes into) a session exactly once on mount — a real
-  // activityType param always starts fresh unless one was already active
-  // (e.g. screen remounted after a background/foreground cycle).
+  // Starts (or resumes into) a session exactly once on mount. Order matters:
+  // a persisted snapshot (see cardioSessionPersistence.ts) is checked first,
+  // since Redux is purely in-memory and a full app relaunch during a
+  // backgrounded walk wipes `active` out even though the walk is still in
+  // progress — only falls through to a brand new session if there's truly
+  // nothing to resume.
   useEffect(() => {
-    if (!active && activityType) {
-      dispatch(startSession(activityType));
-    }
+    if (active) return;
+    (async () => {
+      const snapshot = await loadSessionSnapshot();
+      if (snapshot) {
+        dispatch(restoreSession(snapshot));
+      } else if (activityType) {
+        dispatch(startSession(activityType));
+      }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -99,42 +116,51 @@ const CardioSessionScreen = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // Persists the session on every change so it survives the app being
+  // fully terminated and relaunched by iOS mid-walk (see the effect above,
+  // which reloads this on the next mount) — Redux itself has no persistence
+  // layer, so this is the only copy that outlives a killed JS engine.
+  useEffect(() => {
+    if (active) saveSessionSnapshot(active);
+  }, [active]);
+
+  // Starts real background location tracking (not the old foreground-only
+  // watchPositionAsync) — this keeps recording GPS points while the phone
+  // is locked or the user switches to another app, via iOS's background
+  // location service (see cardioBackgroundLocation.ts). It cannot survive
+  // the user force-quitting the app from the app switcher — no iOS app can
+  // continue receiving location updates after that, only very coarse
+  // significant-location-change/geofence monitoring does, which is far too
+  // imprecise for a walk/run route.
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (cancelled) return;
-
-      if (status !== "granted") {
-        setPermissionDenied(true);
-        return;
-      }
-
-      watchSubscription.current = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.BestForNavigation,
-          distanceInterval: 5,
-          timeInterval: 3000,
-        },
-        (location) => {
-          dispatch(
-            addRoutePoint({
-              lat: location.coords.latitude,
-              lng: location.coords.longitude,
-              timestamp: location.timestamp,
-            }),
-          );
-        },
-      );
+      const started = await startBackgroundLocationUpdates();
+      if (!cancelled && !started) setPermissionDenied(true);
     })();
 
     return () => {
       cancelled = true;
-      watchSubscription.current?.remove();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // The background task (cardioBackgroundLocation.ts) can't dispatch into
+  // Redux directly — it may run in a minimal JS context with no React tree
+  // mounted, especially right after iOS relaunches the app to deliver a
+  // location batch. It buffers points to disk instead, and this drains
+  // that buffer into the visible route: once immediately on mount (picks up
+  // anything collected before this screen was there to see it, including
+  // across a full relaunch) and then every few seconds while mounted.
+  useEffect(() => {
+    const drain = async () => {
+      const points = await drainPendingRoutePoints();
+      points.forEach((point) => dispatch(addRoutePoint(point)));
+    };
+    drain();
+    const interval = setInterval(drain, 5000);
+    return () => clearInterval(interval);
+  }, [dispatch]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -219,7 +245,8 @@ const CardioSessionScreen = () => {
           text: "Discard",
           style: "destructive",
           onPress: () => {
-            watchSubscription.current?.remove();
+            stopBackgroundLocationUpdates();
+            clearSessionSnapshot();
             dispatch(clearSession());
             router.back();
           },
@@ -229,7 +256,8 @@ const CardioSessionScreen = () => {
   };
 
   const handleFinish = () => {
-    watchSubscription.current?.remove();
+    stopBackgroundLocationUpdates();
+    clearSessionSnapshot();
 
     if (active.routePoints.length < 2) {
       dispatch(clearSession());
