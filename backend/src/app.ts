@@ -19,6 +19,7 @@ import notificationsRoutes from "./modules/notifications/notifications.routes";
 import messagesRoutes from "./modules/messages/messages.routes";
 import newsRoutes from "./modules/news/news.routes";
 import blogRoutes from "./modules/blog/blog.routes";
+import bodyScansRoutes from "./modules/bodyScans/bodyScans.routes";
 import PRIVACY_POLICY_HTML from "./privacyPolicy";
 import SUPPORT_PAGE_HTML from "./supportPage";
 
@@ -53,6 +54,7 @@ app.use("/api/notifications", notificationsRoutes);
 app.use("/api/messages", messagesRoutes);
 app.use("/api/news", newsRoutes);
 app.use("/api/blog", blogRoutes);
+app.use("/api/body-scans", bodyScansRoutes);
 
 app.use(errorHandler);
 

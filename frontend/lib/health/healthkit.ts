@@ -112,6 +112,38 @@ const markHealthKitConnected = async (userId: string): Promise<void> => {
   await SecureStore.setItemAsync(connectedKeyFor(userId), "true");
 };
 
+const HEALTHKIT_ATTEMPTED_KEY_PREFIX = "healthKitAttemptedConnect";
+
+const attemptedKeyFor = (userId: string) =>
+  `${HEALTHKIT_ATTEMPTED_KEY_PREFIX}_${userId}`;
+
+// Tracks whether this user has ever gone through the connect flow before,
+// regardless of outcome — used to tell "first attempt failed" from "a
+// later attempt failed again" in requestHealthKitAuthorization below. That
+// distinction matters because of a real, confirmed HealthKit asymmetry:
+// once the user answers the permission sheet for the READ types this app
+// requests, iOS locks that answer in forever and will never show the sheet
+// again for those exact types no matter how many more times the app calls
+// initHealthKit — only the user manually re-enabling them in Settings >
+// Health > Data Access & Devices can undo a decline. WRITE types don't
+// have this restriction (iOS is willing to re-prompt those), which is why
+// a user who declined everything once can still see a real permission
+// sheet again on a second attempt and tap Allow — but that second sheet
+// can only be re-granting the write types; the reads are already
+// permanently stuck denied from the first decline, so probeHealthKitReadAccess
+// below will keep failing forever regardless of how many more times the
+// user retries from inside the app.
+const hasAttemptedHealthKitConnectBefore = async (
+  userId: string,
+): Promise<boolean> => {
+  const value = await SecureStore.getItemAsync(attemptedKeyFor(userId));
+  return value === "true";
+};
+
+const markHealthKitAttempted = async (userId: string): Promise<void> => {
+  await SecureStore.setItemAsync(attemptedKeyFor(userId), "true");
+};
+
 // iOS gives apps no API to revoke their own HealthKit authorization — only
 // the user can do that, from the Health app or Settings. This only flips
 // the local "connected" flag every read call in the app gates on
@@ -217,10 +249,28 @@ const probeHealthKitReadAccess = async (): Promise<boolean> => {
   );
 };
 
-export const requestHealthKitAuthorization = (
+export interface HealthKitAuthorizationResult {
+  granted: boolean;
+  // True when this attempt failed AND the user already went through this
+  // flow at least once before — see hasAttemptedHealthKitConnectBefore's
+  // comment for why that combination means retrying again from inside the
+  // app can never succeed, no matter how many more times they try: the
+  // READ types are already permanently stuck denied from the very first
+  // attempt, and only Settings > Health > Data Access & Devices can fix
+  // that now. A false-on-the-first-ever-attempt case doesn't set this,
+  // since that could still be a one-off glitch worth retrying.
+  isStuckAfterPriorDecline: boolean;
+}
+
+export const requestHealthKitAuthorization = async (
   userId: string,
-): Promise<boolean> => {
-  if (Platform.OS !== "ios") return Promise.resolve(false);
+): Promise<HealthKitAuthorizationResult> => {
+  if (Platform.OS !== "ios") {
+    return { granted: false, isStuckAfterPriorDecline: false };
+  }
+
+  const attemptedBefore = await hasAttemptedHealthKitConnectBefore(userId);
+  await markHealthKitAttempted(userId);
 
   const request = new Promise<boolean>((resolve) => {
     AppleHealthKit.initHealthKit(permissions, async (error) => {
@@ -231,7 +281,8 @@ export const requestHealthKitAuthorization = (
     });
   });
 
-  return withTimeout(request, 20_000, false);
+  const granted = await withTimeout(request, 20_000, false);
+  return { granted, isStuckAfterPriorDecline: !granted && attemptedBefore };
 };
 
 export interface RecentHealthMetrics {

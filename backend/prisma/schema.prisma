@@ -63,6 +63,7 @@ model User {
   trainer                     Trainer?
   posts                       Post[]
   blogPosts                   BlogPost[]
+  bodyScans                   BodyScan[]
   postLikes                   PostLike[]
   postComments                PostComment[]
   commentLikes                CommentLike[]
@@ -126,6 +127,36 @@ model BlogPost {
 
   @@index([createdAt])
   @@map("blog_posts")
+}
+
+// One row per WorkoutX Body Scan analysis. The submitted photo itself is
+// never persisted here (or anywhere) — it's forwarded to WorkoutX for
+// analysis and discarded once this row is created from the response.
+model BodyScan {
+  id                String   @id @default(uuid())
+  userId            String
+  // Inputs actually sent to WorkoutX for this scan, kept for history even
+  // if the user's profile values change later.
+  heightCm          Int
+  weightKg          Int
+  age               Int
+  gender            String
+  bodyFatPercentage Float
+  bodyFatCategory   String
+  leanMassKg        Float
+  muscleScore       Int
+  bodyType          String
+  symmetryScore     Int
+  fitnessScore      Int
+  postureNotes      Json
+  circumferences    Json
+  confidenceScore   Float
+  bmi               Float
+  createdAt         DateTime @default(now())
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("body_scans")
 }
 
 model PostLike {

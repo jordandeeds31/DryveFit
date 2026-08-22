@@ -227,13 +227,22 @@ const Profile = () => {
   const handleConnectHealthKit = async () => {
     if (!currentUser) return;
     setIsConnectingHealthKit(true);
-    const granted = await requestHealthKitAuthorization(currentUser.id);
+    const { granted, isStuckAfterPriorDecline } = await requestHealthKitAuthorization(
+      currentUser.id,
+    );
     setIsConnectingHealthKit(false);
 
     if (!granted) {
+      // Once the read permissions this app requests have been declined
+      // once, iOS never shows that part of the sheet again — tapping
+      // Connect from here on can only ever re-prompt for write access, so
+      // "try again" is no longer real advice past the first failure. See
+      // requestHealthKitAuthorization's isStuckAfterPriorDecline comment.
       Alert.alert(
         "Couldn't connect",
-        "Apple Health didn't respond. If a permission prompt appeared, try answering it again, or check Settings > Health > Data Access & Devices > DryveFit.",
+        isStuckAfterPriorDecline
+          ? "Apple Health access was declined earlier, and iOS won't ask again from inside the app. Go to Settings > Health > Data Access & Devices > DryveFit and turn on the categories under Allow, then come back and try again."
+          : "Apple Health didn't respond. If a permission prompt appeared, try answering it again, or check Settings > Health > Data Access & Devices > DryveFit.",
       );
       return;
     }

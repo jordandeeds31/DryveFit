@@ -43,6 +43,7 @@ import ActiveWorkoutBanner from "@/components/shared/ActiveWorkoutBanner/ActiveW
 import Toast from "@/components/shared/Toast/Toast";
 import Feed from "@/features/Feed/Feed";
 import News from "@/features/News/News";
+import BodyScan from "@/features/BodyScan/BodyScan";
 import {
   isHealthKitAvailable,
   hasCompletedHealthKitConnect,
@@ -56,9 +57,9 @@ const HomeScreen = () => {
   const [isWorkoutLoggerModalOpen, setIsWorkoutLoggerModalOpen] =
     useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [homeTab, setHomeTab] = useState<"workouts" | "feed" | "news">(
-    "workouts",
-  );
+  const [homeTab, setHomeTab] = useState<
+    "workouts" | "feed" | "news" | "bodyScan"
+  >("workouts");
   const [prefillExercises, setPrefillExercises] = useState<
     PendingWorkoutExercise[] | undefined
   >(undefined);
@@ -293,6 +294,7 @@ const HomeScreen = () => {
               styles.homeTabText,
               homeTab === "workouts" && styles.homeTabTextActive,
             ]}
+            numberOfLines={1}
           >
             Workouts
           </Text>
@@ -309,6 +311,7 @@ const HomeScreen = () => {
               styles.homeTabText,
               homeTab === "feed" && styles.homeTabTextActive,
             ]}
+            numberOfLines={1}
           >
             Feed
           </Text>
@@ -332,8 +335,26 @@ const HomeScreen = () => {
               styles.homeTabText,
               homeTab === "news" && styles.homeTabTextActive,
             ]}
+            numberOfLines={1}
           >
             News
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.homeTab,
+            homeTab === "bodyScan" && styles.homeTabActive,
+          ]}
+          onPress={() => setHomeTab("bodyScan")}
+        >
+          <Text
+            style={[
+              styles.homeTabText,
+              homeTab === "bodyScan" && styles.homeTabTextActive,
+            ]}
+            numberOfLines={1}
+          >
+            Body Scan
           </Text>
         </TouchableOpacity>
       </View>
@@ -365,6 +386,8 @@ const HomeScreen = () => {
         <Feed />
       ) : homeTab === "news" ? (
         <News />
+      ) : homeTab === "bodyScan" ? (
+        <BodyScan />
       ) : (
         <KeyboardAwareScrollView
           ref={scrollViewRef}
