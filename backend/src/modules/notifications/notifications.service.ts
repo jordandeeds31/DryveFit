@@ -4,11 +4,16 @@ import expo from "../../lib/expoPush";
 
 const PAGE_SIZE = 30;
 
-export type NotificationType = "post_like" | "post_comment" | "follow";
+export type NotificationType =
+  | "post_like"
+  | "post_comment"
+  | "comment_reply"
+  | "follow";
 
 const PUSH_TITLES: Record<NotificationType, (actorName: string) => string> = {
   post_like: (actorName) => `${actorName} liked your post`,
   post_comment: (actorName) => `${actorName} commented on your post`,
+  comment_reply: (actorName) => `${actorName} replied to your comment`,
   follow: (actorName) => `${actorName} started following you`,
 };
 

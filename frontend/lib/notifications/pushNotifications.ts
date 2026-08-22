@@ -72,10 +72,10 @@ export const registerForPushNotifications = async (): Promise<void> => {
 };
 
 interface PushNotificationData {
-  // Only set on a social push (post_like/post_comment/follow) or a DM
-  // (dm_message) — a workout reminder's payload never carries this, which
-  // is what tells the two apart below.
-  type?: "post_like" | "post_comment" | "follow" | "dm_message";
+  // Only set on a social push (post_like/post_comment/comment_reply/follow)
+  // or a DM (dm_message) — a workout reminder's payload never carries
+  // this, which is what tells the two apart below.
+  type?: "post_like" | "post_comment" | "comment_reply" | "follow" | "dm_message";
   postId?: string;
   commentId?: string;
   actorId?: string;
@@ -92,12 +92,17 @@ const handleNotificationTap = (response: Notifications.NotificationResponse) => 
   const data = response.notification.request.content
     .data as PushNotificationData;
 
-  if (data?.type === "post_like" || data?.type === "post_comment") {
+  if (
+    data?.type === "post_like" ||
+    data?.type === "post_comment" ||
+    data?.type === "comment_reply"
+  ) {
     if (!data.postId) return;
     // Same "reply to the specific comment" deep link the in-app
     // notifications screen uses for a comment tap — see notifications.tsx.
     const replyParam =
-      data.type === "post_comment" && data.commentId
+      (data.type === "post_comment" || data.type === "comment_reply") &&
+      data.commentId
         ? `?replyTo=${data.commentId}`
         : "";
     router.push(`/post/${data.postId}${replyParam}`);

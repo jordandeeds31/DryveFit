@@ -434,12 +434,13 @@ export const addComment = async (
     throw new AppError(404, "Post not found");
   }
 
+  let parent: { id: string; userId: string } | null = null;
   if (parentId) {
     // A reply must target a comment that actually belongs to this post —
     // otherwise a client could stitch together threads across posts.
-    const parent = await prisma.postComment.findFirst({
+    parent = await prisma.postComment.findFirst({
       where: { id: parentId, postId },
-      select: { id: true },
+      select: { id: true, userId: true },
     });
 
     if (!parent) {
@@ -452,14 +453,29 @@ export const addComment = async (
     select: getCommentSelect(userId),
   });
 
-  await createNotification({
-    userId: post.userId,
-    actorId: userId,
-    type: "post_comment",
-    postId,
-    commentId: comment.id,
-    previewText: trimmed,
-  });
+  // A reply notifies the comment's author, not the post owner — those are
+  // only the same person when the post owner made the comment being
+  // replied to, in which case createNotification's own actorId===userId
+  // check still prevents a self-notification either way.
+  await createNotification(
+    parent
+      ? {
+          userId: parent.userId,
+          actorId: userId,
+          type: "comment_reply",
+          postId,
+          commentId: comment.id,
+          previewText: trimmed,
+        }
+      : {
+          userId: post.userId,
+          actorId: userId,
+          type: "post_comment",
+          postId,
+          commentId: comment.id,
+          previewText: trimmed,
+        },
+  );
 
   return toCommentNode(comment, userId);
 };

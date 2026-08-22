@@ -1,4 +1,8 @@
-export type NotificationType = "post_like" | "post_comment" | "follow";
+export type NotificationType =
+  | "post_like"
+  | "post_comment"
+  | "comment_reply"
+  | "follow";
 
 export interface NotificationActor {
   id: string;
@@ -18,8 +22,8 @@ export interface NotificationPostPreview {
 export interface AppNotification {
   id: string;
   type: NotificationType;
-  // Set for "post_comment" only — which comment (or reply) to jump
-  // straight into replying to.
+  // Set for "post_comment"/"comment_reply" only — which comment (or
+  // reply) to jump straight into replying to.
   commentId: string | null;
   isRead: boolean;
   createdAt: string;

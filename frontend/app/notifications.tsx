@@ -48,6 +48,8 @@ const notificationText = (notification: AppNotification): string => {
       return "liked your post";
     case "post_comment":
       return "commented on your post";
+    case "comment_reply":
+      return "replied to your comment";
     case "follow":
       return "started following you";
     default:
@@ -85,7 +87,8 @@ const NotificationsScreen = () => {
       return;
     }
     const replyParam =
-      item.type === "post_comment" && item.commentId
+      (item.type === "post_comment" || item.type === "comment_reply") &&
+      item.commentId
         ? `?replyTo=${item.commentId}`
         : "";
     router.push(`/post/${item.post.id}${replyParam}`);
