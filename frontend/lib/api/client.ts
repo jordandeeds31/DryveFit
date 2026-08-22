@@ -36,8 +36,21 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error),
 );
 
+// Guards against handling more than one 401 per "logged out" episode.
+// Without this, every request still in flight at the moment of sign-out
+// (background polls, a websocket reconnect attempt, ...) that resolves
+// with a 401 independently re-runs the whole clear-and-redirect block
+// below — each `router.replace("/(auth)/signin")` remounts that screen
+// fresh, wiping out whatever the user has already typed into it. Reset
+// on the next successful response, which happens naturally once they've
+// signed back in.
+let isHandlingUnauthorized = false;
+
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    isHandlingUnauthorized = false;
+    return response;
+  },
   async (error: AxiosError<{ message?: string }>) => {
     const status = error.response?.status;
     const message =
@@ -48,7 +61,8 @@ apiClient.interceptors.response.use(
     // already on the signin screen), just surface as an inline error.
     const isAuthEndpoint = error.config?.url?.includes("/api/auth/");
 
-    if (status === 401 && !isAuthEndpoint) {
+    if (status === 401 && !isAuthEndpoint && !isHandlingUnauthorized) {
+      isHandlingUnauthorized = true;
       await clearToken();
       queryClient.clear();
       router.replace("/(auth)/signin");

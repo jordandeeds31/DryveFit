@@ -1,5 +1,8 @@
 import { useCallback, useEffect } from "react";
 import { AppState } from "react-native";
+// Side-effect import only — patches Text/TextInput to default to Poppins
+// app-wide. Imported first, before anything renders.
+import "@/lib/globalFont";
 import { Stack } from "expo-router";
 import { Provider, useDispatch } from "react-redux";
 import { QueryClientProvider } from "@tanstack/react-query";
