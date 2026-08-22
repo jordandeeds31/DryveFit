@@ -16,6 +16,7 @@ import {
     registerForPushNotifications,
     setupNotificationTapHandling,
 } from "@/lib/notifications/pushNotifications";
+import { setupCardioFinishDeepLinkHandling } from "@/lib/deepLinks/cardioFinishLink";
 import {
     connect as connectDmSocket,
     disconnect as disconnectDmSocket,
@@ -61,6 +62,10 @@ const RootNavigator = () => {
 
     useEffect(() => {
         return setupNotificationTapHandling();
+    }, []);
+
+    useEffect(() => {
+        return setupCardioFinishDeepLinkHandling();
     }, []);
 
     // Subscribes to the socket's own events (message:new, typing, read

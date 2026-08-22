@@ -90,9 +90,17 @@ private struct LockScreenView: View {
                 StatColumn(label: "Pace", value: context.state.paceText)
                 StatColumn(label: "Calories", value: "\(context.state.caloriesBurned)")
                 StatColumn(label: "Steps", value: "\(context.state.stepCount)")
-                if let heartRate = context.state.currentHeartRate {
-                    StatColumn(label: "Heart Rate", value: "\(heartRate)")
-                }
+                // Shown unconditionally (not hidden when nil) so the stat
+                // always has a fixed place in the layout rather than the
+                // row reflowing the moment a first sample arrives —
+                // currentHeartRate stays nil until HealthKit actually has
+                // a reading (see cardioBackgroundLocation.ts), which in
+                // the Simulator specifically means never, since there's no
+                // real Watch/HealthKit heart rate source there.
+                StatColumn(
+                    label: "Heart Rate",
+                    value: context.state.currentHeartRate.map { "\($0)" } ?? "--"
+                )
             }
 
             Link(destination: finishURL) {
@@ -130,6 +138,12 @@ struct CardioLiveActivityWidget: Widget {
                         StatColumn(label: "Distance", value: context.state.distanceText)
                         StatColumn(label: "Pace", value: context.state.paceText)
                         StatColumn(label: "Calories", value: "\(context.state.caloriesBurned)")
+                        // Shown unconditionally, same reasoning as
+                        // LockScreenView's Heart Rate column above.
+                        StatColumn(
+                            label: "Heart Rate",
+                            value: context.state.currentHeartRate.map { "\($0)" } ?? "--"
+                        )
                         Spacer()
                         Link(destination: finishURL) {
                             Label("Finish", systemImage: "flag.checkered")
