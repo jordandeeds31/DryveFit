@@ -82,6 +82,10 @@ interface PushNotificationData {
   programId?: string;
   date?: string;
   conversationId?: string;
+  // Set on the "you don't have a program yet" reminder — the only other
+  // non-social push besides the workout reminder above, which carries
+  // programId/date instead since it deep-links to a specific day.
+  screen?: "programs";
 }
 
 const handleNotificationTap = (response: Notifications.NotificationResponse) => {
@@ -119,6 +123,11 @@ const handleNotificationTap = (response: Notifications.NotificationResponse) => 
       pathname: "/cinematic-mode",
       params: { programId: data.programId, date: data.date },
     });
+    return;
+  }
+
+  if (data?.screen === "programs") {
+    router.push("/(tabs)/Programs");
   }
 };
 

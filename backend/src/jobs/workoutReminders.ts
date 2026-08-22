@@ -10,6 +10,19 @@ const REMINDER_HOUR = 20;
 const REMINDER_MINUTE_START = 25;
 const REMINDER_MINUTE_END = 44;
 
+// Both reminders below are meant to fire at most once per calendar day per
+// user. A fixed cooldown comfortably longer than the ~20min daily window
+// but well under 24h serves as the "not already sent today" condition —
+// checked and set atomically in claimReminder below, rather than a
+// read-then-later-write pattern. That atomicity is the actual point: two
+// overlapping invocations of this job (e.g. one run still in flight for a
+// large user base when the next 15-minute cron tick fires) previously
+// raced past the same "haven't I sent this already?" check before either
+// one's write landed, which is how the same user could end up with
+// several identical pushes by the end of a single day's window instead of
+// just one.
+const REMINDER_COOLDOWN_MS = 20 * 60 * 60 * 1000;
+
 const localPartsInTimeZone = (date: Date, timeZone: string) => {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone,
@@ -57,6 +70,27 @@ const findIncompleteScheduledDay = async (userId: string, dateKey: string) => {
   return { programId: programDay.week.program.id, focus: programDay.focus };
 };
 
+type ReminderField = "lastWorkoutReminderSentAt" | "lastNoProgramReminderSentAt";
+
+// Atomically claims the right to send a given reminder to this user right
+// now: only updates (and only reports success) if the field is unset or
+// past the cooldown, in a single conditional statement — so two concurrent
+// callers can't both read "not sent yet" and both proceed to send.
+const claimReminder = async (
+  userId: string,
+  field: ReminderField,
+): Promise<boolean> => {
+  const cutoff = new Date(Date.now() - REMINDER_COOLDOWN_MS);
+  const { count } = await prisma.user.updateMany({
+    where: {
+      id: userId,
+      OR: [{ [field]: null }, { [field]: { lt: cutoff } }],
+    },
+    data: { [field]: new Date() },
+  });
+  return count === 1;
+};
+
 // Runs on every cron tick (see index.ts) — cheap no-op for almost every
 // tick/user, since it bails immediately for anyone outside their own
 // 8:25-8:44pm local window or already reminded today.
@@ -67,7 +101,7 @@ export const sendDueWorkoutReminders = async (): Promise<void> => {
       id: true,
       expoPushToken: true,
       timezone: true,
-      lastWorkoutReminderSentAt: true,
+      _count: { select: { programs: true } },
     },
   });
 
@@ -88,16 +122,27 @@ export const sendDueWorkoutReminders = async (): Promise<void> => {
       local.minute <= REMINDER_MINUTE_END;
     if (!inReminderWindow) continue;
 
-    if (user.lastWorkoutReminderSentAt) {
-      const lastSentLocal = localPartsInTimeZone(
-        user.lastWorkoutReminderSentAt,
-        user.timezone,
-      );
-      if (lastSentLocal.dateKey === local.dateKey) continue;
+    // Someone who has never created a program can't have a scheduled day
+    // to be reminded about — nudge them toward creating one instead.
+    if (user._count.programs === 0) {
+      if (!(await claimReminder(user.id, "lastNoProgramReminderSentAt"))) continue;
+
+      await expo.sendPushNotificationsAsync([
+        {
+          to: user.expoPushToken,
+          sound: "default",
+          title: "You don't have a program yet",
+          body: "Set one up and it'll automatically adjust your weights every week using real exercise science — like % of your 1-rep max and progressive overload — instead of you having to guess.",
+          data: { screen: "programs" },
+        },
+      ]);
+      continue;
     }
 
     const dueDay = await findIncompleteScheduledDay(user.id, local.dateKey);
     if (!dueDay) continue;
+
+    if (!(await claimReminder(user.id, "lastWorkoutReminderSentAt"))) continue;
 
     await expo.sendPushNotificationsAsync([
       {
@@ -108,10 +153,5 @@ export const sendDueWorkoutReminders = async (): Promise<void> => {
         data: { programId: dueDay.programId, date: local.dateKey },
       },
     ]);
-
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { lastWorkoutReminderSentAt: new Date() },
-    });
   }
 };

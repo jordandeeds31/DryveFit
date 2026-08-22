@@ -8,69 +8,70 @@ datasource db {
 }
 
 model User {
-  id                        String          @id @default(uuid())
-  email                     String          @unique
-  password                  String
-  username                  String?         @unique
-  city                      String?
-  gender                    String?
-  isLeaderboardVisible      Boolean         @default(true)
-  profileImage              Bytes?
-  profileImageMimeType      String?
-  passwordResetCodeHash     String?
-  passwordResetExpiresAt    DateTime?
-  expoPushToken             String?
+  id                          String          @id @default(uuid())
+  email                       String          @unique
+  password                    String
+  username                    String?         @unique
+  city                        String?
+  gender                      String?
+  isLeaderboardVisible        Boolean         @default(true)
+  profileImage                Bytes?
+  profileImageMimeType        String?
+  passwordResetCodeHash       String?
+  passwordResetExpiresAt      DateTime?
+  expoPushToken               String?
   // IANA name (e.g. "America/New_York") — the reminder job runs on a
   // fixed interval but needs to know each user's actual local clock to
   // fire at 8:30pm *for them*, not 8:30pm server time.
-  timezone                  String?
+  timezone                    String?
   // "metric" | "imperial" — derived once from device location right after
   // signup (see users.service.ts detectUnitSystem) and editable afterward
   // in Profile settings. Null means it's never been determined yet; every
   // read site treats that the same as "imperial" (matches what the whole
   // app hardcoded before this field existed), so there's no separate
   // default to keep in sync in two places.
-  unitSystem                String?
-  lastWorkoutReminderSentAt DateTime?
+  unitSystem                  String?
+  lastWorkoutReminderSentAt   DateTime?
+  lastNoProgramReminderSentAt DateTime?
   // Drives the Feed tab's "new posts" badge — posts created after this
   // timestamp count as unseen. Defaults to now() so the migration itself
   // doesn't retroactively count every existing post as "new" for
   // already-registered users, and every newly-created user starts caught up
   // too.
-  lastFeedViewedAt          DateTime        @default(now())
+  lastFeedViewedAt            DateTime        @default(now())
   // Nutrition-goal inputs (Mifflin-St Jeor) — kept alongside the resolved
   // goals below so the calculator can be re-run if the user updates them,
   // without losing whatever manual override they've made to the goals
   // themselves in the meantime.
-  weightLbs                 Float?
-  heightInches              Float?
-  birthdate                 DateTime?
-  activityLevel             String?
-  nutritionGoalType         String?
-  dailyCalorieGoal          Int?
-  dailyProteinGoalG         Int?
-  dailyCarbGoalG            Int?
-  dailyFatGoalG             Int?
-  createdAt                 DateTime        @default(now())
-  updatedAt                 DateTime        @updatedAt
-  programs                  Program[]
-  workoutLogs               WorkoutLog[]
-  cardioSessions            CardioSession[]
-  chatMessages              ChatMessage[]
-  conversations             Conversation[]
-  foodLogEntries            FoodLogEntry[]
-  trainer                   Trainer?
-  posts                     Post[]
-  blogPosts                 BlogPost[]
-  postLikes                 PostLike[]
-  postComments              PostComment[]
-  commentLikes              CommentLike[]
-  notificationsReceived     Notification[]  @relation("NotificationRecipient")
-  notificationsSent         Notification[]  @relation("NotificationActor")
-  following                 Follow[]        @relation("Follower")
-  followers                 Follow[]        @relation("Following")
-  dmParticipants            DmParticipant[]
-  dmMessages                DmMessage[]
+  weightLbs                   Float?
+  heightInches                Float?
+  birthdate                   DateTime?
+  activityLevel               String?
+  nutritionGoalType           String?
+  dailyCalorieGoal            Int?
+  dailyProteinGoalG           Int?
+  dailyCarbGoalG              Int?
+  dailyFatGoalG               Int?
+  createdAt                   DateTime        @default(now())
+  updatedAt                   DateTime        @updatedAt
+  programs                    Program[]
+  workoutLogs                 WorkoutLog[]
+  cardioSessions              CardioSession[]
+  chatMessages                ChatMessage[]
+  conversations               Conversation[]
+  foodLogEntries              FoodLogEntry[]
+  trainer                     Trainer?
+  posts                       Post[]
+  blogPosts                   BlogPost[]
+  postLikes                   PostLike[]
+  postComments                PostComment[]
+  commentLikes                CommentLike[]
+  notificationsReceived       Notification[]  @relation("NotificationRecipient")
+  notificationsSent           Notification[]  @relation("NotificationActor")
+  following                   Follow[]        @relation("Follower")
+  followers                   Follow[]        @relation("Following")
+  dmParticipants              DmParticipant[]
+  dmMessages                  DmMessage[]
 
   @@index([city])
   @@map("users")

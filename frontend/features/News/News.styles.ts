@@ -25,9 +25,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryBlue,
     borderRadius: 8,
     paddingHorizontal: spacing.sm,
-    // Matches the shared TextInput's own height so the button lines up
-    // with it rather than looking mismatched next to a taller/shorter box.
-    height: 44,
+    // Matches the shared TextInput's own container height (40, see
+    // TextInput.styles.ts) so the button lines up with it rather than
+    // looking mismatched next to a taller/shorter box.
+    height: 40,
   },
   writePostButtonText: {
     color: "white",
