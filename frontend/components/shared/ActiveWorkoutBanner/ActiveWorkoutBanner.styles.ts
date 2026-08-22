@@ -5,13 +5,11 @@ import { fontSizes, fontWeights } from "@/constants/typography";
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: colors.surfaceBlueLight,
-    borderWidth: 1,
-    borderColor: colors.borderBlueLight,
-    borderRadius: 8,
+    marginBottom: spacing.sm,
+  },
+  content: {
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.sm,
-    marginBottom: spacing.sm,
     gap: 2,
   },
   primaryText: {
