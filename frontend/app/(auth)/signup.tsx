@@ -8,6 +8,7 @@ import { spacing } from "@/constants/spacing";
 import { colors } from "@/constants/colors";
 import { fontSizes } from "@/constants/typography";
 import { router } from "expo-router";
+import { detectAndSaveCity } from "@/lib/location/detectAndSaveCity";
 
 const Signup = () => {
     const [email, setEmail] = useState("");
@@ -28,6 +29,7 @@ const Signup = () => {
         try {
             const result = await register(email, password);
             if ((result as any).meta?.requestStatus === "fulfilled") {
+                detectAndSaveCity();
                 router.replace("/(tabs)");
             }
         } finally {
