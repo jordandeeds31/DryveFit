@@ -25,7 +25,9 @@ import {
   usePublicNutritionHistory,
   usePublicPosts,
   useToggleFollow,
+  useCurrentUser,
 } from "@/hooks/useUsers";
+import { useDeletePost } from "@/hooks/usePosts";
 import {
   usePrograms,
   useInheritWorkoutDay,
@@ -82,6 +84,10 @@ const UserProfileScreen = () => {
   const { userId } = useLocalSearchParams<{ userId: string }>();
   const authImageHeaders = useAuthImageHeaders();
   const [tab, setTab] = useState<ProfileTab>("workouts");
+
+  const { data: currentUser } = useCurrentUser();
+  const isOwnProfile = !!currentUser && currentUser.id === userId;
+  const { mutate: deletePost } = useDeletePost();
 
   const {
     data: profile,
@@ -263,6 +269,23 @@ const UserProfileScreen = () => {
     );
   };
 
+  // Same confirm-then-delete pattern as Feed.tsx's own handleDelete — this
+  // screen shows the same posts (via usePublicPosts) when it's the
+  // viewer's own profile, so deleting one here needs to behave identically.
+  const handleDeletePost = (post: Post) => {
+    Alert.alert("Delete this post?", "This can't be undone.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () =>
+          deletePost(post.id, {
+            onSuccess: () => setToastMessage("Post deleted"),
+          }),
+      },
+    ]);
+  };
+
   return (
     <SafeAreaView
       style={styles.container}
@@ -276,7 +299,16 @@ const UserProfileScreen = () => {
           <Feather name="chevron-left" size={26} color="#000" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Profile</Text>
-        <View style={{ width: 26 }} />
+        {isOwnProfile ? (
+          <TouchableOpacity
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            onPress={() => router.push("/(tabs)/Profile")}
+          >
+            <Feather name="settings" size={22} color="#000" />
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 26 }} />
+        )}
       </View>
 
       {isProfileLoading && (
@@ -320,48 +352,50 @@ const UserProfileScreen = () => {
                 following
               </Text>
             </View>
-            <View style={styles.profileActionsRow}>
-              <TouchableOpacity
-                style={[
-                  styles.followButton,
-                  profile.isFollowedByViewer && styles.followButtonActive,
-                ]}
-                onPress={() =>
-                  toggleFollow({
-                    userId: profile.id,
-                    isFollowing: profile.isFollowedByViewer,
-                  })
-                }
-                disabled={isTogglingFollow}
-              >
-                <Text
+            {!isOwnProfile && (
+              <View style={styles.profileActionsRow}>
+                <TouchableOpacity
                   style={[
-                    styles.followButtonText,
-                    profile.isFollowedByViewer &&
-                      styles.followButtonTextActive,
+                    styles.followButton,
+                    profile.isFollowedByViewer && styles.followButtonActive,
                   ]}
+                  onPress={() =>
+                    toggleFollow({
+                      userId: profile.id,
+                      isFollowing: profile.isFollowedByViewer,
+                    })
+                  }
+                  disabled={isTogglingFollow}
                 >
-                  {profile.isFollowedByViewer ? "Following" : "Follow"}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.messageButton}
-                onPress={() =>
-                  createDmConversation(profile.id, {
-                    onSuccess: (conversationId) =>
-                      router.push(`/messages/${conversationId}`),
-                  })
-                }
-                disabled={isStartingConversation}
-              >
-                <Feather
-                  name="message-circle"
-                  size={16}
-                  color={colors.primaryBlue}
-                />
-                <Text style={styles.messageButtonText}>Message</Text>
-              </TouchableOpacity>
-            </View>
+                  <Text
+                    style={[
+                      styles.followButtonText,
+                      profile.isFollowedByViewer &&
+                        styles.followButtonTextActive,
+                    ]}
+                  >
+                    {profile.isFollowedByViewer ? "Following" : "Follow"}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.messageButton}
+                  onPress={() =>
+                    createDmConversation(profile.id, {
+                      onSuccess: (conversationId) =>
+                        router.push(`/messages/${conversationId}`),
+                    })
+                  }
+                  disabled={isStartingConversation}
+                >
+                  <Feather
+                    name="message-circle"
+                    size={16}
+                    color={colors.primaryBlue}
+                  />
+                  <Text style={styles.messageButtonText}>Message</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
 
           <View style={styles.tabBar}>
@@ -502,6 +536,18 @@ const UserProfileScreen = () => {
                   <Text style={styles.postFooterDate}>
                     {formatLoggedAt(post.createdAt)}
                   </Text>
+                  {isOwnProfile && (
+                    <TouchableOpacity
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      onPress={() => handleDeletePost(post)}
+                    >
+                      <Feather
+                        name="trash-2"
+                        size={14}
+                        color={colors.dangerRed}
+                      />
+                    </TouchableOpacity>
+                  )}
                 </View>
               </TouchableOpacity>
             ))}

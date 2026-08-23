@@ -702,20 +702,29 @@ export const getProgramById = async (userId: string, programId: string) => {
 // user is currently training, not just what they've logged. Returns null
 // (not a 404) when they simply have no active program, since that's a
 // normal state the profile screen falls back to workout history for.
-export const getPublicActiveProgram = async (targetUserId: string) => {
-  const user = await prisma.user.findFirst({
-    // Same eligibility gate as getPublicProfile/getPublicWorkoutHistory —
-    // appearing on the leaderboard is what makes any of this visible.
-    where: {
-      id: targetUserId,
-      isLeaderboardVisible: true,
-      username: { not: null },
-    },
-    select: { id: true },
-  });
+export const getPublicActiveProgram = async (
+  viewerId: string,
+  targetUserId: string,
+) => {
+  // Viewing your own profile (e.g. the header's profile icon) must always
+  // work regardless of leaderboard-visibility settings — that gate exists
+  // to control what OTHER people can see, not to hide your own data from
+  // yourself.
+  if (viewerId !== targetUserId) {
+    const user = await prisma.user.findFirst({
+      // Same eligibility gate as getPublicProfile/getPublicWorkoutHistory —
+      // appearing on the leaderboard is what makes any of this visible.
+      where: {
+        id: targetUserId,
+        isLeaderboardVisible: true,
+        username: { not: null },
+      },
+      select: { id: true },
+    });
 
-  if (!user) {
-    throw new AppError(404, "Profile not found");
+    if (!user) {
+      throw new AppError(404, "Profile not found");
+    }
   }
 
   return prisma.program.findFirst({

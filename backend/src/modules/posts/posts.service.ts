@@ -226,17 +226,19 @@ export const getPublicPostsByUser = async (
   viewerId: string,
   targetUserId: string,
 ) => {
-  const user = await prisma.user.findFirst({
-    where: {
-      id: targetUserId,
-      isLeaderboardVisible: true,
-      username: { not: null },
-    },
-    select: { id: true },
-  });
+  if (viewerId !== targetUserId) {
+    const user = await prisma.user.findFirst({
+      where: {
+        id: targetUserId,
+        isLeaderboardVisible: true,
+        username: { not: null },
+      },
+      select: { id: true },
+    });
 
-  if (!user) {
-    throw new AppError(404, "Profile not found");
+    if (!user) {
+      throw new AppError(404, "Profile not found");
+    }
   }
 
   const posts = await prisma.post.findMany({

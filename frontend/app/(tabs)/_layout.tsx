@@ -139,6 +139,18 @@ export default function TabsLayout() {
             href: null,
           }}
         />
+        <Tabs.Screen
+          name="user/[userId]"
+          options={{
+            title: "Profile",
+            href: null,
+            // This screen builds its own back-button header in-file (it's
+            // reached by drilling into a specific user, unlike the other
+            // hidden tabs above) — the global AppHeader from screenOptions
+            // above would otherwise double up on top of it.
+            headerShown: false,
+          }}
+        />
       </Tabs>
     </>
   );

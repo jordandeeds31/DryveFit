@@ -6,6 +6,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { colors } from "@/constants/colors";
 import { useUnreadNotificationCount } from "@/hooks/useNotifications";
 import { useDmConversations } from "@/hooks/useDirectMessages";
+import { useCurrentUser } from "@/hooks/useUsers";
 import styles from "./AppHeader.styles";
 
 interface AppHeaderProps {
@@ -27,6 +28,7 @@ const AppHeader = ({ onCreateProgram }: AppHeaderProps) => {
   const hasUnreadDms = !!dmConversations?.some(
     (c: { unreadCount: number }) => c.unreadCount > 0,
   );
+  const { data: currentUser } = useCurrentUser();
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -82,13 +84,15 @@ const AppHeader = ({ onCreateProgram }: AppHeaderProps) => {
         >
           <Ionicons name="sparkles" size={20} color={colors.textSecondary} />
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.settingsButton}
-          onPress={() => router.push("/(tabs)/Profile")}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Feather name="settings" size={20} color={colors.textSecondary} />
-        </TouchableOpacity>
+        {currentUser && (
+          <TouchableOpacity
+            style={styles.settingsButton}
+            onPress={() => router.push(`/user/${currentUser.id}`)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Feather name="user" size={20} color={colors.textSecondary} />
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );

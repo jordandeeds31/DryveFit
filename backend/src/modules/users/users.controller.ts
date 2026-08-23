@@ -121,7 +121,7 @@ export const getPublicWorkoutHistoryHandler = catchAsync(
       throw new AppError(400, "userId is required");
     }
 
-    const workoutLogs = await getPublicWorkoutHistory(userId);
+    const workoutLogs = await getPublicWorkoutHistory(req.userId!, userId);
     sendSuccess(res, 200, "PUBLIC_WORKOUT_HISTORY_FETCHED", { workoutLogs });
   },
 );
@@ -134,7 +134,7 @@ export const getPublicActiveProgramHandler = catchAsync(
       throw new AppError(400, "userId is required");
     }
 
-    const program = await getPublicActiveProgram(userId);
+    const program = await getPublicActiveProgram(req.userId!, userId);
     sendSuccess(res, 200, "PUBLIC_ACTIVE_PROGRAM_FETCHED", { program });
   },
 );
@@ -149,6 +149,7 @@ export const getPublicNutritionHistoryHandler = catchAsync(
     }
 
     const days = await getPublicNutritionHistory(
+      req.userId!,
       userId,
       typeof month === "string" ? month : undefined,
     );

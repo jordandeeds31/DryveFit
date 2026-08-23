@@ -64,12 +64,17 @@ export const getPublicProfile = async (
 ) => {
   const user = await prisma.user.findFirst({
     // Same eligibility gate as the leaderboard query — appearing there is
-    // the only thing that makes a profile viewable by other users.
-    where: {
-      id: targetUserId,
-      isLeaderboardVisible: true,
-      username: { not: null },
-    },
+    // the only thing that makes a profile viewable by OTHER users. Viewing
+    // your own profile (the header's profile icon) must always work
+    // regardless of that setting, or of whether a username was ever set.
+    where:
+      viewerId === targetUserId
+        ? { id: targetUserId }
+        : {
+            id: targetUserId,
+            isLeaderboardVisible: true,
+            username: { not: null },
+          },
     select: {
       id: true,
       username: true,

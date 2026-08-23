@@ -315,11 +315,12 @@ export const getLoggedDateKeys = async (
 // Shown on another user's public profile's Nutrition tab (rendered as a
 // month calendar, not a flat list) — gated by the same
 // isLeaderboardVisible/username eligibility as getPublicProfile/
-// getPublicWorkoutHistory. Only calendar days that actually have a logged
-// entry appear in the result (no empty-day placeholders) — the frontend
-// fills in the rest of the month's grid itself and just checks which
-// dates are present here.
+// getPublicWorkoutHistory, except when viewing your own profile. Only
+// calendar days that actually have a logged entry appear in the result
+// (no empty-day placeholders) — the frontend fills in the rest of the
+// month's grid itself and just checks which dates are present here.
 export const getPublicNutritionHistory = async (
+  viewerId: string,
   targetUserId: string,
   // "YYYY-MM" — defaults to the current calendar month (server's own
   // clock) when omitted, same "today" anchor used elsewhere (e.g.
@@ -327,17 +328,19 @@ export const getPublicNutritionHistory = async (
   // own timezone for what's a low-stakes default.
   monthKey?: string,
 ) => {
-  const user = await prisma.user.findFirst({
-    where: {
-      id: targetUserId,
-      isLeaderboardVisible: true,
-      username: { not: null },
-    },
-    select: { id: true },
-  });
+  if (viewerId !== targetUserId) {
+    const user = await prisma.user.findFirst({
+      where: {
+        id: targetUserId,
+        isLeaderboardVisible: true,
+        username: { not: null },
+      },
+      select: { id: true },
+    });
 
-  if (!user) {
-    throw new AppError(404, "Profile not found");
+    if (!user) {
+      throw new AppError(404, "Profile not found");
+    }
   }
 
   const today = new Date();
