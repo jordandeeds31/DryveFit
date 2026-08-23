@@ -47,6 +47,12 @@ import {
 import { UnitSystem } from "@/types/user.types";
 
 const HEALTH_POLL_INTERVAL_MS = 30_000;
+// A few poll cycles' worth of grace before concluding no Watch (or other
+// HR sensor) is actively reporting — long enough that a real Watch's
+// first Health sync lagging behind session start doesn't get mistaken
+// for "none," short enough that a no-Watch user isn't stuck watching
+// "syncing…" for the whole workout.
+const HEART_RATE_SYNC_TIMEOUT_MS = 90_000;
 
 interface SetEntry {
   id: string;
@@ -291,6 +297,20 @@ const CinematicMode = () => {
       : null;
   const caloriesBurned = healthMetrics?.caloriesBurned ?? 0;
   const hasRealMetrics = latestHeartRate != null || caloriesBurned > 0;
+
+  // Unlike calories (which the iPhone's own motion coprocessor can
+  // estimate with no Watch at all — see queryRecentHeartRateAndEnergy),
+  // heart rate has no phone-only source: without a Watch (or another
+  // connected HR sensor) actively reporting, no heart-rate sample is EVER
+  // coming, no matter how long this waits. "syncing…" with no timeout
+  // told a no-Watch user data was still on its way when it just wasn't —
+  // after a few poll cycles with nothing, this switches heart rate/avg
+  // BPM to a definitive "no source found" state instead of an indefinite
+  // pending one. Calories keeps its own indefinite "syncing…" since that
+  // one genuinely can still resolve.
+  const heartRateSyncTimedOut =
+    heartRateSamples.length === 0 &&
+    Date.now() - sessionStartedAt > HEART_RATE_SYNC_TIMEOUT_MS;
 
   const buildValidSets = () =>
     sets
@@ -566,7 +586,9 @@ const CinematicMode = () => {
               {latestHeartRate != null ? (
                 <Text style={styles.statValue}>{latestHeartRate}</Text>
               ) : (
-                <Text style={styles.statPending}>syncing…</Text>
+                <Text style={styles.statPending}>
+                  {heartRateSyncTimedOut ? "no Watch" : "syncing…"}
+                </Text>
               )}
               <Text style={styles.statLabel}>HEART RATE</Text>
             </View>
@@ -574,18 +596,30 @@ const CinematicMode = () => {
               {avgHeartRate != null ? (
                 <Text style={styles.statValue}>{avgHeartRate}</Text>
               ) : (
-                <Text style={styles.statPending}>syncing…</Text>
+                <Text style={styles.statPending}>
+                  {heartRateSyncTimedOut ? "no Watch" : "syncing…"}
+                </Text>
               )}
               <Text style={styles.statLabel}>AVG BPM</Text>
             </View>
           </View>
         )}
 
-        {isHealthKitAvailableOnDevice && hasHealthKitConnected && !hasRealMetrics && (
-          <Text style={styles.statsPlaceholder}>
-            Wearing an Apple Watch? Stats may take a moment to sync in.
-          </Text>
-        )}
+        {/* Scoped to heart rate specifically (not hasRealMetrics) — calories
+            can arrive with no Watch at all, so calories showing up
+            shouldn't retire this hint while heart rate is still genuinely
+            pending. Once heartRateSyncTimedOut, this goes quiet instead of
+            still asking "wearing a Watch?" — the tiles above already say
+            "no Watch" directly at that point, and repeating the question
+            here would contradict that definitive answer. */}
+        {isHealthKitAvailableOnDevice &&
+          hasHealthKitConnected &&
+          latestHeartRate == null &&
+          !heartRateSyncTimedOut && (
+            <Text style={styles.statsPlaceholder}>
+              Wearing an Apple Watch? Stats may take a moment to sync in.
+            </Text>
+          )}
       </View>
 
       <ScrollView
