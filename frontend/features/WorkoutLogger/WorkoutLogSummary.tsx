@@ -20,8 +20,11 @@ const WorkoutLogSummary = ({ workoutLogs, onEdit }: WorkoutLogSummaryProps) => {
 
   return (
     <View style={styles.container}>
-      {exercises.map((exercise) => (
-        <View key={exercise.id} style={styles.exerciseBlock}>
+      {exercises.map((exercise, index) => (
+        <View
+          key={exercise.id}
+          style={[styles.exerciseBlock, index > 0 && styles.exerciseBlockSpaced]}
+        >
           <Text style={styles.exerciseName}>{exercise.exerciseName}</Text>
           {exercise.sets.map((set) => (
             <View key={set.id} style={styles.setRow}>

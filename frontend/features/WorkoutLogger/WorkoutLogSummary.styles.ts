@@ -6,10 +6,16 @@ import { fontSizes, fontWeights } from "@/constants/typography";
 const styles = StyleSheet.create({
   container: {},
   exerciseBlock: {
-    marginTop: spacing.md,
     paddingBottom: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderGray,
+  },
+  // Applied to every exercise block except the first — the calendar above
+  // this list already ends with its own marginBottom, so giving the first
+  // block a matching marginTop doubled up into a much bigger gap than
+  // between any other two blocks.
+  exerciseBlockSpaced: {
+    marginTop: spacing.md,
   },
   exerciseName: {
     fontSize: fontSizes.md,
