@@ -15,6 +15,11 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
     paddingBottom: spacing.xs,
   },
+  headerTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
   headerTitle: {
     fontSize: fontSizes.xl,
     fontWeight: fontWeights.bold,
@@ -43,6 +48,32 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: "center",
     marginTop: spacing.xl,
+  },
+  gridContent: {
+    paddingHorizontal: spacing.xs,
+    paddingBottom: spacing.xl,
+  },
+  gridRow: {
+    gap: 2,
+  },
+  gridCell: {
+    flex: 1 / 3,
+    aspectRatio: 1,
+    marginBottom: 2,
+  },
+  gridCellImage: {
+    width: "100%",
+    height: "100%",
+    backgroundColor: colors.lightGraySoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  gridCellVideoIcon: {
+    // Video posts have no extracted thumbnail frame to show (would need a
+    // separate thumbnail-generation step) — a plain play icon over the
+    // placeholder background is enough to distinguish it from a photo at
+    // a glance, without instantiating a real video player per grid cell.
+    opacity: 0.9,
   },
   postCard: {
     backgroundColor: "white",

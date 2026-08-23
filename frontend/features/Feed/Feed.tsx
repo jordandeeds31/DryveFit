@@ -61,6 +61,7 @@ const Feed = () => {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [activePostId, setActivePostId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   // Deliberately not react-query's own isRefetching — that flips true for
   // ANY background refetch (posting, deleting, liking), which would flash
   // this spinner for reasons that have nothing to do with a manual pull.
@@ -177,10 +178,52 @@ const Feed = () => {
     </View>
   );
 
+  // Grid is a media wall (like a profile's photo grid) — text-only posts
+  // have no thumbnail to show, so they're left out of this view entirely
+  // rather than rendering an empty or text-filled cell.
+  const gridPosts = posts.filter((post) => !!post.mediaUrl);
+
+  const renderGridItem = ({ item }: { item: Post }) => (
+    <TouchableOpacity
+      style={styles.gridCell}
+      activeOpacity={0.8}
+      onPress={() => router.push(`/post/${item.id}`)}
+    >
+      {item.mediaType === "video" ? (
+        <View style={styles.gridCellImage}>
+          <Feather
+            name="play-circle"
+            size={22}
+            color="white"
+            style={styles.gridCellVideoIcon}
+          />
+        </View>
+      ) : (
+        <Image
+          source={{ uri: item.mediaUrl! }}
+          style={styles.gridCellImage}
+          contentFit="cover"
+        />
+      )}
+    </TouchableOpacity>
+  );
+
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
-        <Text style={styles.headerTitle}>Feed</Text>
+        <View style={styles.headerTitleRow}>
+          <Text style={styles.headerTitle}>Feed</Text>
+          <TouchableOpacity
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            onPress={() => setViewMode(viewMode === "list" ? "grid" : "list")}
+          >
+            <Feather
+              name={viewMode === "list" ? "grid" : "list"}
+              size={20}
+              color={colors.textSecondary}
+            />
+          </TouchableOpacity>
+        </View>
         <TouchableOpacity
           style={styles.newPostButton}
           onPress={() => setIsCreateOpen(true)}
@@ -194,10 +237,17 @@ const Feed = () => {
         <ActivityIndicator style={{ marginTop: 32 }} />
       ) : (
         <FlatList
-          data={posts}
+          // Forces a remount on toggle — RN's FlatList doesn't support
+          // changing numColumns on an already-mounted list.
+          key={viewMode}
+          data={viewMode === "grid" ? gridPosts : posts}
           keyExtractor={(item) => item.id}
-          renderItem={renderPost}
-          contentContainerStyle={styles.listContent}
+          renderItem={viewMode === "grid" ? renderGridItem : renderPost}
+          numColumns={viewMode === "grid" ? 3 : 1}
+          columnWrapperStyle={viewMode === "grid" ? styles.gridRow : undefined}
+          contentContainerStyle={
+            viewMode === "grid" ? styles.gridContent : styles.listContent
+          }
           onEndReached={() => hasNextPage && fetchNextPage()}
           onEndReachedThreshold={0.4}
           refreshing={isManualRefreshing}
@@ -206,7 +256,9 @@ const Feed = () => {
             <Text style={styles.emptyText}>
               {error
                 ? "Couldn't load the feed. Pull down to try again."
-                : "No posts yet — be the first to share something."}
+                : viewMode === "grid"
+                  ? "No photo or video posts yet."
+                  : "No posts yet — be the first to share something."}
             </Text>
           }
           ListFooterComponent={
