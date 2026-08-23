@@ -149,6 +149,11 @@ export const useUpdateProfile = () => {
       // invalidate every exercise/scope combination cached so far, not
       // just whichever one happens to be on screen right now.
       queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
+      // Editing happens from the profile screen (EditProfileModal), which
+      // reads its display data from usePublicProfile, not useCurrentUser —
+      // without this, your own profile screen would keep showing the old
+      // username/city until some unrelated refetch happened to run.
+      queryClient.invalidateQueries({ queryKey: ["publicProfile"] });
     },
   });
 };
@@ -161,6 +166,7 @@ export const useUploadProfileImage = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["currentUser"] });
       queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
+      queryClient.invalidateQueries({ queryKey: ["publicProfile"] });
     },
   });
 };
@@ -173,6 +179,7 @@ export const useDeleteProfileImage = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["currentUser"] });
       queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
+      queryClient.invalidateQueries({ queryKey: ["publicProfile"] });
     },
   });
 };

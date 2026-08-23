@@ -10,29 +10,18 @@ import {
   KeyboardAvoidingView,
   ActivityIndicator,
 } from "react-native";
-import { Image } from "expo-image";
-import * as ImagePicker from "expo-image-picker";
 import Purchases from "react-native-purchases";
 import Feather from "@expo/vector-icons/Feather";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import Switch from "@/components/shared/Switch/Switch";
-import Input from "@/components/shared/TextInput/TextInput";
-import CityPicker from "@/components/shared/CityPicker/CityPicker";
 import Toast from "@/components/shared/Toast/Toast";
 import DevicesModal from "@/features/DevicesModal/DevicesModal";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
-import {
-  useCurrentUser,
-  useUpdateProfile,
-  useUploadProfileImage,
-  useDeleteProfileImage,
-  useDeleteAccount,
-} from "@/hooks/useUsers";
-import { Gender, UnitSystem } from "@/types/user.types";
-import { useAuthImageHeaders } from "@/hooks/useAuthImageHeaders";
+import { useCurrentUser, useUpdateProfile, useDeleteAccount } from "@/hooks/useUsers";
+import { UnitSystem } from "@/types/user.types";
 import {
   isHealthKitAvailable,
   hasCompletedHealthKitConnect,
@@ -48,23 +37,11 @@ const Profile = () => {
   const { logout } = useAuth();
   const { data: currentUser, isLoading: isCurrentUserLoading } =
     useCurrentUser();
-  const {
-    mutate: saveProfile,
-    isPending: isSaving,
-    error: saveError,
-  } = useUpdateProfile();
-  const { mutate: uploadImage, isPending: isUploadingImage } =
-    useUploadProfileImage();
-  const { mutate: removeImage, isPending: isRemovingImage } =
-    useDeleteProfileImage();
+  const { mutate: saveProfile, isPending: isSaving } = useUpdateProfile();
   const { mutate: deleteAccount, isPending: isDeletingAccount } =
     useDeleteAccount();
   const { isPro } = useSubscription();
-  const authImageHeaders = useAuthImageHeaders();
 
-  const [username, setUsername] = useState("");
-  const [city, setCity] = useState<string | null>(null);
-  const [gender, setGender] = useState<Gender | null>(null);
   // Defaults to "imperial" (not null) since that's what the rest of the
   // app already assumes wherever unitSystem hasn't been set yet — the
   // toggle should reflect the effective unit, not a raw unset state with
@@ -98,9 +75,6 @@ const Profile = () => {
 
   useEffect(() => {
     if (!currentUser) return;
-    setUsername(currentUser.username ?? "");
-    setCity(currentUser.city);
-    setGender(currentUser.gender);
     setUnitSystem(currentUser.unitSystem ?? "imperial");
     setIsLeaderboardVisible(currentUser.isLeaderboardVisible);
   }, [currentUser]);
@@ -138,84 +112,23 @@ const Profile = () => {
     }, [currentUser]),
   );
 
-  // 409 = taken by someone else, 400 = failed the backend's format check
-  // (e.g. blank, or outside the 3-20 char / letters-numbers-underscores
-  // rule) — both are username-specific rejections from the same PATCH, so
-  // both surface here rather than only the conflict case.
-  const usernameError =
-    saveError &&
-    [400, 409].includes((saveError as { status?: number }).status ?? 0)
-      ? ((saveError as { message?: string }).message ??
-        "That username isn't valid")
-      : null;
-
-  const hasUsername = username.trim().length > 0;
+  // Username itself now lives on the profile screen's EditProfileModal —
+  // this only needs to know whether one is SET, to explain why the
+  // leaderboard-visibility toggle below might not actually do anything yet.
+  const hasUsername = !!currentUser?.username;
 
   // Compares against currentUser (not a separate "initial values" snapshot)
   // since the hydration effect above already keeps local state in sync
   // with it whenever there's nothing unsaved — so this only goes true once
-  // the user has actually typed/toggled something new.
+  // the user has actually toggled something new.
   const isDirty =
     !!currentUser &&
-    (username.trim() !== (currentUser.username ?? "") ||
-      city !== currentUser.city ||
-      gender !== currentUser.gender ||
-      unitSystem !== (currentUser.unitSystem ?? "imperial") ||
+    (unitSystem !== (currentUser.unitSystem ?? "imperial") ||
       isLeaderboardVisible !== currentUser.isLeaderboardVisible);
 
-  const handlePickImage = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert(
-        "Permission needed",
-        "Allow photo library access to set a profile picture.",
-      );
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-
-    if (result.canceled) return;
-
-    uploadImage(result.assets[0].uri, {
-      onSuccess: () => setToastMessage("Profile picture updated"),
-    });
-  };
-
-  const handleRemoveImage = () => {
-    removeImage(undefined, {
-      onSuccess: () => setToastMessage("Profile picture removed"),
-    });
-  };
-
   const handleSave = () => {
-    const trimmedUsername = username.trim();
-    // Only include username in the payload when it's actually changing —
-    // omitting it (undefined) means "leave alone" server-side. Substituting
-    // undefined here whenever the field was blank (the old behavior) meant
-    // clearing a previously-set username silently did nothing: the PATCH
-    // omitted the field entirely, the backend left the old value in place,
-    // and the hydration effect below then re-filled the input with that
-    // same old value once the (unrelated) save "succeeded" — so setting it
-    // back to what it was afterward looked unchanged and Save had nothing
-    // to do. Sending the real (possibly empty) value only when it differs
-    // from currentUser.username lets a genuine clear attempt reach the
-    // backend and get a real validation error instead of a silent no-op,
-    // while still not forcing a username on saves that never touched it.
-    const usernameChanged = trimmedUsername !== (currentUser?.username ?? "");
     saveProfile(
-      {
-        username: usernameChanged ? trimmedUsername : undefined,
-        city: city ?? undefined,
-        gender: gender ?? undefined,
-        unitSystem,
-        isLeaderboardVisible,
-      },
+      { unitSystem, isLeaderboardVisible },
       {
         onSuccess: () => {
           setToastMessage("Profile saved");
@@ -353,108 +266,6 @@ const Profile = () => {
         >
           <Text style={styles.title}>Settings</Text>
 
-          <View style={styles.avatarSection}>
-            {currentUser?.profileImageUrl && authImageHeaders ? (
-              <Image
-                source={{
-                  uri: `${process.env.EXPO_PUBLIC_API_URL}${currentUser.profileImageUrl}`,
-                  headers: authImageHeaders,
-                }}
-                style={styles.avatar}
-              />
-            ) : (
-              <View style={styles.avatarPlaceholder}>
-                <Feather name="user" size={32} color={colors.textSecondary} />
-              </View>
-            )}
-
-            <View style={styles.avatarActions}>
-              <TouchableOpacity
-                onPress={handlePickImage}
-                disabled={isUploadingImage}
-              >
-                <Text style={styles.avatarActionText}>
-                  {isUploadingImage
-                    ? "Uploading..."
-                    : currentUser?.profileImageUrl
-                      ? "Change Photo"
-                      : "Add Photo"}
-                </Text>
-              </TouchableOpacity>
-              {currentUser?.profileImageUrl && (
-                <TouchableOpacity
-                  onPress={handleRemoveImage}
-                  disabled={isRemovingImage}
-                >
-                  <Text style={styles.avatarRemoveText}>
-                    {isRemovingImage ? "Removing..." : "Remove Photo"}
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-
-          <Text style={styles.sectionLabel}>Leaderboard identity</Text>
-          <Text style={styles.sectionSubtext}>
-            Set a username and city to appear on the leaderboard and compare
-            your lifts against other users.
-          </Text>
-
-          <Input
-            label="Username"
-            placeholder="Choose a username"
-            value={username}
-            onChangeText={setUsername}
-            autoCapitalize="none"
-            error={usernameError}
-          />
-
-          <View style={styles.fieldSpacer}>
-            <Text style={styles.fieldLabel}>City</Text>
-            <CityPicker selectedCity={city} setSelectedCity={setCity} />
-          </View>
-
-          <View style={styles.fieldSpacer}>
-            <Text style={styles.fieldLabel}>Gender</Text>
-            <Text style={styles.fieldHint}>
-              Used to show you on the Men's or Women's leaderboard.
-            </Text>
-            <View style={styles.genderRow}>
-              <TouchableOpacity
-                style={[
-                  styles.genderOption,
-                  gender === "male" && styles.genderOptionActive,
-                ]}
-                onPress={() => setGender("male")}
-              >
-                <Text
-                  style={[
-                    styles.genderOptionText,
-                    gender === "male" && styles.genderOptionTextActive,
-                  ]}
-                >
-                  Male
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.genderOption,
-                  gender === "female" && styles.genderOptionActive,
-                ]}
-                onPress={() => setGender("female")}
-              >
-                <Text
-                  style={[
-                    styles.genderOptionText,
-                    gender === "female" && styles.genderOptionTextActive,
-                  ]}
-                >
-                  Female
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
           <View style={styles.fieldSpacer}>
             <Text style={styles.fieldLabel}>Units</Text>
             <Text style={styles.fieldHint}>
@@ -503,7 +314,7 @@ const Profile = () => {
               <Text style={styles.switchSubtext}>
                 {hasUsername
                   ? "Turn this off to hide your username and lifts from everyone else's leaderboard."
-                  : "Set a username above to actually appear on the leaderboard."}
+                  : "Set a username on your profile to actually appear on the leaderboard."}
               </Text>
             </View>
             <Switch
@@ -629,51 +440,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     marginBottom: spacing.lg,
   },
-  avatarSection: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    marginBottom: spacing.lg,
-  },
-  avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: colors.lightGraySoft,
-  },
-  avatarPlaceholder: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: colors.lightGraySoft,
-    borderWidth: 1,
-    borderColor: colors.borderGray,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarActions: {
-    gap: spacing.xs,
-  },
-  avatarActionText: {
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.semibold,
-    color: colors.primaryBlue,
-  },
-  avatarRemoveText: {
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.semibold,
-    color: colors.dangerRed,
-  },
-  sectionLabel: {
-    fontSize: fontSizes.md,
-    fontWeight: fontWeights.bold,
-    marginBottom: spacing.xs,
-  },
-  sectionSubtext: {
-    fontSize: fontSizes.sm,
-    color: colors.textSecondary,
-    marginBottom: spacing.md,
-  },
   fieldSpacer: {
     marginTop: spacing.md,
     gap: spacing.xs,
@@ -686,30 +452,6 @@ const styles = StyleSheet.create({
   fieldHint: {
     fontSize: fontSizes.xs,
     color: colors.textSecondary,
-  },
-  genderRow: {
-    flexDirection: "row",
-    gap: spacing.sm,
-  },
-  genderOption: {
-    flex: 1,
-    paddingVertical: spacing.sm,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: colors.borderGray,
-    borderRadius: 8,
-  },
-  genderOptionActive: {
-    backgroundColor: colors.surfaceBlueLight,
-    borderColor: colors.borderBlueLight,
-  },
-  genderOptionText: {
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.semibold,
-    color: colors.textSecondary,
-  },
-  genderOptionTextActive: {
-    color: colors.primaryBlue,
   },
   unitsRow: {
     flexDirection: "row",

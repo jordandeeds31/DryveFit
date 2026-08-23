@@ -35,6 +35,7 @@ import {
   useInheritStandaloneLogAsNewProgram,
 } from "@/hooks/usePrograms";
 import InheritDatePickerModal from "@/features/InheritWorkout/InheritDatePickerModal";
+import EditProfileModal from "@/features/PublicProfile/EditProfileModal";
 import NutritionMonthCalendar from "@/features/PublicProfile/NutritionMonthCalendar";
 import { useAuthImageHeaders } from "@/hooks/useAuthImageHeaders";
 import { useCreateDmConversation } from "@/hooks/useDirectMessages";
@@ -88,6 +89,7 @@ const UserProfileScreen = () => {
   const { data: currentUser } = useCurrentUser();
   const isOwnProfile = !!currentUser && currentUser.id === userId;
   const { mutate: deletePost } = useDeletePost();
+  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
 
   const {
     data: profile,
@@ -393,6 +395,17 @@ const UserProfileScreen = () => {
                     color={colors.primaryBlue}
                   />
                   <Text style={styles.messageButtonText}>Message</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {isOwnProfile && (
+              <View style={styles.profileActionsRow}>
+                <TouchableOpacity
+                  style={styles.editProfileButton}
+                  onPress={() => setIsEditProfileOpen(true)}
+                >
+                  <Feather name="edit-2" size={14} color={colors.primaryBlue} />
+                  <Text style={styles.editProfileButtonText}>Edit Profile</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -737,6 +750,12 @@ const UserProfileScreen = () => {
         isSubmitting={isSchedulingInherit}
       />
 
+      <EditProfileModal
+        visible={isEditProfileOpen}
+        onClose={() => setIsEditProfileOpen(false)}
+        onSaved={() => setToastMessage("Profile updated")}
+      />
+
       <Modal
         visible={!!selectedNutritionDate}
         onClose={() => setSelectedNutritionDate(null)}
@@ -891,6 +910,23 @@ const styles = StyleSheet.create({
     borderColor: colors.borderBlueLight,
   },
   messageButtonText: {
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
+    color: colors.primaryBlue,
+  },
+  editProfileButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xs,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.borderGray,
+    flex: 1,
+  },
+  editProfileButtonText: {
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.bold,
     color: colors.primaryBlue,
