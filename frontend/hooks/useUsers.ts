@@ -47,10 +47,13 @@ export const usePublicActiveProgram = (userId: string | null) => {
   });
 };
 
-export const usePublicNutritionHistory = (userId: string | null) => {
+export const usePublicNutritionHistory = (
+  userId: string | null,
+  monthKey?: string,
+) => {
   return useQuery({
-    queryKey: ["publicNutritionHistory", userId],
-    queryFn: () => getPublicNutritionHistory(userId!),
+    queryKey: ["publicNutritionHistory", userId, monthKey ?? "current"],
+    queryFn: () => getPublicNutritionHistory(userId!, monthKey),
     enabled: !!userId,
   });
 };

@@ -312,14 +312,21 @@ export const getLoggedDateKeys = async (
   return entries.map((entry) => toLocalDateKey(entry.date));
 };
 
-const PUBLIC_NUTRITION_HISTORY_DAYS = 7;
-
-// Shown on another user's public profile's Nutrition tab — gated by the
-// same isLeaderboardVisible/username eligibility as
-// getPublicProfile/getPublicWorkoutHistory. Only calendar days that
-// actually have a logged entry appear (no empty-day placeholders), same
-// as the workout history section's "only real logs" convention.
-export const getPublicNutritionHistory = async (targetUserId: string) => {
+// Shown on another user's public profile's Nutrition tab (rendered as a
+// month calendar, not a flat list) — gated by the same
+// isLeaderboardVisible/username eligibility as getPublicProfile/
+// getPublicWorkoutHistory. Only calendar days that actually have a logged
+// entry appear in the result (no empty-day placeholders) — the frontend
+// fills in the rest of the month's grid itself and just checks which
+// dates are present here.
+export const getPublicNutritionHistory = async (
+  targetUserId: string,
+  // "YYYY-MM" — defaults to the current calendar month (server's own
+  // clock) when omitted, same "today" anchor used elsewhere (e.g.
+  // isFutureDate in futureLogGuard.ts) rather than needing the viewer's
+  // own timezone for what's a low-stakes default.
+  monthKey?: string,
+) => {
   const user = await prisma.user.findFirst({
     where: {
       id: targetUserId,
@@ -334,14 +341,16 @@ export const getPublicNutritionHistory = async (targetUserId: string) => {
   }
 
   const today = new Date();
-  const windowStart = new Date(
-    today.getFullYear(),
-    today.getMonth(),
-    today.getDate() - (PUBLIC_NUTRITION_HISTORY_DAYS - 1),
-  );
+  const [monthYear, monthNum] =
+    monthKey && /^\d{4}-\d{2}$/.test(monthKey)
+      ? monthKey.split("-").map(Number)
+      : [today.getFullYear(), today.getMonth() + 1];
+
+  const windowStart = new Date(monthYear, monthNum - 1, 1, 0, 0, 0, 0);
+  const windowEnd = new Date(monthYear, monthNum, 0, 23, 59, 59, 999);
 
   const entries = await prisma.foodLogEntry.findMany({
-    where: { userId: targetUserId, date: { gte: windowStart } },
+    where: { userId: targetUserId, date: { gte: windowStart, lte: windowEnd } },
     orderBy: { createdAt: "asc" },
   });
 

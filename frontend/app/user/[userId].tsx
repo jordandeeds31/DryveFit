@@ -33,6 +33,7 @@ import {
   useInheritStandaloneLogAsNewProgram,
 } from "@/hooks/usePrograms";
 import InheritDatePickerModal from "@/features/InheritWorkout/InheritDatePickerModal";
+import NutritionMonthCalendar from "@/features/PublicProfile/NutritionMonthCalendar";
 import { useAuthImageHeaders } from "@/hooks/useAuthImageHeaders";
 import { useCreateDmConversation } from "@/hooks/useDirectMessages";
 import { ensureProAccess } from "@/lib/purchases/requirePro";
@@ -90,8 +91,16 @@ const UserProfileScreen = () => {
     usePublicWorkoutHistory(userId ?? null);
   const { data: activeProgram, isLoading: isProgramLoading } =
     usePublicActiveProgram(userId ?? null);
+  // undefined = current month (the hook/API default) — set once the viewer
+  // navigates the calendar to a different month.
+  const [nutritionMonthKey, setNutritionMonthKey] = useState<string | undefined>(
+    undefined,
+  );
+  const [selectedNutritionDate, setSelectedNutritionDate] = useState<
+    string | null
+  >(null);
   const { data: nutritionDays, isLoading: isNutritionLoading } =
-    usePublicNutritionHistory(userId ?? null);
+    usePublicNutritionHistory(userId ?? null, nutritionMonthKey);
   const { data: posts, isLoading: isPostsLoading } = usePublicPosts(
     userId ?? null,
   );
@@ -393,6 +402,24 @@ const UserProfileScreen = () => {
             </TouchableOpacity>
           </View>
 
+          {tab === "nutrition" && (
+            <NutritionMonthCalendar
+              loggedDates={
+                new Set((nutritionDays ?? []).map((day: PublicNutritionDay) => day.date))
+              }
+              selectedDate={selectedNutritionDate}
+              onSelectDate={setSelectedNutritionDate}
+              onMonthChange={(monthKey) => {
+                setNutritionMonthKey(monthKey);
+                // The previously-selected date almost certainly doesn't
+                // exist in the newly-fetched month's data — clearing it
+                // avoids showing a stale day's meals under a different
+                // month's calendar.
+                setSelectedNutritionDate(null);
+              }}
+            />
+          )}
+
           {tab === "nutrition" && isNutritionLoading && (
             <ActivityIndicator style={{ marginTop: spacing.md }} />
           )}
@@ -400,51 +427,55 @@ const UserProfileScreen = () => {
           {tab === "nutrition" &&
             !isNutritionLoading &&
             (!nutritionDays || nutritionDays.length === 0) && (
-              <Text style={styles.emptyText}>
-                No food logged in the last 7 days.
-              </Text>
+              <Text style={styles.emptyText}>No food logged that month.</Text>
             )}
 
           {tab === "nutrition" &&
             !isNutritionLoading &&
-            nutritionDays &&
-            nutritionDays.length > 0 &&
-            nutritionDays.map((day: PublicNutritionDay) => (
-              <View key={day.date} style={styles.nutritionDayCard}>
-                <View style={styles.cardHeaderRow}>
-                  <Text style={styles.cardTitle}>
-                    {formatLoggedAt(day.date)}
+            selectedNutritionDate &&
+            (() => {
+              const day = nutritionDays?.find(
+                (d: PublicNutritionDay) => d.date === selectedNutritionDate,
+              );
+              if (!day) return null;
+
+              return (
+                <View style={styles.nutritionDayCard}>
+                  <View style={styles.cardHeaderRow}>
+                    <Text style={styles.cardTitle}>
+                      {formatLoggedAt(day.date)}
+                    </Text>
+                    <Text style={styles.nutritionCalories}>
+                      {Math.round(day.totals.calories)} cal
+                    </Text>
+                  </View>
+                  <Text style={styles.nutritionMacros}>
+                    {Math.round(day.totals.proteinG)}g protein ·{" "}
+                    {Math.round(day.totals.carbsG)}g carbs ·{" "}
+                    {Math.round(day.totals.fatG)}g fat
                   </Text>
-                  <Text style={styles.nutritionCalories}>
-                    {Math.round(day.totals.calories)} cal
-                  </Text>
+                  {MEAL_TYPES.map((mealType) =>
+                    day.meals[mealType].length > 0 ? (
+                      <View key={mealType} style={styles.mealBlock}>
+                        <Text style={styles.mealLabel}>
+                          {MEAL_TYPE_LABELS[mealType]}
+                        </Text>
+                        {day.meals[mealType].map((entry: PublicNutritionEntry) => (
+                          <View key={entry.id} style={styles.exerciseLine}>
+                            <Text style={styles.exerciseName} numberOfLines={1}>
+                              {entry.foodName}
+                            </Text>
+                            <Text style={styles.setText}>
+                              {Math.round(entry.calories)} cal
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    ) : null,
+                  )}
                 </View>
-                <Text style={styles.nutritionMacros}>
-                  {Math.round(day.totals.proteinG)}g protein ·{" "}
-                  {Math.round(day.totals.carbsG)}g carbs ·{" "}
-                  {Math.round(day.totals.fatG)}g fat
-                </Text>
-                {MEAL_TYPES.map((mealType) =>
-                  day.meals[mealType].length > 0 ? (
-                    <View key={mealType} style={styles.mealBlock}>
-                      <Text style={styles.mealLabel}>
-                        {MEAL_TYPE_LABELS[mealType]}
-                      </Text>
-                      {day.meals[mealType].map((entry: PublicNutritionEntry) => (
-                        <View key={entry.id} style={styles.exerciseLine}>
-                          <Text style={styles.exerciseName} numberOfLines={1}>
-                            {entry.foodName}
-                          </Text>
-                          <Text style={styles.setText}>
-                            {Math.round(entry.calories)} cal
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-                  ) : null,
-                )}
-              </View>
-            ))}
+              );
+            })()}
 
           {tab === "social" && isPostsLoading && (
             <ActivityIndicator style={{ marginTop: spacing.md }} />

@@ -142,12 +142,16 @@ export const getPublicActiveProgramHandler = catchAsync(
 export const getPublicNutritionHistoryHandler = catchAsync(
   async (req: AuthRequest, res: Response) => {
     const { userId } = req.params;
+    const { month } = req.query;
 
     if (typeof userId !== "string") {
       throw new AppError(400, "userId is required");
     }
 
-    const days = await getPublicNutritionHistory(userId);
+    const days = await getPublicNutritionHistory(
+      userId,
+      typeof month === "string" ? month : undefined,
+    );
     sendSuccess(res, 200, "PUBLIC_NUTRITION_HISTORY_FETCHED", { days });
   },
 );

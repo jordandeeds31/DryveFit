@@ -37,8 +37,12 @@ export const getPublicActiveProgram = async (
 
 export const getPublicNutritionHistory = async (
   userId: string,
+  // "YYYY-MM" — defaults server-side to the current month when omitted.
+  monthKey?: string,
 ): Promise<PublicNutritionDay[]> => {
-  const { data } = await apiClient.get(`/api/users/${userId}/nutrition`);
+  const { data } = await apiClient.get(`/api/users/${userId}/nutrition`, {
+    params: monthKey ? { month: monthKey } : undefined,
+  });
   return data.result.days;
 };
 
