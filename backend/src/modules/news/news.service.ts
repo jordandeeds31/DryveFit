@@ -40,9 +40,17 @@ const FEED_SOURCES: { name: string; url: string; category: NewsCategory }[] = [
   { name: "Nutrition Stripped", url: "https://nutritionstripped.com/feed/", category: "fitness_nutrition" },
   { name: "Harvard Nutrition Source", url: "https://nutritionsource.hsph.harvard.edu/feed/", category: "fitness_nutrition" },
 
-  // Sports
-  { name: "ESPN", url: "https://www.espn.com/espn/rss/news", category: "sports" },
-  { name: "ESPN NFL", url: "https://www.espn.com/espn/rss/nfl/news", category: "sports" },
+  // Sports — ESPN's two feeds (general + NFL) are deliberately left out
+  // despite being a well-known name: verified directly (curl'd raw XML,
+  // sorted/counted every item's <pubDate>) that a large chunk of each
+  // feed's items — including ones covering stories from days earlier —
+  // share one identical, always-near-"now" timestamp that shifts forward
+  // on every crawl. That's a last-modified/re-crawl stamp, not a real
+  // publish time, and it broke two things at once: articles perpetually
+  // displaying "Just now" regardless of true age, and recency-sorting a
+  // combined feed unfairly (ESPN's fake-fresh stories crowding out
+  // genuinely newer ones from other sources). CBS Sports and Sporting
+  // News both checked out with clean, real, varying per-item timestamps.
   { name: "CBS Sports", url: "https://www.cbssports.com/rss/headlines", category: "sports" },
   { name: "Sporting News", url: "https://www.sportingnews.com/us/rss", category: "sports" },
 
