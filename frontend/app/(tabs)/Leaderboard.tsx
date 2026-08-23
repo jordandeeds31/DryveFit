@@ -224,14 +224,19 @@ const LeaderboardScreen = () => {
             </Text>
           </TouchableOpacity>
         </View>
+        {/* Gender/username/city live in the profile screen's Edit Profile
+            modal, not Settings — ?openEdit=1 lands there with it already
+            open, same pattern as Settings' own ?openDevices=1. */}
         {!hasGender && (
           <TouchableOpacity
             style={styles.banner}
-            onPress={() => router.push("/(tabs)/Profile")}
+            onPress={() =>
+              currentUser && router.push(`/user/${currentUser.id}?openEdit=1`)
+            }
           >
             <Text style={styles.bannerText}>
-              Set your gender in Profile to appear on the Men's or Women's
-              leaderboard.
+              Set your gender on your profile to appear on the Men's or
+              Women's leaderboard.
             </Text>
           </TouchableOpacity>
         )}
@@ -239,10 +244,12 @@ const LeaderboardScreen = () => {
         {!hasUsername && (
           <TouchableOpacity
             style={styles.banner}
-            onPress={() => router.push("/(tabs)/Profile")}
+            onPress={() =>
+              currentUser && router.push(`/user/${currentUser.id}?openEdit=1`)
+            }
           >
             <Text style={styles.bannerText}>
-              Set a username in Profile to show up on the leaderboard.
+              Set a username on your profile to show up on the leaderboard.
             </Text>
           </TouchableOpacity>
         )}
@@ -250,10 +257,13 @@ const LeaderboardScreen = () => {
         {!hasCity && (
           <TouchableOpacity
             style={styles.banner}
-            onPress={() => router.push("/(tabs)/Profile")}
+            onPress={() =>
+              currentUser && router.push(`/user/${currentUser.id}?openEdit=1`)
+            }
           >
             <Text style={styles.bannerText}>
-              Set your city in Profile to show up on the city leaderboard.
+              Set your city on your profile to show up on the city
+              leaderboard.
             </Text>
           </TouchableOpacity>
         )}

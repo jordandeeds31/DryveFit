@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -26,6 +26,7 @@ import {
   usePublicPosts,
   useToggleFollow,
   useCurrentUser,
+  useUpdateProfile,
 } from "@/hooks/useUsers";
 import { useDeletePost } from "@/hooks/usePosts";
 import {
@@ -82,14 +83,42 @@ const SocialPostVideo = ({ uri }: { uri: string }) => {
 type ProfileTab = "workouts" | "nutrition" | "social";
 
 const UserProfileScreen = () => {
-  const { userId } = useLocalSearchParams<{ userId: string }>();
+  const { userId, openEdit } = useLocalSearchParams<{
+    userId: string;
+    // Set by links that want this screen to land with EditProfileModal
+    // already open (e.g. the Leaderboard setup banners) — same pattern as
+    // Settings' own ?openDevices=1.
+    openEdit?: string;
+  }>();
   const authImageHeaders = useAuthImageHeaders();
   const [tab, setTab] = useState<ProfileTab>("workouts");
 
   const { data: currentUser } = useCurrentUser();
   const isOwnProfile = !!currentUser && currentUser.id === userId;
   const { mutate: deletePost } = useDeletePost();
+  const { mutate: saveProfile, isPending: isTogglingLeaderboardVisible } =
+    useUpdateProfile();
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+
+  // Mirrors the leaderboard's own eligibility check (username + city +
+  // gender + isLeaderboardVisible) — used to prompt the viewer, on their
+  // own profile, when they wouldn't actually show up there yet.
+  const missingLeaderboardField = !currentUser?.username
+    ? "username"
+    : !currentUser?.city
+      ? "city"
+      : !currentUser?.gender
+        ? "gender"
+        : null;
+  const isShownOnLeaderboard =
+    !missingLeaderboardField && !!currentUser?.isLeaderboardVisible;
+
+  useEffect(() => {
+    if (openEdit === "1" && isOwnProfile) {
+      setIsEditProfileOpen(true);
+      router.setParams({ openEdit: undefined });
+    }
+  }, [openEdit, isOwnProfile]);
 
   const {
     data: profile,
@@ -410,6 +439,36 @@ const UserProfileScreen = () => {
               </View>
             )}
           </View>
+
+          {isOwnProfile && !isShownOnLeaderboard && (
+            <TouchableOpacity
+              style={styles.leaderboardPromptBanner}
+              onPress={() =>
+                missingLeaderboardField
+                  ? setIsEditProfileOpen(true)
+                  : saveProfile(
+                      { isLeaderboardVisible: true },
+                      {
+                        onSuccess: () =>
+                          setToastMessage("You're now shown on the leaderboard"),
+                      },
+                    )
+              }
+              disabled={isTogglingLeaderboardVisible}
+            >
+              <Feather name="award" size={16} color={colors.primaryBlue} />
+              <Text style={styles.leaderboardPromptText}>
+                {missingLeaderboardField
+                  ? `Add a ${missingLeaderboardField} to show up on the leaderboard`
+                  : "Want to be shown on the leaderboard?"}
+              </Text>
+              {!missingLeaderboardField && (
+                <Text style={styles.leaderboardPromptAction}>
+                  {isTogglingLeaderboardVisible ? "..." : "Turn On"}
+                </Text>
+              )}
+            </TouchableOpacity>
+          )}
 
           <View style={styles.tabBar}>
             <TouchableOpacity
@@ -929,6 +988,30 @@ const styles = StyleSheet.create({
   editProfileButtonText: {
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.bold,
+    color: colors.primaryBlue,
+  },
+  leaderboardPromptBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderRadius: 10,
+    backgroundColor: colors.surfaceBlueLight,
+    borderWidth: 1,
+    borderColor: colors.borderBlueLight,
+  },
+  leaderboardPromptText: {
+    flex: 1,
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.semibold,
+    color: colors.primaryBlue,
+  },
+  leaderboardPromptAction: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extrabold,
     color: colors.primaryBlue,
   },
   tabBar: {
