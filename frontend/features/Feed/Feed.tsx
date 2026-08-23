@@ -213,32 +213,16 @@ const Feed = () => {
       <View style={styles.headerRow}>
         <View style={styles.headerTitleRow}>
           <Text style={styles.headerTitle}>Feed</Text>
-          <View style={styles.viewModeToggle}>
-            <TouchableOpacity
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              onPress={() => setViewMode("list")}
-            >
-              <Feather
-                name="list"
-                size={20}
-                color={
-                  viewMode === "list" ? colors.primaryBlue : colors.textMuted
-                }
-              />
-            </TouchableOpacity>
-            <TouchableOpacity
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              onPress={() => setViewMode("grid")}
-            >
-              <Feather
-                name="grid"
-                size={20}
-                color={
-                  viewMode === "grid" ? colors.primaryBlue : colors.textMuted
-                }
-              />
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            onPress={() => setViewMode(viewMode === "list" ? "grid" : "list")}
+          >
+            <Feather
+              name={viewMode === "list" ? "grid" : "list"}
+              size={20}
+              color={colors.textSecondary}
+            />
+          </TouchableOpacity>
         </View>
         <TouchableOpacity
           style={styles.newPostButton}
