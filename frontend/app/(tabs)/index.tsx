@@ -44,8 +44,6 @@ import Toast from "@/components/shared/Toast/Toast";
 import Feed from "@/features/Feed/Feed";
 import News from "@/features/News/News";
 import BodyScan from "@/features/BodyScan/BodyScan";
-import GlassBackground from "@/components/shared/GlassBackground/GlassBackground";
-import { BlurView } from "expo-blur";
 import {
   isHealthKitAvailable,
   hasCompletedHealthKitConnect,
@@ -282,10 +280,8 @@ const HomeScreen = () => {
   };
 
   return (
-    <GlassBackground>
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
       <View style={styles.homeTabBar}>
-        <BlurView intensity={50} tint="light" style={StyleSheet.absoluteFill} />
         <TouchableOpacity
           style={[
             styles.homeTab,
@@ -512,7 +508,6 @@ const HomeScreen = () => {
         onHide={() => setToastMessage(null)}
       />
     </SafeAreaView>
-    </GlassBackground>
   );
 };
 
@@ -521,7 +516,7 @@ export default HomeScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "transparent",
+    backgroundColor: "white",
   },
   scrollView: {
     flex: 1,
@@ -535,14 +530,12 @@ const styles = StyleSheet.create({
   },
   homeTabBar: {
     flexDirection: "row",
+    backgroundColor: colors.surfaceGrayLight,
     borderRadius: 10,
     padding: 3,
     marginHorizontal: spacing.sm,
     marginTop: spacing.sm,
     marginBottom: spacing.xs,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.6)",
   },
   homeTab: {
     flex: 1,
@@ -588,7 +581,7 @@ const styles = StyleSheet.create({
     color: colors.primaryBlue,
   },
   homeTabActive: {
-    backgroundColor: "rgba(255,255,255,0.75)",
+    backgroundColor: "white",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,

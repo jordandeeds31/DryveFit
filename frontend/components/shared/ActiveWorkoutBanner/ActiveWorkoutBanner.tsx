@@ -1,6 +1,5 @@
-import { Text } from "react-native";
+import { View, Text } from "react-native";
 import { useWorkingOutCount } from "@/hooks/useActivity";
-import GlassCard from "@/components/shared/GlassCard/GlassCard";
 import styles from "./ActiveWorkoutBanner.styles";
 
 const ActiveWorkoutBanner = () => {
@@ -18,11 +17,7 @@ const ActiveWorkoutBanner = () => {
   const { workedOutToday, inProgress, cityName } = data;
 
   return (
-    <GlassCard
-      style={styles.container}
-      contentStyle={styles.content}
-      intensity={30}
-    >
+    <View style={styles.container}>
       <Text style={styles.primaryText}>
         🔥 {inProgress.global} {inProgress.global === 1 ? "person" : "people"}{" "}
         working out right now
@@ -37,7 +32,7 @@ const ActiveWorkoutBanner = () => {
         {workedOutToday.global === 1 ? "person has" : "people have"} worked
         out today
       </Text>
-    </GlassCard>
+    </View>
   );
 };
 

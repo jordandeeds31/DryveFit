@@ -42,8 +42,6 @@ import {
 import { colors } from "@/constants/colors";
 import { spacing } from "@/constants/spacing";
 import { fontSizes, fontWeights } from "@/constants/typography";
-import GlassBackground from "@/components/shared/GlassBackground/GlassBackground";
-import GlassCard from "@/components/shared/GlassCard/GlassCard";
 
 const Profile = () => {
   const { openDevices } = useLocalSearchParams<{ openDevices?: string }>();
@@ -341,7 +339,6 @@ const Profile = () => {
   }
 
   return (
-    <GlassBackground>
     <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -356,7 +353,7 @@ const Profile = () => {
         >
           <Text style={styles.title}>Profile</Text>
 
-          <GlassCard style={styles.avatarSection} contentStyle={styles.avatarSectionContent}>
+          <View style={styles.avatarSection}>
             {currentUser?.profileImageUrl && authImageHeaders ? (
               <Image
                 source={{
@@ -395,7 +392,7 @@ const Profile = () => {
                 </TouchableOpacity>
               )}
             </View>
-          </GlassCard>
+          </View>
 
           <Text style={styles.sectionLabel}>Leaderboard identity</Text>
           <Text style={styles.sectionSubtext}>
@@ -611,7 +608,6 @@ const Profile = () => {
         />
       </SafeAreaView>
     </KeyboardAvoidingView>
-    </GlassBackground>
   );
 };
 
@@ -620,7 +616,7 @@ export default Profile;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "transparent",
+    backgroundColor: "white",
   },
   scrollContent: {
     paddingHorizontal: spacing.sm,
@@ -634,12 +630,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   avatarSection: {
-    marginBottom: spacing.lg,
-  },
-  avatarSectionContent: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
+    marginBottom: spacing.lg,
   },
   avatar: {
     width: 72,
