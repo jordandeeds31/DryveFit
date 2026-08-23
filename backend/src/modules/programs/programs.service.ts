@@ -1555,9 +1555,12 @@ export const inheritWorkoutDay = async (
       // Same eligibility gate as getPublicActiveProgram — only a day from
       // a leaderboard-visible user's program can be copied, mirroring
       // what the profile screen was even allowed to show in the first
-      // place.
+      // place. userId excludes the viewer's own program — inheriting your
+      // own workout doesn't mean anything, and can end up with the source
+      // and target being the exact same day.
       week: {
         program: {
+          userId: { not: viewerId },
           user: { isLeaderboardVisible: true, username: { not: null } },
         },
       },
@@ -1802,8 +1805,12 @@ export const inheritWorkoutDayAsNewProgram = async (
   const sourceDay = await prisma.programDay.findFirst({
     where: {
       id: sourceDayId,
+      // userId excludes the viewer's own programs (including an inactive/
+      // past one — assertNoActiveProgram above only rules out an ACTIVE
+      // one) — inheriting your own workout doesn't mean anything.
       week: {
         program: {
+          userId: { not: userId },
           user: { isLeaderboardVisible: true, username: { not: null } },
         },
       },
@@ -1854,6 +1861,9 @@ export const inheritStandaloneLogAsNewProgram = async (
   const sourceLog = await prisma.workoutLog.findFirst({
     where: {
       id: sourceWorkoutLogId,
+      // Excludes the viewer's own logs — inheriting your own past workout
+      // doesn't mean anything.
+      userId: { not: userId },
       user: { isLeaderboardVisible: true, username: { not: null } },
     },
     include: { exercises: { include: { sets: true } } },

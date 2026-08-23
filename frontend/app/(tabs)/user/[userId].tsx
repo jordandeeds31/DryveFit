@@ -683,7 +683,12 @@ const UserProfileScreen = () => {
                               </Text>
                             </View>
                           ))}
-                        {!day.isRestDay && hasOwnActiveProgram && (
+                        {/* Inheriting only makes sense from someone ELSE's
+                            program — copying your own workout into your
+                            own schedule is meaningless (and creates real
+                            edge cases: the source and target day/program
+                            can end up being the exact same one). */}
+                        {!isOwnProfile && !day.isRestDay && hasOwnActiveProgram && (
                           <TouchableOpacity
                             style={styles.inheritButton}
                             onPress={() => handleInherit(day)}
@@ -699,7 +704,7 @@ const UserProfileScreen = () => {
                             </Text>
                           </TouchableOpacity>
                         )}
-                        {!day.isRestDay && !hasOwnActiveProgram && (
+                        {!isOwnProfile && !day.isRestDay && !hasOwnActiveProgram && (
                           <TouchableOpacity
                             style={styles.inheritButton}
                             onPress={() => handleInheritAsNewProgram(day)}
@@ -768,19 +773,21 @@ const UserProfileScreen = () => {
                           </Text>
                         </View>
                       ))}
-                      <TouchableOpacity
-                        style={styles.inheritButton}
-                        onPress={() => handleInheritLogAsNewProgram(log)}
-                      >
-                        <Feather
-                          name="download"
-                          size={12}
-                          color={colors.primaryBlue}
-                        />
-                        <Text style={styles.inheritButtonText}>
-                          Inherit Workout
-                        </Text>
-                      </TouchableOpacity>
+                      {!isOwnProfile && (
+                        <TouchableOpacity
+                          style={styles.inheritButton}
+                          onPress={() => handleInheritLogAsNewProgram(log)}
+                        >
+                          <Feather
+                            name="download"
+                            size={12}
+                            color={colors.primaryBlue}
+                          />
+                          <Text style={styles.inheritButtonText}>
+                            Inherit Workout
+                          </Text>
+                        </TouchableOpacity>
+                      )}
                     </View>
                   ))}
                 </View>
