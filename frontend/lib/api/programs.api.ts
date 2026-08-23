@@ -130,3 +130,16 @@ export const inheritWorkoutDayAsNewProgram = async (
   );
   return data.result;
 };
+
+// Same as above, but the source is someone's already-completed standalone
+// log (their profile's "Recent Workouts") rather than a program day.
+export const inheritStandaloneLogAsNewProgram = async (
+  logId: string,
+  date: string,
+) => {
+  const { data } = await apiClient.post(
+    `/api/programs/logs/${logId}/inherit-as-new-program`,
+    { date },
+  );
+  return data.result;
+};

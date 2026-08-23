@@ -1694,20 +1694,68 @@ export const inheritWorkoutDay = async (
   return { dayIds: targetDayIds, updatedCount: targetDayIds.length };
 };
 
-// For a viewer with NO active program of their own — inheritWorkoutDay
-// above needs an existing program's recurring weekday slot to write into,
-// which doesn't exist yet here. Instead this creates a real (if minimal,
-// single-day) Program so the chosen date gets a normal scheduled-but-not-
-// yet-logged day, reusing every bit of existing calendar/completion/
-// logging machinery rather than inventing a second "pending workout"
-// concept that isn't a Program at all. Bypasses generateProgramWeeks
-// entirely (no AI generation needed — the exercises are already fully
-// known, just being copied), unlike createProgram.
-export const inheritWorkoutDayAsNewProgram = async (
+// Shared by inheritWorkoutDayAsNewProgram and
+// inheritStandaloneLogAsNewProgram below — both need a real, if minimal,
+// single-day Program created for a viewer with no active program of their
+// own, differing only in where the exercises come from (a ProgramDay's
+// prescription vs. a completed WorkoutLog's actual sets). Reuses every bit
+// of existing calendar/completion/logging machinery rather than inventing
+// a second "pending workout" concept that isn't a Program at all, and
+// bypasses generateProgramWeeks entirely — no AI generation needed, the
+// exercises are already fully known, just being copied.
+const createSingleDayInheritedProgram = async (
   userId: string,
-  sourceDayId: string,
-  targetDateStr: string,
+  focus: string,
+  targetDate: Date,
+  exercises: Array<{
+    exerciseName: string;
+    muscleGroup: string;
+    sets: number;
+    reps: number;
+    restSeconds: number;
+    notes?: string | null;
+  }>,
 ) => {
+  const dayName = REAL_DAY_NAMES[targetDate.getDay()];
+
+  return prisma.program.create({
+    data: {
+      userId,
+      name: `${focus} (Inherited)`,
+      startDate: targetDate,
+      endDate: targetDate,
+      durationDays: 1,
+      daysPerWeek: 1,
+      preferredDays: [dayName],
+      sessionMinutes: 60,
+      generationStatus: "complete",
+      isActive: true,
+      weeks: {
+        create: {
+          weekNumber: 1,
+          days: {
+            create: {
+              dayNumber: 1,
+              dayName,
+              date: targetDate,
+              focus,
+              isRestDay: false,
+              exercises: {
+                create: exercises.map((exercise, index) => ({
+                  ...exercise,
+                  order: index + 1,
+                })),
+              },
+            },
+          },
+        },
+      },
+    },
+    include: { weeks: { include: { days: { include: { exercises: true } } } } },
+  });
+};
+
+const assertNoActiveProgram = async (userId: string): Promise<void> => {
   const existingActiveProgram = await prisma.program.findFirst({
     where: { userId, isActive: true },
   });
@@ -1717,6 +1765,30 @@ export const inheritWorkoutDayAsNewProgram = async (
       'You already have an active program — use "Copy to my schedule" instead.',
     );
   }
+};
+
+const parseTargetDate = (targetDateStr: string): Date => {
+  const [year, month, day] = targetDateStr.split("-").map(Number);
+  const targetDate = new Date(year, month - 1, day);
+  if (isNaN(targetDate.getTime())) {
+    throw new AppError(400, "Invalid date format. Use YYYY-MM-DD");
+  }
+
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  if (targetDate.getTime() < todayStart.getTime()) {
+    throw new AppError(400, "Can't schedule a workout in the past");
+  }
+
+  return targetDate;
+};
+
+export const inheritWorkoutDayAsNewProgram = async (
+  userId: string,
+  sourceDayId: string,
+  targetDateStr: string,
+) => {
+  await assertNoActiveProgram(userId);
 
   const sourceDay = await prisma.programDay.findFirst({
     where: {
@@ -1737,60 +1809,69 @@ export const inheritWorkoutDayAsNewProgram = async (
     throw new AppError(400, "Can't inherit a rest day");
   }
 
-  const [year, month, day] = targetDateStr.split("-").map(Number);
-  const targetDate = new Date(year, month - 1, day);
-  if (isNaN(targetDate.getTime())) {
-    throw new AppError(400, "Invalid date format. Use YYYY-MM-DD");
-  }
+  const targetDate = parseTargetDate(targetDateStr);
 
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  if (targetDate.getTime() < todayStart.getTime()) {
-    throw new AppError(400, "Can't schedule a workout in the past");
-  }
+  return createSingleDayInheritedProgram(
+    userId,
+    sourceDay.focus,
+    targetDate,
+    sourceDay.exercises.map((exercise) => ({
+      exerciseName: exercise.exerciseName,
+      muscleGroup: exercise.muscleGroup,
+      sets: exercise.sets,
+      reps: exercise.reps,
+      restSeconds: exercise.restSeconds,
+      notes: exercise.notes,
+    })),
+  );
+};
 
-  const dayName = REAL_DAY_NAMES[targetDate.getDay()];
+// Same idea, but the source is someone's already-COMPLETED standalone log
+// ("Recent Workouts" on their profile) rather than a recurring ProgramDay
+// slot. A log holds one real weight/reps per individual set, not a single
+// sets/reps prescription — the prescription here is derived from what was
+// actually done: the number of logged sets becomes the target `sets`, and
+// the first set's rep count becomes the target `reps` (a straight-sets log
+// is typically the same rep count throughout; a genuinely varied scheme
+// just gets one representative target, the same simplification a real
+// program's own prescription already makes).
+export const inheritStandaloneLogAsNewProgram = async (
+  userId: string,
+  sourceWorkoutLogId: string,
+  targetDateStr: string,
+) => {
+  await assertNoActiveProgram(userId);
 
-  return prisma.program.create({
-    data: {
-      userId,
-      name: `${sourceDay.focus} (Inherited)`,
-      startDate: targetDate,
-      endDate: targetDate,
-      durationDays: 1,
-      daysPerWeek: 1,
-      preferredDays: [dayName],
-      sessionMinutes: 60,
-      generationStatus: "complete",
-      isActive: true,
-      weeks: {
-        create: {
-          weekNumber: 1,
-          days: {
-            create: {
-              dayNumber: 1,
-              dayName,
-              date: targetDate,
-              focus: sourceDay.focus,
-              isRestDay: false,
-              exercises: {
-                create: sourceDay.exercises.map((exercise, index) => ({
-                  exerciseName: exercise.exerciseName,
-                  muscleGroup: exercise.muscleGroup,
-                  sets: exercise.sets,
-                  reps: exercise.reps,
-                  restSeconds: exercise.restSeconds,
-                  notes: exercise.notes,
-                  order: index + 1,
-                })),
-              },
-            },
-          },
-        },
-      },
+  const sourceLog = await prisma.workoutLog.findFirst({
+    where: {
+      id: sourceWorkoutLogId,
+      user: { isLeaderboardVisible: true, username: { not: null } },
     },
-    include: { weeks: { include: { days: { include: { exercises: true } } } } },
+    include: { exercises: { include: { sets: true } } },
   });
+
+  if (!sourceLog || sourceLog.exercises.length === 0) {
+    throw new AppError(404, "Workout not found");
+  }
+
+  const targetDate = parseTargetDate(targetDateStr);
+
+  const focus = [
+    ...new Set(sourceLog.exercises.map((exercise) => exercise.muscleGroup ?? "General")),
+  ].join(" & ");
+
+  return createSingleDayInheritedProgram(
+    userId,
+    focus,
+    targetDate,
+    sourceLog.exercises.map((exercise) => ({
+      exerciseName: exercise.exerciseName,
+      muscleGroup: exercise.muscleGroup ?? "General",
+      sets: exercise.sets.length,
+      reps: exercise.sets[0]?.reps ?? 8,
+      restSeconds: 90,
+    })),
+  );
 };
 
 export const addProgramExercise = async (

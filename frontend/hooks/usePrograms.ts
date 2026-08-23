@@ -15,6 +15,7 @@ import {
   postponeProgramDay,
   inheritWorkoutDay,
   inheritWorkoutDayAsNewProgram,
+  inheritStandaloneLogAsNewProgram,
 } from "@/lib/api/programs.api";
 
 export const usePrograms = () => {
@@ -210,6 +211,22 @@ export const useInheritWorkoutDayAsNewProgram = () => {
   return useMutation({
     mutationFn: ({ dayId, date }: { dayId: string; date: string }) =>
       inheritWorkoutDayAsNewProgram(dayId, date),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["programs"] });
+      queryClient.invalidateQueries({ queryKey: ["programDay"] });
+      queryClient.invalidateQueries({ queryKey: ["schedule"] });
+    },
+  });
+};
+
+// For a viewer with no active program of their own — see
+// inheritStandaloneLogAsNewProgram in programs.api.ts.
+export const useInheritStandaloneLogAsNewProgram = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ logId, date }: { logId: string; date: string }) =>
+      inheritStandaloneLogAsNewProgram(logId, date),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["programs"] });
       queryClient.invalidateQueries({ queryKey: ["programDay"] });

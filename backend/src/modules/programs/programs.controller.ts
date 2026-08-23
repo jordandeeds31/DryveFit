@@ -20,6 +20,7 @@ import {
   postponeProgramDay,
   inheritWorkoutDay,
   inheritWorkoutDayAsNewProgram,
+  inheritStandaloneLogAsNewProgram,
 } from "./programs.service";
 import {
   TrainingSplit,
@@ -241,6 +242,22 @@ export const inheritWorkoutDayAsNewProgramHandler = catchAsync(
     const program = await inheritWorkoutDayAsNewProgram(
       req.userId!,
       dayId,
+      date,
+    );
+    sendSuccess(res, 201, "WORKOUT_INHERITED_AS_PROGRAM", { program });
+  },
+);
+
+export const inheritStandaloneLogAsNewProgramHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const logId = getParam(req.params.logId);
+    const date = req.body?.date;
+    if (typeof date !== "string") {
+      throw new AppError(400, "date is required");
+    }
+    const program = await inheritStandaloneLogAsNewProgram(
+      req.userId!,
+      logId,
       date,
     );
     sendSuccess(res, 201, "WORKOUT_INHERITED_AS_PROGRAM", { program });

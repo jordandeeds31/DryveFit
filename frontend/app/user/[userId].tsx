@@ -12,7 +12,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { router, useLocalSearchParams } from "expo-router";
-import { useDispatch } from "react-redux";
 import Feather from "@expo/vector-icons/Feather";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { spacing } from "@/constants/spacing";
@@ -31,6 +30,7 @@ import {
   usePrograms,
   useInheritWorkoutDay,
   useInheritWorkoutDayAsNewProgram,
+  useInheritStandaloneLogAsNewProgram,
 } from "@/hooks/usePrograms";
 import InheritDatePickerModal from "@/features/InheritWorkout/InheritDatePickerModal";
 import { useAuthImageHeaders } from "@/hooks/useAuthImageHeaders";
@@ -50,8 +50,6 @@ import {
 import { MEAL_TYPES, MEAL_TYPE_LABELS } from "@/types/nutrition.types";
 import { Post } from "@/types/posts.types";
 import Toast from "@/components/shared/Toast/Toast";
-import type { AppDispatch } from "@/store";
-import { setPendingWorkout } from "@/store/slices/pendingWorkoutSlice";
 
 const formatLoggedAt = (dateStr: string) =>
   formatCalendarDate(dateStr, {
@@ -105,17 +103,23 @@ const UserProfileScreen = () => {
     useInheritWorkoutDay();
   const {
     mutate: inheritWorkoutDayAsNewProgram,
-    isPending: isSchedulingInherit,
+    isPending: isSchedulingDayInherit,
   } = useInheritWorkoutDayAsNewProgram();
+  const {
+    mutate: inheritStandaloneLogAsNewProgram,
+    isPending: isSchedulingLogInherit,
+  } = useInheritStandaloneLogAsNewProgram();
   const { data: ownPrograms } = usePrograms();
-  const dispatch = useDispatch<AppDispatch>();
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  // The day currently going through the "no active program" Inherit
-  // Workout flow — holds the date picker modal open while set, cleared
-  // once scheduled or cancelled.
-  const [pendingInheritDay, setPendingInheritDay] = useState<ProgramDay | null>(
-    null,
-  );
+  // Whatever's currently going through the "no active program" Inherit
+  // Workout flow — a program day or a completed standalone log — holds
+  // the date picker modal open while set, cleared once scheduled or
+  // cancelled. Either source ends up going through the same
+  // createSingleDayInheritedProgram path on the backend.
+  const [pendingInheritSource, setPendingInheritSource] = useState<
+    { kind: "programDay"; day: ProgramDay } | { kind: "log"; log: PublicWorkoutLog } | null
+  >(null);
+  const isSchedulingInherit = isSchedulingDayInherit || isSchedulingLogInherit;
 
   // Inheriting means overriding an existing program's schedule — with no
   // program of their own to override, there's nothing to slot this into,
@@ -192,17 +196,49 @@ const UserProfileScreen = () => {
   const handleInheritAsNewProgram = async (day: ProgramDay) => {
     const granted = await ensureProAccess();
     if (!granted) return;
-    setPendingInheritDay(day);
+    setPendingInheritSource({ kind: "programDay", day });
+  };
+
+  // Same idea, sourced from an already-completed standalone log (their
+  // profile's "Recent Workouts") instead of a program day — see
+  // useInheritStandaloneLogAsNewProgram / inheritStandaloneLogAsNewProgram
+  // (backend derives a sets/reps target from what was actually logged).
+  const handleInheritLogAsNewProgram = async (log: PublicWorkoutLog) => {
+    const granted = await ensureProAccess();
+    if (!granted) return;
+    setPendingInheritSource({ kind: "log", log });
   };
 
   const handleConfirmInheritDate = (dateKey: string) => {
-    if (!pendingInheritDay) return;
-    inheritWorkoutDayAsNewProgram(
-      { dayId: pendingInheritDay.id, date: dateKey },
+    if (!pendingInheritSource) return;
+
+    if (pendingInheritSource.kind === "programDay") {
+      const { day } = pendingInheritSource;
+      inheritWorkoutDayAsNewProgram(
+        { dayId: day.id, date: dateKey },
+        {
+          onSuccess: () => {
+            setPendingInheritSource(null);
+            setToastMessage(`Scheduled ${day.focus} for that day`);
+          },
+          onError: (error: unknown) => {
+            const typedError = error as { message?: string };
+            setToastMessage(
+              typedError?.message ?? "Couldn't schedule that workout",
+            );
+          },
+        },
+      );
+      return;
+    }
+
+    const { log } = pendingInheritSource;
+    inheritStandaloneLogAsNewProgram(
+      { logId: log.id, date: dateKey },
       {
         onSuccess: () => {
-          setPendingInheritDay(null);
-          setToastMessage(`Scheduled ${pendingInheritDay.focus} for that day`);
+          setPendingInheritSource(null);
+          setToastMessage("Scheduled that workout for that day");
         },
         onError: (error: unknown) => {
           const typedError = error as { message?: string };
@@ -211,39 +247,6 @@ const UserProfileScreen = () => {
           );
         },
       },
-    );
-  };
-
-  // Unlike a program day, a standalone log has no recurring weekday slot
-  // to inherit into — logging it for yourself is the only thing "copy
-  // this" can mean here, regardless of whether you have an active
-  // program. Equipment isn't captured on ExerciseLog at all (only
-  // exerciseName/muscleGroup), so it goes in as null rather than guessed.
-  const handleLogStandaloneWorkout = async (log: PublicWorkoutLog) => {
-    const granted = await ensureProAccess();
-    if (!granted) return;
-
-    Alert.alert(
-      "Log this workout?",
-      `This will open Log Workout pre-filled with ${profile?.username ?? "their"}'s exercises from this workout for you to fill in.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Log It",
-          onPress: () => {
-            dispatch(
-              setPendingWorkout(
-                log.exercises.map((exercise) => ({
-                  exerciseName: exercise.exerciseName,
-                  muscleGroup: exercise.muscleGroup,
-                  equipment: null,
-                })),
-              ),
-            );
-            router.push("/(tabs)");
-          },
-        },
-      ],
     );
   };
 
@@ -660,15 +663,15 @@ const UserProfileScreen = () => {
                       ))}
                       <TouchableOpacity
                         style={styles.inheritButton}
-                        onPress={() => handleLogStandaloneWorkout(log)}
+                        onPress={() => handleInheritLogAsNewProgram(log)}
                       >
                         <Feather
-                          name="edit-3"
+                          name="download"
                           size={12}
                           color={colors.primaryBlue}
                         />
                         <Text style={styles.inheritButtonText}>
-                          Log this workout
+                          Inherit Workout
                         </Text>
                       </TouchableOpacity>
                     </View>
@@ -694,8 +697,8 @@ const UserProfileScreen = () => {
       </View>
 
       <InheritDatePickerModal
-        visible={!!pendingInheritDay}
-        onClose={() => setPendingInheritDay(null)}
+        visible={!!pendingInheritSource}
+        onClose={() => setPendingInheritSource(null)}
         onConfirm={handleConfirmInheritDate}
         isSubmitting={isSchedulingInherit}
       />
