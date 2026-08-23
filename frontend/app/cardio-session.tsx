@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { useDispatch, useSelector } from "react-redux";
 import MapView, { Polyline } from "react-native-maps";
+import * as Location from "expo-location";
 import Feather from "@expo/vector-icons/Feather";
 import type { AppDispatch, RootState } from "@/store";
 import {
@@ -147,6 +148,45 @@ const CardioSessionScreen = () => {
       cancelled = true;
     };
   }, []);
+
+  // The background watcher's first delivery can take a while to show up —
+  // it's configured for BestForNavigation accuracy (see
+  // cardioBackgroundLocation.ts), which needs a full GPS lock rather than
+  // a quick network/cached fix, so the map and stats bar can otherwise sit
+  // empty for several seconds with zero feedback. This grabs one fast,
+  // lower-accuracy fix as soon as permissions are granted purely to seed
+  // the very first route point, so the map centers and the "Finding your
+  // location" banner below clears quickly instead of waiting on the
+  // background task's own first (slower, but more precise) fix.
+  useEffect(() => {
+    if (!active || active.routePoints.length > 0 || permissionDenied) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        if (cancelled) return;
+        const snapshot = await loadSessionSnapshot();
+        if (!snapshot || snapshot.routePoints.length > 0) return;
+        snapshot.routePoints.push({
+          lat: location.coords.latitude,
+          lng: location.coords.longitude,
+          timestamp: location.timestamp,
+        });
+        await saveSessionSnapshot(snapshot);
+        if (!cancelled) dispatch(restoreSession(snapshot));
+      } catch (err) {
+        console.warn("Failed to get an initial location fix:", err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active?.startedAt, permissionDenied]);
 
   // The background task (cardioBackgroundLocation.ts) is now the sole
   // place distance/route/calories/steps/heart-rate actually get computed
@@ -442,6 +482,14 @@ const CardioSessionScreen = () => {
             )}
           </MapView>
         )}
+        {!permissionDenied && active.routePoints.length === 0 && (
+          <View style={styles.acquiringBanner} pointerEvents="none">
+            <ActivityIndicator color={cyberpunk.neonCyan} size="small" />
+            <Text style={styles.acquiringText}>
+              Finding your location… {elapsedSeconds}s
+            </Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.statsBar}>
@@ -578,6 +626,27 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.extrabold,
+  },
+  acquiringBanner: {
+    position: "absolute",
+    top: spacing.sm,
+    left: spacing.sm,
+    right: spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+    backgroundColor: "rgba(0,0,0,0.65)",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#222",
+    paddingVertical: spacing.sm,
+  },
+  acquiringText: {
+    color: "white",
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.semibold,
+    fontVariant: ["tabular-nums"],
   },
   statsBar: {
     flexDirection: "row",
