@@ -4,13 +4,26 @@ import { Image } from "expo-image";
 import * as WebBrowser from "expo-web-browser";
 import { router } from "expo-router";
 import Feather from "@expo/vector-icons/Feather";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import Input from "@/components/shared/TextInput/TextInput";
 import Toast from "@/components/shared/Toast/Toast";
 import BlogComposer from "@/features/BlogComposer/BlogComposer";
+import NewsFilterSheet, { CATEGORY_OPTIONS } from "@/features/News/NewsFilterSheet";
 import { useNews } from "@/hooks/useNews";
-import { NewsArticle } from "@/types/news.types";
+import { useCurrentUser } from "@/hooks/useUsers";
+import { NewsArticle, NewsCategory } from "@/types/news.types";
 import { colors } from "@/constants/colors";
 import styles from "./News.styles";
+
+// Remembers the user's last-selected categories across launches — this is
+// a standing preference ("only show me sports and world news"), not
+// per-session state, so it belongs in AsyncStorage rather than resetting
+// to "show everything" every time the app opens.
+const SELECTED_CATEGORIES_KEY = "news.selectedCategories";
+
+const CATEGORY_LABELS: Record<NewsCategory, string> = Object.fromEntries(
+  CATEGORY_OPTIONS.map((option) => [option.value, option.label]),
+) as Record<NewsCategory, string>;
 
 // One accent color per source (reusing the app's existing macro-bar
 // palette from Nutrition — Protein/Carbs/Fat's blue/purple/amber — rather
@@ -178,12 +191,40 @@ const ArticleCard = ({
 const News = () => {
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebouncedValue(query, 300);
+  const [selectedCategories, setSelectedCategories] = useState<NewsCategory[]>([]);
+  const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
+  const [hasLoadedStoredCategories, setHasLoadedStoredCategories] = useState(false);
+  const { data: currentUser } = useCurrentUser();
+
+  useEffect(() => {
+    AsyncStorage.getItem(SELECTED_CATEGORIES_KEY)
+      .then((raw) => {
+        if (raw) setSelectedCategories(JSON.parse(raw));
+      })
+      .catch(() => {
+        // Worst case this just falls back to "show everything" for this
+        // session — not worth surfacing to the user.
+      })
+      .finally(() => setHasLoadedStoredCategories(true));
+  }, []);
+
+  useEffect(() => {
+    if (!hasLoadedStoredCategories) return;
+    AsyncStorage.setItem(
+      SELECTED_CATEGORIES_KEY,
+      JSON.stringify(selectedCategories),
+    ).catch(() => {});
+  }, [selectedCategories, hasLoadedStoredCategories]);
+
   const {
     data: articles,
     isLoading,
     error,
     refetch,
-  } = useNews(debouncedQuery.trim() || undefined);
+  } = useNews(
+    debouncedQuery.trim() || undefined,
+    selectedCategories.length > 0 ? selectedCategories : undefined,
+  );
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -193,6 +234,13 @@ const News = () => {
     await refetch();
     setIsManualRefreshing(false);
   };
+
+  const activeFilterSummary =
+    selectedCategories.length === 1
+      ? CATEGORY_LABELS[selectedCategories[0]]
+      : selectedCategories.length > 1
+        ? `${selectedCategories.length} categories`
+        : null;
 
   return (
     <View style={styles.container}>
@@ -207,6 +255,24 @@ const News = () => {
           />
         </View>
         <TouchableOpacity
+          style={[
+            styles.filterButton,
+            selectedCategories.length > 0 && styles.filterButtonActive,
+          ]}
+          onPress={() => setIsFilterSheetOpen(true)}
+        >
+          <Feather
+            name="filter"
+            size={16}
+            color={selectedCategories.length > 0 ? "white" : colors.textSecondary}
+          />
+          {selectedCategories.length > 0 && (
+            <View style={styles.filterBadge}>
+              <Text style={styles.filterBadgeText}>{selectedCategories.length}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+        <TouchableOpacity
           style={styles.writePostButton}
           onPress={() => setIsComposerOpen(true)}
         >
@@ -214,6 +280,12 @@ const News = () => {
           <Text style={styles.writePostButtonText}>Write a Post</Text>
         </TouchableOpacity>
       </View>
+
+      {activeFilterSummary && (
+        <Text style={styles.filterSummaryText}>
+          Showing: {activeFilterSummary}
+        </Text>
+      )}
 
       {isLoading && <ActivityIndicator style={{ marginTop: 40 }} />}
 
@@ -233,11 +305,21 @@ const News = () => {
                 ? "Couldn't load news right now. Pull down to try again."
                 : debouncedQuery.trim()
                   ? `No articles matching "${debouncedQuery.trim()}".`
-                  : "No articles right now."}
+                  : selectedCategories.includes("local") && !currentUser?.city
+                    ? "Add your city in Profile to see local news."
+                    : "No articles right now."}
             </Text>
           }
         />
       )}
+
+      <NewsFilterSheet
+        visible={isFilterSheetOpen}
+        onClose={() => setIsFilterSheetOpen(false)}
+        selected={selectedCategories}
+        onChange={setSelectedCategories}
+        hasCity={!!currentUser?.city}
+      />
 
       <BlogComposer
         visible={isComposerOpen}

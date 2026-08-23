@@ -1,30 +1,78 @@
 import Parser from "rss-parser";
+import prisma from "../../lib/prisma";
 import { getBlogPosts } from "../blog/blog.service";
 
+export type NewsCategory =
+  | "top_stories"
+  | "sports"
+  | "politics"
+  | "world"
+  | "crime"
+  | "local"
+  | "fitness_nutrition";
+
 // Each of these publishes a real, actively-updated RSS feed — verified by
-// hand, both that the feed itself works and that it's still being posted to.
-// Several well-known blogs failed one or the other: BarBend's /feed/ 404s
-// and NerdFitness/TrainHeroic/EatingWell block automated requests with a
-// 403 despite looking legitimate at a glance; Breaking Muscle, StrongLifts,
-// and Juggernaut Training Systems all have working feeds that simply
-// haven't been posted to in 1-3 years, so they'd sit in this list forever
-// contributing nothing; examine.com's feed rate-limited a single test
-// request (429), too unreliable to depend on. Scraping raw HTML off these
-// sites instead was deliberately ruled out — it's fragile against
-// redesigns and against most sites' Terms of Service, where RSS is the
-// sanctioned way to pull syndicated content.
-const FEED_SOURCES: { name: string; url: string }[] = [
-  { name: "Muscle & Fitness", url: "https://www.muscleandfitness.com/feed/" },
-  { name: "Stronger by Science", url: "https://www.strongerbyscience.com/feed/" },
-  { name: "Precision Nutrition", url: "https://www.precisionnutrition.com/blog/feed" },
-  { name: "Nutrition Stripped", url: "https://nutritionstripped.com/feed/" },
+// hand (curl + item count), both that the feed itself works and that it's
+// still being posted to. Twitter/X, Instagram, and Reddit were deliberately
+// left out: X's free API tier has no read access and paid tiers start
+// around $100/mo, Instagram has no public API for browsing arbitrary posts,
+// and Reddit's old unauthenticated JSON endpoints (reddit.com/r/x/.json)
+// now 403 everything without a registered OAuth app. Scraping any of the
+// three directly was ruled out for the same reason raw HTML scraping was
+// already ruled out below — fragile and against their Terms of Service,
+// where a real API/feed is the sanctioned way in.
+//
+// Politico's RSS (https://www.politico.com/rss/politicopicks.xml) 403s
+// automated requests despite looking legitimate at a glance — left out for
+// the same "unreliable in practice" reason BarBend/NerdFitness/etc. were
+// left out of the original fitness list below.
+const FEED_SOURCES: { name: string; url: string; category: NewsCategory }[] = [
+  // Fitness & Nutrition — the original set. BarBend's /feed/ 404s and
+  // NerdFitness/TrainHeroic/EatingWell block automated requests with a 403
+  // despite looking legitimate at a glance; Breaking Muscle, StrongLifts,
+  // and Juggernaut Training Systems all have working feeds that simply
+  // haven't been posted to in 1-3 years, so they'd sit in this list
+  // forever contributing nothing; examine.com's feed rate-limited a single
+  // test request (429), too unreliable to depend on.
+  { name: "Muscle & Fitness", url: "https://www.muscleandfitness.com/feed/", category: "fitness_nutrition" },
+  { name: "Stronger by Science", url: "https://www.strongerbyscience.com/feed/", category: "fitness_nutrition" },
+  { name: "Precision Nutrition", url: "https://www.precisionnutrition.com/blog/feed", category: "fitness_nutrition" },
+  { name: "Nutrition Stripped", url: "https://nutritionstripped.com/feed/", category: "fitness_nutrition" },
+  { name: "Harvard Nutrition Source", url: "https://nutritionsource.hsph.harvard.edu/feed/", category: "fitness_nutrition" },
+
+  // Sports
+  { name: "ESPN", url: "https://www.espn.com/espn/rss/news", category: "sports" },
+  { name: "ESPN NFL", url: "https://www.espn.com/espn/rss/nfl/news", category: "sports" },
+  { name: "CBS Sports", url: "https://www.cbssports.com/rss/headlines", category: "sports" },
+  { name: "Sporting News", url: "https://www.sportingnews.com/us/rss", category: "sports" },
+
+  // Top Stories / general
+  { name: "BBC News", url: "http://feeds.bbci.co.uk/news/rss.xml", category: "top_stories" },
+  { name: "NPR", url: "https://feeds.npr.org/1001/rss.xml", category: "top_stories" },
+
+  // Politics & Government
+  { name: "BBC Politics", url: "http://feeds.bbci.co.uk/news/politics/rss.xml", category: "politics" },
+  { name: "NPR Politics", url: "https://feeds.npr.org/1014/rss.xml", category: "politics" },
+  { name: "The Guardian", url: "https://www.theguardian.com/politics/rss", category: "politics" },
+  { name: "The Hill", url: "https://thehill.com/homenews/feed/", category: "politics" },
+
+  // World / Geopolitics
+  { name: "BBC World", url: "http://feeds.bbci.co.uk/news/world/rss.xml", category: "world" },
+  { name: "NPR World", url: "https://feeds.npr.org/1004/rss.xml", category: "world" },
+  { name: "The Guardian", url: "https://www.theguardian.com/world/rss", category: "world" },
+  { name: "Al Jazeera", url: "https://www.aljazeera.com/xml/rss/all.xml", category: "world" },
+
+  // Crime — Google News' own search-results RSS output (not scraped HTML,
+  // a real feed Google publishes), since no mainstream outlet runs a
+  // dedicated national crime-only feed.
   {
-    name: "Harvard Nutrition Source",
-    url: "https://nutritionsource.hsph.harvard.edu/feed/",
+    name: "Google News",
+    url: "https://news.google.com/rss/search?q=crime&hl=en-US&gl=US&ceid=US:en",
+    category: "crime",
   },
 ];
 
-const MAX_ARTICLES = 40;
+const MAX_ARTICLES = 60;
 const CACHE_TTL_MS = 15 * 60 * 1000;
 
 export interface NewsArticle {
@@ -41,6 +89,7 @@ export interface NewsArticle {
   // rss: the blog/publication name. blog: the author's username (or a
   // fallback if they haven't set one).
   source: string;
+  category: NewsCategory;
   publishedAt: string | null;
   summary: string | null;
   coverImageUrl?: string | null;
@@ -49,13 +98,19 @@ export interface NewsArticle {
 
 let rssCache: { articles: NewsArticle[]; fetchedAt: number } | null = null;
 
+// Local news is personalized per viewer (their saved city), so it can't
+// share the single global rssCache above — keyed by city rather than by
+// user, since two users in the same city should hit the same cached fetch.
+const localCache = new Map<string, { articles: NewsArticle[]; fetchedAt: number }>();
+
 const parser = new Parser();
 
-// WordPress (which every RSS source above runs on) always appends "The post
-// <a>Title</a> appeared first on <a>Site</a>." to the plain description —
-// useful in an RSS reader that credits the source itself, redundant here
-// since the card already shows the source name, so it's stripped along with
-// the surrounding HTML tags to leave a clean plain-text summary.
+// WordPress (which every fitness/nutrition RSS source runs on) always
+// appends "The post <a>Title</a> appeared first on <a>Site</a>." to the
+// plain description — useful in an RSS reader that credits the source
+// itself, redundant here since the card already shows the source name, so
+// it's stripped along with the surrounding HTML tags to leave a clean
+// plain-text summary.
 const cleanSummary = (html: string | undefined): string | null => {
   if (!html) return null;
   const withoutAppearedFirstOn = html.replace(/The post .*appeared first on .*\.?\s*$/is, "");
@@ -69,6 +124,7 @@ const cleanSummary = (html: string | undefined): string | null => {
 const fetchFeed = async (source: {
   name: string;
   url: string;
+  category: NewsCategory;
 }): Promise<NewsArticle[]> => {
   try {
     const feed = await parser.parseURL(source.url);
@@ -80,39 +136,64 @@ const fetchFeed = async (source: {
         title: item.title!,
         link: item.link!,
         source: source.name,
+        category: source.category,
         publishedAt: item.isoDate ?? item.pubDate ?? null,
         summary: cleanSummary(item.contentSnippet ?? item.content),
       }));
   } catch (err) {
-    // One dead/slow blog shouldn't take down the whole feed — logged, not
-    // thrown, same "never fail the whole request over one bad dependency"
-    // pattern used elsewhere (e.g. DM push notifications).
+    // One dead/slow feed shouldn't take down the whole request — logged,
+    // not thrown, same "never fail the whole request over one bad
+    // dependency" pattern used elsewhere (e.g. DM push notifications).
     console.warn(`Failed to fetch news feed "${source.name}":`, err);
     return [];
   }
 };
 
+const sortByRecency = (articles: NewsArticle[]): NewsArticle[] =>
+  [...articles].sort((a, b) => {
+    const aTime = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
+    const bTime = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
+    return bTime - aTime;
+  });
+
 // Cached uncapped and unfiltered — a keyword search should be able to match
-// against everything actually fetched, not just whatever made the top-40
-// recency cut. In practice the five feeds combined rarely exceed ~40 items
-// anyway, so this mostly matters for correctness, not a real volume of
-// hidden results. Only the RSS side is cached — user blog posts are a fast
-// local DB query and should show up immediately after posting, not wait up
-// to 15 minutes.
+// against everything actually fetched, not just whatever made the top-cut.
+// Only the RSS side is cached — user blog posts are a fast local DB query
+// and should show up immediately after posting, not wait up to 15 minutes.
 const getCachedRssArticles = async (): Promise<NewsArticle[]> => {
   if (rssCache && Date.now() - rssCache.fetchedAt < CACHE_TTL_MS) {
     return rssCache.articles;
   }
 
   const results = await Promise.all(FEED_SOURCES.map(fetchFeed));
-  const articles = results.flat().sort((a, b) => {
-    const aTime = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
-    const bTime = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
-    return bTime - aTime;
-  });
+  const articles = sortByRecency(results.flat());
 
   rssCache = { articles, fetchedAt: Date.now() };
   return articles;
+};
+
+const getLocalArticlesForCity = async (city: string): Promise<NewsArticle[]> => {
+  const cached = localCache.get(city);
+  if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
+    return cached.articles;
+  }
+
+  const url = `https://news.google.com/rss/search?q=${encodeURIComponent(`${city} news`)}&hl=en-US&gl=US&ceid=US:en`;
+  const articles = await fetchFeed({ name: `${city} Local`, url, category: "local" });
+  localCache.set(city, { articles, fetchedAt: Date.now() });
+  return articles;
+};
+
+// Returns [] rather than throwing when the viewer has no city set — local
+// news is opt-in by profile completeness, not a hard requirement, same
+// spirit as the leaderboard's separate username/city setup banners.
+const getLocalArticlesForViewer = async (viewerId: string): Promise<NewsArticle[]> => {
+  const user = await prisma.user.findUnique({
+    where: { id: viewerId },
+    select: { city: true },
+  });
+  if (!user?.city) return [];
+  return getLocalArticlesForCity(user.city);
 };
 
 const MAX_SUMMARY_LENGTH = 200;
@@ -125,6 +206,12 @@ const toBlogNewsArticle = (
   title: post.title,
   link: "",
   source: post.author.username ?? "DryveFit user",
+  // User blog posts are all fitness/nutrition content in practice (the
+  // composer has no category picker), so filtering to that category is
+  // the closest match to "show me app content" rather than inventing a
+  // separate always-shown bucket that'd behave inconsistently with the
+  // rest of the filter.
+  category: "fitness_nutrition",
   publishedAt: post.createdAt.toISOString(),
   summary:
     post.body.length > MAX_SUMMARY_LENGTH
@@ -137,26 +224,36 @@ const toBlogNewsArticle = (
 export const getNewsFeed = async (
   viewerId: string,
   query?: string,
+  categories?: NewsCategory[],
 ): Promise<NewsArticle[]> => {
-  const [rssArticles, blogPosts] = await Promise.all([
+  // Local news needs its own per-viewer fetch (keyed on their city), so it's
+  // only ever done when relevant — either no filter is applied (show
+  // everything) or "local" is explicitly one of the selected categories.
+  const wantsLocal = !categories || categories.length === 0 || categories.includes("local");
+
+  const [rssArticles, blogPosts, localArticles] = await Promise.all([
     getCachedRssArticles(),
     getBlogPosts(viewerId),
+    wantsLocal ? getLocalArticlesForViewer(viewerId) : Promise.resolve([]),
   ]);
 
-  const allArticles = [...rssArticles, ...blogPosts.map(toBlogNewsArticle)].sort(
-    (a, b) => {
-      const aTime = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
-      const bTime = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
-      return bTime - aTime;
-    },
-  );
+  const allArticles = sortByRecency([
+    ...rssArticles,
+    ...localArticles,
+    ...blogPosts.map(toBlogNewsArticle),
+  ]);
+
+  const categoryFiltered =
+    categories && categories.length > 0
+      ? allArticles.filter((article) => categories.includes(article.category))
+      : allArticles;
 
   const trimmedQuery = query?.trim().toLowerCase();
   if (!trimmedQuery) {
-    return allArticles.slice(0, MAX_ARTICLES);
+    return categoryFiltered.slice(0, MAX_ARTICLES);
   }
 
-  return allArticles.filter(
+  return categoryFiltered.filter(
     (article) =>
       article.title.toLowerCase().includes(trimmedQuery) ||
       (article.summary?.toLowerCase().includes(trimmedQuery) ?? false),
