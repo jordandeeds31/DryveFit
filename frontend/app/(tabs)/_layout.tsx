@@ -24,7 +24,13 @@ export default function TabsLayout() {
 
   return (
     <>
-      <Modal visible={isOpen} onClose={close} closable={!isGeneratingProgram}>
+      <Modal
+        visible={isOpen}
+        onClose={close}
+        closable={!isGeneratingProgram}
+        wide
+        keyboardAware={false}
+      >
         <ProgramBuilder
           onCreated={close}
           onGeneratingChange={setIsGeneratingProgram}

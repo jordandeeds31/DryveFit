@@ -12,6 +12,9 @@ const styles = StyleSheet.create({
   overlayTop: {
     justifyContent: "flex-start",
   },
+  overlayWide: {
+    padding: spacing.xs,
+  },
   card: {
     backgroundColor: "white",
     borderRadius: 20,
@@ -27,6 +30,9 @@ const styles = StyleSheet.create({
   },
   cardLarge: {
     maxHeight: "95%",
+  },
+  cardWide: {
+    paddingHorizontal: spacing.sm,
   },
   closeRow: {
     flexDirection: "row",

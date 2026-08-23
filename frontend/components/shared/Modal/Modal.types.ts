@@ -23,4 +23,10 @@ export interface ModalProps {
   // turning it off avoids the misfire entirely rather than trying to
   // out-tune it.
   keyboardAware?: boolean;
+  // Narrows the card's own horizontal padding (and the overlay's outer
+  // margin around it) so the card spans closer to the full screen width —
+  // for content that's mostly buttons/selectors needing real horizontal
+  // room (e.g. a day-of-week picker), rather than prose that reads better
+  // narrower.
+  wide?: boolean;
 }

@@ -21,6 +21,7 @@ const Modal = ({
   headerAction,
   size = "default",
   keyboardAware = true,
+  wide = false,
 }: ModalProps) => {
   const insets = useSafeAreaInsets();
   const isLarge = size === "large";
@@ -38,7 +39,13 @@ const Modal = ({
       animationType="fade"
       onRequestClose={handleClose}
     >
-      <View style={[styles.overlay, isLarge && styles.overlayTop]}>
+      <View
+        style={[
+          styles.overlay,
+          isLarge && styles.overlayTop,
+          wide && styles.overlayWide,
+        ]}
+      >
         {/* Absolutely-positioned sibling behind the card, not a wrapper
             around it — a wrapper would sit as a touch-responder ancestor
             of the ScrollView below and swallow scroll gestures before they
@@ -53,6 +60,7 @@ const Modal = ({
             styles.card,
             isLarge && styles.cardLarge,
             isLarge && { marginTop: insets.top + spacing.sm },
+            wide && styles.cardWide,
           ]}
         >
           {(closable || headerAction) && (
