@@ -196,8 +196,15 @@ const HomeScreen = () => {
   const canGoToPreviousWeek =
     startOfDay(weekDates[0]).getTime() > earliestAllowedWeekStart.getTime();
 
-  // Mirror of the above: nothing exists after the user's latest program
-  // ends, so there's no reason to let them page forward past its week.
+  // Mirror of the above: the user should always be able to page forward at
+  // least as far as today's week, regardless of whether they have any
+  // programs (or if every program they have has already ended) — the old
+  // `hasPrograms &&` gate meant that after paging back, someone with no
+  // active program (or an expired one) could never page back forward to
+  // today, since the "next week" arrow stayed permanently disabled. A
+  // program that extends past today can still push the boundary forward
+  // further, so take whichever of the two is latest, same as the backward
+  // boundary takes whichever is earliest.
   const latestProgramEndDate =
     programs && programs.length > 0
       ? new Date(
@@ -205,14 +212,17 @@ const HomeScreen = () => {
         )
       : null;
 
-  const latestWeekStart = latestProgramEndDate
+  const latestProgramWeekStart = latestProgramEndDate
     ? startOfDay(getWeekDates(latestProgramEndDate)[0])
     : null;
 
+  const latestAllowedWeekStart =
+    latestProgramWeekStart && latestProgramWeekStart.getTime() > todayWeekStart.getTime()
+      ? latestProgramWeekStart
+      : todayWeekStart;
+
   const canGoToNextWeek =
-    hasPrograms &&
-    (!latestWeekStart ||
-      startOfDay(weekDates[0]).getTime() < latestWeekStart.getTime());
+    startOfDay(weekDates[0]).getTime() < latestAllowedWeekStart.getTime();
 
   const isCurrentProgramWeek =
     !!activeProgram &&
