@@ -383,6 +383,37 @@ const UserProfileScreen = () => {
                 following
               </Text>
             </View>
+
+            {isOwnProfile && !isShownOnLeaderboard && (
+              <TouchableOpacity
+                style={styles.leaderboardPromptBanner}
+                onPress={() =>
+                  missingLeaderboardField
+                    ? setIsEditProfileOpen(true)
+                    : saveProfile(
+                        { isLeaderboardVisible: true },
+                        {
+                          onSuccess: () =>
+                            setToastMessage("You're now shown on the leaderboard"),
+                        },
+                      )
+                }
+                disabled={isTogglingLeaderboardVisible}
+              >
+                <Feather name="award" size={16} color={colors.primaryBlue} />
+                <Text style={styles.leaderboardPromptText}>
+                  {missingLeaderboardField
+                    ? `Add a ${missingLeaderboardField} to show up on the leaderboard`
+                    : "Want to be shown on the leaderboard?"}
+                </Text>
+                {!missingLeaderboardField && (
+                  <Text style={styles.leaderboardPromptAction}>
+                    {isTogglingLeaderboardVisible ? "..." : "Turn On"}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            )}
+
             {!isOwnProfile && (
               <View style={styles.profileActionsRow}>
                 <TouchableOpacity
@@ -439,36 +470,6 @@ const UserProfileScreen = () => {
               </View>
             )}
           </View>
-
-          {isOwnProfile && !isShownOnLeaderboard && (
-            <TouchableOpacity
-              style={styles.leaderboardPromptBanner}
-              onPress={() =>
-                missingLeaderboardField
-                  ? setIsEditProfileOpen(true)
-                  : saveProfile(
-                      { isLeaderboardVisible: true },
-                      {
-                        onSuccess: () =>
-                          setToastMessage("You're now shown on the leaderboard"),
-                      },
-                    )
-              }
-              disabled={isTogglingLeaderboardVisible}
-            >
-              <Feather name="award" size={16} color={colors.primaryBlue} />
-              <Text style={styles.leaderboardPromptText}>
-                {missingLeaderboardField
-                  ? `Add a ${missingLeaderboardField} to show up on the leaderboard`
-                  : "Want to be shown on the leaderboard?"}
-              </Text>
-              {!missingLeaderboardField && (
-                <Text style={styles.leaderboardPromptAction}>
-                  {isTogglingLeaderboardVisible ? "..." : "Turn On"}
-                </Text>
-              )}
-            </TouchableOpacity>
-          )}
 
           <View style={styles.tabBar}>
             <TouchableOpacity
@@ -993,9 +994,9 @@ const styles = StyleSheet.create({
   leaderboardPromptBanner: {
     flexDirection: "row",
     alignItems: "center",
+    alignSelf: "stretch",
     gap: spacing.xs,
-    marginHorizontal: spacing.md,
-    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.sm,
     borderRadius: 10,
