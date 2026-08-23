@@ -351,7 +351,7 @@ const Profile = () => {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
-          <Text style={styles.title}>Profile</Text>
+          <Text style={styles.title}>Settings</Text>
 
           <View style={styles.avatarSection}>
             {currentUser?.profileImageUrl && authImageHeaders ? (
