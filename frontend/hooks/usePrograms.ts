@@ -14,6 +14,7 @@ import {
   deleteProgramExercise,
   postponeProgramDay,
   inheritWorkoutDay,
+  inheritWorkoutDayAsNewProgram,
 } from "@/lib/api/programs.api";
 
 export const usePrograms = () => {
@@ -185,9 +186,32 @@ export const useInheritWorkoutDay = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ dayId, force }: { dayId: string; force?: boolean }) =>
-      inheritWorkoutDay(dayId, force),
+    mutationFn: ({
+      dayId,
+      force,
+      rebalanceWithAI,
+    }: {
+      dayId: string;
+      force?: boolean;
+      rebalanceWithAI?: boolean;
+    }) => inheritWorkoutDay(dayId, force, rebalanceWithAI),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["programDay"] });
+      queryClient.invalidateQueries({ queryKey: ["schedule"] });
+    },
+  });
+};
+
+// For a viewer with no active program of their own — see
+// inheritWorkoutDayAsNewProgram in programs.api.ts.
+export const useInheritWorkoutDayAsNewProgram = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ dayId, date }: { dayId: string; date: string }) =>
+      inheritWorkoutDayAsNewProgram(dayId, date),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["programs"] });
       queryClient.invalidateQueries({ queryKey: ["programDay"] });
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
     },

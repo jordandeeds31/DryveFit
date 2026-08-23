@@ -19,6 +19,7 @@ import {
   deleteProgramExercise,
   postponeProgramDay,
   inheritWorkoutDay,
+  inheritWorkoutDayAsNewProgram,
 } from "./programs.service";
 import {
   TrainingSplit,
@@ -219,8 +220,30 @@ export const inheritWorkoutDayHandler = catchAsync(
   async (req: AuthRequest, res: Response) => {
     const dayId = getParam(req.params.dayId);
     const force = req.body?.force === true;
-    const result = await inheritWorkoutDay(req.userId!, dayId, force);
+    const rebalanceWithAI = req.body?.rebalanceWithAI === true;
+    const result = await inheritWorkoutDay(
+      req.userId!,
+      dayId,
+      force,
+      rebalanceWithAI,
+    );
     sendSuccess(res, 200, "WORKOUT_DAY_INHERITED", result);
+  },
+);
+
+export const inheritWorkoutDayAsNewProgramHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const dayId = getParam(req.params.dayId);
+    const date = req.body?.date;
+    if (typeof date !== "string") {
+      throw new AppError(400, "date is required");
+    }
+    const program = await inheritWorkoutDayAsNewProgram(
+      req.userId!,
+      dayId,
+      date,
+    );
+    sendSuccess(res, 201, "WORKOUT_INHERITED_AS_PROGRAM", { program });
   },
 );
 

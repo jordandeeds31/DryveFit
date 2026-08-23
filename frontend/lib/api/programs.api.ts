@@ -105,10 +105,28 @@ export const deleteProgram = async (programId: string) => {
   return data;
 };
 
-export const inheritWorkoutDay = async (dayId: string, force?: boolean) => {
+export const inheritWorkoutDay = async (
+  dayId: string,
+  force?: boolean,
+  rebalanceWithAI?: boolean,
+) => {
   const { data } = await apiClient.post(
     `/api/programs/days/${dayId}/inherit`,
-    { force },
+    { force, rebalanceWithAI },
+  );
+  return data.result;
+};
+
+// For a viewer with no active program of their own — creates a minimal
+// one-day program on the chosen date instead of writing into an existing
+// recurring weekday slot (see inheritWorkoutDay above).
+export const inheritWorkoutDayAsNewProgram = async (
+  dayId: string,
+  date: string,
+) => {
+  const { data } = await apiClient.post(
+    `/api/programs/days/${dayId}/inherit-as-new-program`,
+    { date },
   );
   return data.result;
 };

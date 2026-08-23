@@ -16,6 +16,7 @@ import {
   deleteProgramExerciseHandler,
   postponeProgramDayHandler,
   inheritWorkoutDayHandler,
+  inheritWorkoutDayAsNewProgramHandler,
 } from "./programs.controller";
 
 const router = Router();
@@ -36,6 +37,10 @@ router.post("/days/:dayId/exercises", addProgramExerciseHandler);
 router.post("/days/:dayId/revert-swaps", revertDaySwapsHandler);
 router.post("/days/:dayId/postpone", postponeProgramDayHandler);
 router.post("/days/:dayId/inherit", inheritWorkoutDayHandler);
+router.post(
+  "/days/:dayId/inherit-as-new-program",
+  inheritWorkoutDayAsNewProgramHandler,
+);
 router.patch("/:id/deactivate", deactivateProgramHandler);
 router.delete("/:id", deleteProgramHandler);
 

@@ -27,7 +27,12 @@ import {
   usePublicPosts,
   useToggleFollow,
 } from "@/hooks/useUsers";
-import { usePrograms, useInheritWorkoutDay } from "@/hooks/usePrograms";
+import {
+  usePrograms,
+  useInheritWorkoutDay,
+  useInheritWorkoutDayAsNewProgram,
+} from "@/hooks/usePrograms";
+import InheritDatePickerModal from "@/features/InheritWorkout/InheritDatePickerModal";
 import { useAuthImageHeaders } from "@/hooks/useAuthImageHeaders";
 import { useCreateDmConversation } from "@/hooks/useDirectMessages";
 import { ensureProAccess } from "@/lib/purchases/requirePro";
@@ -98,41 +103,63 @@ const UserProfileScreen = () => {
     useCreateDmConversation();
   const { mutate: inheritWorkoutDay, isPending: isInheriting } =
     useInheritWorkoutDay();
+  const {
+    mutate: inheritWorkoutDayAsNewProgram,
+    isPending: isSchedulingInherit,
+  } = useInheritWorkoutDayAsNewProgram();
   const { data: ownPrograms } = usePrograms();
   const dispatch = useDispatch<AppDispatch>();
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  // The day currently going through the "no active program" Inherit
+  // Workout flow — holds the date picker modal open while set, cleared
+  // once scheduled or cancelled.
+  const [pendingInheritDay, setPendingInheritDay] = useState<ProgramDay | null>(
+    null,
+  );
 
   // Inheriting means overriding an existing program's schedule — with no
   // program of their own to override, there's nothing to slot this into,
-  // so the day's exercises go to the standalone Log Workout flow instead
-  // (see handleLogAsStandalone below).
+  // so a viewer with no active program instead gets a brand new minimal
+  // program created just for the day they pick (see handleInheritAsNewProgram
+  // below).
   const hasOwnActiveProgram = !!ownPrograms?.some(
     (program: Program) => program.isActive,
   );
 
-  const performInherit = (day: ProgramDay, force: boolean) => {
+  const performInherit = (
+    day: ProgramDay,
+    force: boolean,
+    rebalanceWithAI = false,
+  ) => {
     inheritWorkoutDay(
-      { dayId: day.id, force },
+      { dayId: day.id, force, rebalanceWithAI },
       {
         onSuccess: (data: { updatedCount: number }) =>
           setToastMessage(
-            `Copied to your ${day.dayName} (${data.updatedCount} ${data.updatedCount === 1 ? "week" : "weeks"})`,
+            rebalanceWithAI
+              ? `Copied to your ${day.dayName} and adjusted the conflicting day(s) to avoid overlap`
+              : `Copied to your ${day.dayName} (${data.updatedCount} ${data.updatedCount === 1 ? "week" : "weeks"})`,
           ),
         onError: (error: unknown) => {
           const typedError = error as { status?: number; message?: string };
           // A conflict (409) means this would double up a muscle group
           // with the day before/after in the viewer's own schedule — not
-          // a hard failure, just needs a second, more specific
-          // confirmation before overriding anyway.
+          // a hard failure, just needs a second, more specific choice
+          // before proceeding: override and leave the overlap, or have AI
+          // reassign the conflicting day(s) to a non-overlapping focus.
           if (typedError?.status === 409) {
             Alert.alert(
               "Heads up",
-              `${typedError.message ?? "This overlaps with your existing schedule."} Copy anyway?`,
+              typedError.message ?? "This overlaps with your existing schedule.",
               [
                 { text: "Cancel", style: "cancel" },
                 {
                   text: "Copy Anyway",
-                  onPress: () => performInherit(day, true),
+                  onPress: () => performInherit(day, true, false),
+                },
+                {
+                  text: "Adjust My Schedule",
+                  onPress: () => performInherit(day, false, true),
                 },
               ],
             );
@@ -158,31 +185,32 @@ const UserProfileScreen = () => {
     );
   };
 
-  const handleLogAsStandalone = async (day: ProgramDay) => {
+  // No active program to slot this into — ask which date to schedule it
+  // on instead, then create a minimal one-day program there (see
+  // useInheritWorkoutDayAsNewProgram). It shows up on the calendar exactly
+  // like a real program day: unlogged until they actually do it.
+  const handleInheritAsNewProgram = async (day: ProgramDay) => {
     const granted = await ensureProAccess();
     if (!granted) return;
+    setPendingInheritDay(day);
+  };
 
-    Alert.alert(
-      "Log this workout?",
-      `You don't have an active program, so this will open Log Workout pre-filled with ${profile?.username ?? "their"}'s ${day.focus} exercises for you to fill in.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Log It",
-          onPress: () => {
-            dispatch(
-              setPendingWorkout(
-                day.exercises.map((exercise) => ({
-                  exerciseName: exercise.exerciseName,
-                  muscleGroup: exercise.muscleGroup,
-                  equipment: exercise.equipment,
-                })),
-              ),
-            );
-            router.push("/(tabs)");
-          },
+  const handleConfirmInheritDate = (dateKey: string) => {
+    if (!pendingInheritDay) return;
+    inheritWorkoutDayAsNewProgram(
+      { dayId: pendingInheritDay.id, date: dateKey },
+      {
+        onSuccess: () => {
+          setPendingInheritDay(null);
+          setToastMessage(`Scheduled ${pendingInheritDay.focus} for that day`);
         },
-      ],
+        onError: (error: unknown) => {
+          const typedError = error as { message?: string };
+          setToastMessage(
+            typedError?.message ?? "Couldn't schedule that workout",
+          );
+        },
+      },
     );
   };
 
@@ -564,15 +592,15 @@ const UserProfileScreen = () => {
                         {!day.isRestDay && !hasOwnActiveProgram && (
                           <TouchableOpacity
                             style={styles.inheritButton}
-                            onPress={() => handleLogAsStandalone(day)}
+                            onPress={() => handleInheritAsNewProgram(day)}
                           >
                             <Feather
-                              name="edit-3"
+                              name="download"
                               size={12}
                               color={colors.primaryBlue}
                             />
                             <Text style={styles.inheritButtonText}>
-                              Log this workout
+                              Inherit Workout
                             </Text>
                           </TouchableOpacity>
                         )}
@@ -664,6 +692,13 @@ const UserProfileScreen = () => {
           onHide={() => setToastMessage(null)}
         />
       </View>
+
+      <InheritDatePickerModal
+        visible={!!pendingInheritDay}
+        onClose={() => setPendingInheritDay(null)}
+        onConfirm={handleConfirmInheritDate}
+        isSubmitting={isSchedulingInherit}
+      />
     </SafeAreaView>
   );
 };

@@ -31,8 +31,9 @@ import {
   BODYWEIGHT_MAX_SETS,
   REAL_DAY_NAMES,
   getDayRegions,
+  MUSCLE_REGION,
 } from "./programs.prompts";
-import { weekResponseSchema } from "./programs.schema";
+import { weekResponseSchema, weekDaySchema } from "./programs.schema";
 import { CreateProgramInput } from "./programs.types";
 import { toProxiedImagePath } from "../exercises/exercises.service";
 
@@ -1403,6 +1404,117 @@ const getDayRegionsFromExercises = (
   exercises: { muscleGroup: string }[],
 ): string[] => getDayRegions(exercises.map((exercise) => exercise.muscleGroup));
 
+// Gives ONE conflicting day (see inheritWorkoutDay below) a new focus and
+// exercise list that avoids `avoidRegions` entirely — called instead of
+// throwing the adjacent-muscle-group 409 when the caller opted into
+// AI rebalancing rather than a blind "copy anyway" override. Structurally
+// guarantees no overlap (the allowed-exercise list itself excludes those
+// regions, not just a prompt instruction) rather than trusting the model
+// to respect it on its own — the model can still fail to answer usefully,
+// in which case this leaves the day untouched instead of corrupting it.
+const rebalanceConflictingDay = async (
+  day: {
+    id: string;
+    dayName: string;
+    exercises: { muscleGroup: string }[];
+  },
+  program: {
+    equipmentAccess: string;
+    fitnessLevel: string;
+    sessionMinutes: number;
+  },
+  avoidRegions: string[],
+): Promise<boolean> => {
+  const allowedEquipment =
+    EQUIPMENT_ACCESS_FILTERS[program.equipmentAccess as EquipmentAccess];
+  const catalogExercises = await prisma.exercise.findMany({
+    where: allowedEquipment ? { equipment: { in: allowedEquipment } } : {},
+    select: { name: true, muscleGroup: true },
+  });
+
+  const avoidSet = new Set(avoidRegions);
+  const safeExercises = catalogExercises.filter(
+    (exercise) =>
+      !avoidSet.has(MUSCLE_REGION[exercise.muscleGroup] ?? exercise.muscleGroup),
+  );
+
+  // Nothing safe to recommend (e.g. very limited equipment access already
+  // exhausted by the regions being avoided) — leave the day as it was
+  // rather than forcing a bad pick or an empty day.
+  if (safeExercises.length === 0) return false;
+
+  const allowedNames = safeExercises.map((exercise) => exercise.name);
+  const currentMuscleGroups = [
+    ...new Set(day.exercises.map((exercise) => exercise.muscleGroup)),
+  ];
+
+  const prompt = `You are adjusting ONE day of a user's existing workout program because a different day was just changed to train ${avoidRegions.join(", ")} instead.
+
+This day (${day.dayName}) currently trains: ${currentMuscleGroups.join(", ") || "nothing yet"}.
+
+Pick a NEW focus and exercises for this day that do NOT train any of: ${avoidRegions.join(", ")} — training the same muscle group on adjacent days doesn't allow enough recovery. Aim for a similar total session length (~${program.sessionMinutes} minutes) and difficulty (${program.fitnessLevel}) to what was there before.
+
+Only use exercises from this exact list, spelled exactly as shown: ${allowedNames.join(", ")}
+
+Respond with JSON only, in this exact shape:
+{"dayName": "${day.dayName}", "focus": "<new focus, e.g. \\"Arms\\">", "isRestDay": false, "exercises": [{"exerciseName": "...", "muscleGroup": "...", "sets": 3, "reps": 10, "restSeconds": 60}]}`;
+
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{ role: "user", content: prompt }],
+    response_format: { type: "json_object" },
+  });
+
+  const rawContent = completion.choices[0]?.message?.content;
+  if (!rawContent) return false;
+
+  let parsedDay;
+  try {
+    parsedDay = weekDaySchema.parse(JSON.parse(stripCodeFences(rawContent)));
+  } catch (err) {
+    console.warn(`Rebalance response failed validation for day ${day.id}:`, err);
+    return false;
+  }
+
+  const allowedNameSet = new Set(allowedNames);
+  const resolvedExercises = parsedDay.exercises.flatMap((exercise) => {
+    const resolvedName = allowedNameSet.has(exercise.exerciseName)
+      ? exercise.exerciseName
+      : resolveExerciseName(exercise.exerciseName, allowedNames);
+    if (!resolvedName) return [];
+
+    const catalogEntry = safeExercises.find((e) => e.name === resolvedName);
+    if (!catalogEntry) return [];
+
+    return [{ ...exercise, exerciseName: resolvedName, muscleGroup: catalogEntry.muscleGroup }];
+  });
+
+  if (resolvedExercises.length === 0) return false;
+
+  await prisma.$transaction([
+    prisma.programExercise.deleteMany({ where: { dayId: day.id } }),
+    prisma.programDay.update({
+      where: { id: day.id },
+      data: {
+        focus: parsedDay.focus,
+        exercises: {
+          create: resolvedExercises.map((exercise, index) => ({
+            exerciseName: exercise.exerciseName,
+            muscleGroup: exercise.muscleGroup,
+            sets: exercise.sets,
+            reps: exercise.reps,
+            restSeconds: exercise.restSeconds,
+            notes: exercise.notes,
+            order: index + 1,
+          })),
+        },
+      },
+    }),
+  ]);
+
+  return true;
+};
+
 // Lets a viewer take a single day from someone else's public program (as
 // seen on the profile screen reached from the leaderboard) and drop it
 // into their OWN active program — replacing whatever was scheduled there,
@@ -1418,11 +1530,15 @@ const getDayRegionsFromExercises = (
 // `force` skips the adjacent-day muscle-group conflict check below — the
 // frontend calls once without it, and if that 409s with a conflict
 // warning (e.g. "you also train Chest on Wednesday"), re-calls with
-// force: true only if the user explicitly confirms anyway.
+// force: true only if the user explicitly confirms overriding anyway
+// (leaving the resulting overlap in place), or rebalanceWithAI: true if
+// they'd rather have the conflicting day(s) themselves reassigned to a
+// non-overlapping focus instead (see rebalanceConflictingDay above).
 export const inheritWorkoutDay = async (
   viewerId: string,
   sourceDayId: string,
   force: boolean = false,
+  rebalanceWithAI: boolean = false,
 ) => {
   const sourceDay = await prisma.programDay.findFirst({
     where: {
@@ -1502,31 +1618,48 @@ export const inheritWorkoutDay = async (
     const sourceRegions = new Set(
       getDayRegionsFromExercises(sourceDay.exercises),
     );
-    const conflicts = adjacentDays
+    const conflictingDays = adjacentDays
       .filter((day) => !day.isRestDay && day.exercises.length > 0)
-      .map((day) => {
-        const overlap = getDayRegionsFromExercises(day.exercises).filter(
-          (region) => sourceRegions.has(region),
-        );
-        return overlap.length > 0
-          ? `Week ${day.week.weekNumber} ${day.dayName} (${overlap.join(", ")})`
-          : null;
-      })
-      .filter((conflict): conflict is string => conflict !== null);
+      .map((day) => ({
+        day,
+        overlap: getDayRegionsFromExercises(day.exercises).filter((region) =>
+          sourceRegions.has(region),
+        ),
+      }))
+      .filter(({ overlap }) => overlap.length > 0);
 
-    if (conflicts.length > 0) {
-      // Capped so a long program with a genuinely conflicting split
-      // doesn't produce an unreadable wall of text — the point is to
-      // show it's a real, recurring conflict, not enumerate every week.
-      const shown = conflicts.slice(0, 3);
-      const suffix =
-        conflicts.length > shown.length
-          ? ` and ${conflicts.length - shown.length} more`
-          : "";
-      throw new AppError(
-        409,
-        `This overlaps with what you already have scheduled on ${shown.join(", ")}${suffix}.`,
-      );
+    if (conflictingDays.length > 0) {
+      if (rebalanceWithAI) {
+        const viewerProgram = await prisma.program.findFirst({
+          where: { userId: viewerId, isActive: true },
+        });
+
+        if (viewerProgram) {
+          for (const { day } of conflictingDays) {
+            await rebalanceConflictingDay(day, viewerProgram, [
+              ...sourceRegions,
+            ]);
+          }
+        }
+      } else {
+        // Capped so a long program with a genuinely conflicting split
+        // doesn't produce an unreadable wall of text — the point is to
+        // show it's a real, recurring conflict, not enumerate every week.
+        const shown = conflictingDays.slice(0, 3);
+        const suffix =
+          conflictingDays.length > shown.length
+            ? ` and ${conflictingDays.length - shown.length} more`
+            : "";
+        throw new AppError(
+          409,
+          `This overlaps with what you already have scheduled on ${shown
+            .map(
+              ({ day, overlap }) =>
+                `Week ${day.week.weekNumber} ${day.dayName} (${overlap.join(", ")})`,
+            )
+            .join(", ")}${suffix}.`,
+        );
+      }
     }
   }
 
@@ -1559,6 +1692,105 @@ export const inheritWorkoutDay = async (
   ]);
 
   return { dayIds: targetDayIds, updatedCount: targetDayIds.length };
+};
+
+// For a viewer with NO active program of their own — inheritWorkoutDay
+// above needs an existing program's recurring weekday slot to write into,
+// which doesn't exist yet here. Instead this creates a real (if minimal,
+// single-day) Program so the chosen date gets a normal scheduled-but-not-
+// yet-logged day, reusing every bit of existing calendar/completion/
+// logging machinery rather than inventing a second "pending workout"
+// concept that isn't a Program at all. Bypasses generateProgramWeeks
+// entirely (no AI generation needed — the exercises are already fully
+// known, just being copied), unlike createProgram.
+export const inheritWorkoutDayAsNewProgram = async (
+  userId: string,
+  sourceDayId: string,
+  targetDateStr: string,
+) => {
+  const existingActiveProgram = await prisma.program.findFirst({
+    where: { userId, isActive: true },
+  });
+  if (existingActiveProgram) {
+    throw new AppError(
+      400,
+      'You already have an active program — use "Copy to my schedule" instead.',
+    );
+  }
+
+  const sourceDay = await prisma.programDay.findFirst({
+    where: {
+      id: sourceDayId,
+      week: {
+        program: {
+          user: { isLeaderboardVisible: true, username: { not: null } },
+        },
+      },
+    },
+    include: { exercises: { orderBy: { order: "asc" } } },
+  });
+
+  if (!sourceDay) {
+    throw new AppError(404, "Workout day not found");
+  }
+  if (sourceDay.isRestDay) {
+    throw new AppError(400, "Can't inherit a rest day");
+  }
+
+  const [year, month, day] = targetDateStr.split("-").map(Number);
+  const targetDate = new Date(year, month - 1, day);
+  if (isNaN(targetDate.getTime())) {
+    throw new AppError(400, "Invalid date format. Use YYYY-MM-DD");
+  }
+
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  if (targetDate.getTime() < todayStart.getTime()) {
+    throw new AppError(400, "Can't schedule a workout in the past");
+  }
+
+  const dayName = REAL_DAY_NAMES[targetDate.getDay()];
+
+  return prisma.program.create({
+    data: {
+      userId,
+      name: `${sourceDay.focus} (Inherited)`,
+      startDate: targetDate,
+      endDate: targetDate,
+      durationDays: 1,
+      daysPerWeek: 1,
+      preferredDays: [dayName],
+      sessionMinutes: 60,
+      generationStatus: "complete",
+      isActive: true,
+      weeks: {
+        create: {
+          weekNumber: 1,
+          days: {
+            create: {
+              dayNumber: 1,
+              dayName,
+              date: targetDate,
+              focus: sourceDay.focus,
+              isRestDay: false,
+              exercises: {
+                create: sourceDay.exercises.map((exercise, index) => ({
+                  exerciseName: exercise.exerciseName,
+                  muscleGroup: exercise.muscleGroup,
+                  sets: exercise.sets,
+                  reps: exercise.reps,
+                  restSeconds: exercise.restSeconds,
+                  notes: exercise.notes,
+                  order: index + 1,
+                })),
+              },
+            },
+          },
+        },
+      },
+    },
+    include: { weeks: { include: { days: { include: { exercises: true } } } } },
+  });
 };
 
 export const addProgramExercise = async (
