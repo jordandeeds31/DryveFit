@@ -156,6 +156,22 @@ const sortByRecency = (articles: NewsArticle[]): NewsArticle[] =>
     return bTime - aTime;
   });
 
+// Several sources overlap on the same story with the same link — e.g. an
+// NFL story pulled by both the general ESPN feed and the ESPN NFL feed —
+// which without this would reach the client as two articles sharing one
+// `id`, breaking FlatList's keyExtractor (React logs a duplicate-key
+// warning and can misrender/duplicate rows). Keeps whichever copy was
+// seen first; which source/category "wins" for an overlapping story
+// doesn't matter for display.
+const dedupeById = (articles: NewsArticle[]): NewsArticle[] => {
+  const seen = new Set<string>();
+  return articles.filter((article) => {
+    if (seen.has(article.id)) return false;
+    seen.add(article.id);
+    return true;
+  });
+};
+
 // Cached uncapped and unfiltered — a keyword search should be able to match
 // against everything actually fetched, not just whatever made the top-cut.
 // Only the RSS side is cached — user blog posts are a fast local DB query
@@ -166,7 +182,7 @@ const getCachedRssArticles = async (): Promise<NewsArticle[]> => {
   }
 
   const results = await Promise.all(FEED_SOURCES.map(fetchFeed));
-  const articles = sortByRecency(results.flat());
+  const articles = dedupeById(sortByRecency(results.flat()));
 
   rssCache = { articles, fetchedAt: Date.now() };
   return articles;
@@ -237,11 +253,17 @@ export const getNewsFeed = async (
     wantsLocal ? getLocalArticlesForViewer(viewerId) : Promise.resolve([]),
   ]);
 
-  const allArticles = sortByRecency([
-    ...rssArticles,
-    ...localArticles,
-    ...blogPosts.map(toBlogNewsArticle),
-  ]);
+  // rssArticles is already deduped internally, but the crime feed and a
+  // city's local feed are both separate Google News search queries that
+  // can genuinely surface the exact same story/link — deduped again here
+  // now that everything's combined.
+  const allArticles = dedupeById(
+    sortByRecency([
+      ...rssArticles,
+      ...localArticles,
+      ...blogPosts.map(toBlogNewsArticle),
+    ]),
+  );
 
   const categoryFiltered =
     categories && categories.length > 0
