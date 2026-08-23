@@ -32,6 +32,14 @@ export const useSendChatMessage = () => {
       queryClient.invalidateQueries({
         queryKey: ["conversationMessages", data.conversationId],
       });
+      // The AI coach can log sets via its log_workout_sets tool (see
+      // chat.service.ts) — invalidated unconditionally rather than only
+      // when a tool was actually called, since that's cheap (just marks
+      // these stale for the next mount/focus) and avoids threading a
+      // "did this message write anything" flag through the API just for
+      // this. Same pair useWorkoutLogs.ts invalidates after a manual log.
+      queryClient.invalidateQueries({ queryKey: ["workoutLogs"] });
+      queryClient.invalidateQueries({ queryKey: ["1rmHistory"] });
     },
   });
 };

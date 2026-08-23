@@ -8,6 +8,7 @@ import AppError from "../../utils/AppError";
 import {
   getRecentWorkoutLogsForUser,
   getDistinctExerciseNamesForUser,
+  logExerciseSetsForDate,
 } from "../workoutLogs/workoutLogs.service";
 import {
   getExercise1RMHistory,
@@ -28,9 +29,32 @@ const HISTORY_LIMIT = 40;
 // model gets stuck repeatedly calling tools instead of answering.
 const MAX_TOOL_ROUNDS = 5;
 
-const SYSTEM_PROMPT = `You are DryveFit AI Coach, the AI coach built into DryveFit, a fitness tracking app. You're chatting directly with the user about their own training.
+// Weight is always persisted in lbs (see frontend/lib/utils/units.ts's
+// toStoredLbs) regardless of the user's display unitSystem — the
+// log_workout_sets tool accepts either unit from the model and converts
+// here so the stored value matches what every other write path produces.
+const LBS_PER_KG = 2.20462262185;
+
+// "Today"/"yesterday" in a chat message means the user's own local
+// calendar date, not the server's (Render runs UTC) — same reasoning as
+// the workout-reminder job using each user's saved IANA timezone. Falls
+// back to UTC for a user who never set one (timezone is only populated
+// once registerForPushNotifications runs at least once).
+const getUserLocalDateStr = (timezone: string | null): string =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone || "UTC",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+
+const buildSystemPrompt = (todayStr: string): string => `You are DryveFit AI Coach, the AI coach built into DryveFit, a fitness tracking app. You're chatting directly with the user about their own training.
+
+Today's date (the user's own local calendar date) is ${todayStr}. Use this to resolve relative dates like "today" or "yesterday" — never guess or use a different date.
 
 You have tools to fetch this user's real workout logs, lifting personal records, cardio sessions, and active program — always call a tool to get real numbers instead of guessing or making anything up. If a tool returns no data, say so plainly rather than inventing an answer.
+
+You can also log completed sets for the user with log_workout_sets — e.g. "log 3 sets of 250lbs for 8 reps of barbell bench press for today" should call it directly, without asking for confirmation first, since logging a plain factual statement like that is exactly what the user asked for. Only ask a clarifying question first if something's genuinely ambiguous (e.g. the exercise name doesn't clearly match one thing, or reps/weight are missing). After the tool call succeeds, confirm back to the user exactly what got logged (exercise, sets, weight, reps, date). If the tool errors — e.g. no matching exercise, or multiple exercises match — relay that plainly and ask them to clarify rather than guessing which one they meant.
 
 Be concise, specific, and encouraging — cite actual numbers, exercise names, and dates from the data you fetch. If asked something with no relevant tool (e.g. general fitness advice), just answer normally.`;
 
@@ -119,6 +143,52 @@ const tools: ChatCompletionTool[] = [
       parameters: { type: "object", properties: {} },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "log_workout_sets",
+      description:
+        "Log one or more completed sets of a single exercise for the user, for a given date. Adds to whatever's already logged that day rather than replacing it — safe to call even if other exercises were already logged for the same date. If the exercise name doesn't clearly match exactly one exercise in the catalog, this returns an error listing the possible matches instead of guessing.",
+      parameters: {
+        type: "object",
+        properties: {
+          exerciseName: {
+            type: "string",
+            description:
+              "The exercise name as the user said it, e.g. \"barbell bench press\". Matched case-insensitively against the exercise catalog.",
+          },
+          sets: {
+            type: "array",
+            description: "Each set completed, in order.",
+            items: {
+              type: "object",
+              properties: {
+                weight: {
+                  type: "number",
+                  description: "Weight used for this set. Omit entirely for a bodyweight exercise.",
+                },
+                reps: {
+                  type: "number",
+                  description: "Reps completed for this set.",
+                },
+              },
+              required: ["reps"],
+            },
+          },
+          weightUnit: {
+            type: "string",
+            enum: ["lbs", "kg"],
+            description: "Unit the weight values are in. Default \"lbs\" unless the user said kg.",
+          },
+          date: {
+            type: "string",
+            description: "Date to log for, as YYYY-MM-DD. Defaults to today (see the date given in the system prompt) if omitted.",
+          },
+        },
+        required: ["exerciseName", "sets"],
+      },
+    },
+  },
 ];
 
 const clampLimit = (value: unknown, fallback: number, max: number): number => {
@@ -126,10 +196,13 @@ const clampLimit = (value: unknown, fallback: number, max: number): number => {
   return Math.max(1, Math.min(max, Math.round(n)));
 };
 
+const DATE_STR_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
 const executeTool = async (
   userId: string,
   name: string,
   args: Record<string, unknown>,
+  todayStr: string,
 ): Promise<unknown> => {
   switch (name) {
     case "get_recent_workouts":
@@ -169,6 +242,49 @@ const executeTool = async (
 
     case "get_active_program":
       return getActiveProgramForUser(userId);
+
+    case "log_workout_sets": {
+      const exerciseName = args.exerciseName;
+      if (typeof exerciseName !== "string" || exerciseName.trim() === "") {
+        return { error: "exerciseName is required" };
+      }
+
+      const rawSets = Array.isArray(args.sets) ? args.sets : [];
+      if (rawSets.length === 0) {
+        return { error: "At least one set is required" };
+      }
+
+      const weightUnit = args.weightUnit === "kg" ? "kg" : "lbs";
+      const sets: Array<{ weight: number | null; reps: number }> = [];
+      for (const rawSet of rawSets) {
+        const set = rawSet as Record<string, unknown>;
+        const reps = typeof set.reps === "number" ? set.reps : null;
+        if (reps == null || reps <= 0) {
+          return { error: "Every set needs a positive rep count" };
+        }
+        const rawWeight = typeof set.weight === "number" ? set.weight : null;
+        const weight =
+          rawWeight == null
+            ? null
+            : weightUnit === "kg"
+              ? rawWeight * LBS_PER_KG
+              : rawWeight;
+        sets.push({ weight, reps });
+      }
+
+      const date =
+        typeof args.date === "string" && DATE_STR_PATTERN.test(args.date)
+          ? args.date
+          : todayStr;
+
+      try {
+        return await logExerciseSetsForDate(userId, exerciseName, sets, date);
+      } catch (err) {
+        return {
+          error: err instanceof AppError ? err.message : "Failed to log the workout",
+        };
+      }
+    }
 
     default:
       return { error: `Unknown tool: ${name}` };
@@ -240,14 +356,19 @@ export const sendChatMessage = async (
     data: { userId, conversationId: conversation.id, role: "user", content },
   });
 
-  const priorMessages = await prisma.chatMessage.findMany({
-    where: { conversationId: conversation.id },
-    orderBy: { createdAt: "desc" },
-    take: HISTORY_LIMIT,
-  });
+  const [priorMessages, user] = await Promise.all([
+    prisma.chatMessage.findMany({
+      where: { conversationId: conversation.id },
+      orderBy: { createdAt: "desc" },
+      take: HISTORY_LIMIT,
+    }),
+    prisma.user.findUnique({ where: { id: userId }, select: { timezone: true } }),
+  ]);
+
+  const todayStr = getUserLocalDateStr(user?.timezone ?? null);
 
   const messages: ChatCompletionMessageParam[] = [
-    { role: "system", content: SYSTEM_PROMPT },
+    { role: "system", content: buildSystemPrompt(todayStr) },
     ...priorMessages
       .reverse()
       .map((message): ChatCompletionMessageParam => ({
@@ -290,7 +411,12 @@ export const sendChatMessage = async (
         // object rather than crashing the whole turn.
       }
 
-      const result = await executeTool(userId, toolCall.function.name, args);
+      const result = await executeTool(
+        userId,
+        toolCall.function.name,
+        args,
+        todayStr,
+      );
 
       messages.push({
         role: "tool",
