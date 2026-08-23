@@ -1,5 +1,5 @@
 import { Router } from "express";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { authMiddleware, AuthRequest } from "../../middleware/authMiddleware";
 import {
   listDmConversationsHandler,
@@ -19,12 +19,25 @@ router.use(authMiddleware);
 // unrelated users, and this also sidesteps needing `app.set("trust
 // proxy", ...)` for X-Forwarded-For handling behind Render's proxy, which
 // isn't configured anywhere in this app today.
+//
+// req.ip is only ever the fallback here — authMiddleware runs first for
+// this whole router, so userId should always be set — but
+// express-rate-limit validates the key generator at startup and throws
+// (not just warns) if it sees a raw IP anywhere in it, since a bare IPv6
+// address is too granular to rate-limit by (one device/network can rotate
+// through a huge address space within its own /64 block, bypassing a
+// naive per-address limit). Routing even the unreachable fallback through
+// their own ipKeyGenerator satisfies that check — this was crashing the
+// whole process at require-time (see the stack trace: thrown while
+// loading this very route module), which explains real production 502s,
+// not just a benign log line.
 const sendMessageLimiter = rateLimit({
   windowMs: 60 * 1000,
   limit: 30,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => (req as AuthRequest).userId ?? req.ip ?? "unknown",
+  keyGenerator: (req) =>
+    (req as AuthRequest).userId ?? ipKeyGenerator(req.ip ?? "unknown"),
 });
 
 router.get("/conversations", listDmConversationsHandler);
