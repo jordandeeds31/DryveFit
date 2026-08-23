@@ -95,7 +95,28 @@ export const logStandaloneWorkout = async (
     },
   });
 
-  return workoutLog;
+  // Same equipment enrichment getWorkoutLogsForDate does — the frontend
+  // writes this response straight into the ["workoutLogs", date] cache on
+  // success (see useLogStandaloneWorkout) rather than waiting on a
+  // separate refetch, so it needs to match that shape exactly, including
+  // the field WorkoutLogger's edit-prefill uses to hide the weight input
+  // for a bodyweight exercise.
+  const exerciseNames = workoutLog.exercises.map((exercise) => exercise.exerciseName);
+  const catalogEntries = await prisma.exercise.findMany({
+    where: { name: { in: exerciseNames } },
+    select: { name: true, equipment: true },
+  });
+  const equipmentByName = new Map(
+    catalogEntries.map((entry) => [entry.name, entry.equipment]),
+  );
+
+  return {
+    ...workoutLog,
+    exercises: workoutLog.exercises.map((exercise) => ({
+      ...exercise,
+      equipment: equipmentByName.get(exercise.exerciseName) ?? null,
+    })),
+  };
 };
 
 // Used by the AI chat tool (log_workout_sets) — deliberately additive,

@@ -22,10 +22,17 @@ export const useLogStandaloneWorkout = () => {
       }>;
       date: string;
     }) => logStandaloneWorkout(exercises, date),
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: ["workoutLogs", variables.date],
-      });
+    onSuccess: (data, variables) => {
+      // Writes the real result straight into the cache instead of just
+      // invalidating and waiting on a refetch — invalidate alone leaves a
+      // window (variable, network-dependent — the "sometimes" in "it says
+      // Log Workout, then later shows the logged workout") where Home
+      // still renders the OLD (pre-log, empty) cached array while the
+      // background refetch is in flight, since isLoading only reflects
+      // "no data at all", not "this data is stale". logStandaloneWorkout
+      // always fully replaces the day, so its response IS the complete,
+      // correct array for this date — no round-trip needed to know that.
+      queryClient.setQueryData(["workoutLogs", variables.date], [data]);
       queryClient.invalidateQueries({ queryKey: ["1rmHistory"] });
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
       queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
