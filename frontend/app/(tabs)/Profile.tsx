@@ -530,11 +530,14 @@ const styles = StyleSheet.create({
   },
   savePill: {
     position: "absolute",
-    top: spacing.sm,
-    right: spacing.md,
+    // Pinned to the bottom instead of the top — the header row (back
+    // button + "Settings" title) added later sits right where this used
+    // to float, so it was overlapping that instead of the page content.
+    bottom: spacing.lg,
+    alignSelf: "center",
     backgroundColor: colors.primaryBlue,
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xl,
     borderRadius: 20,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
