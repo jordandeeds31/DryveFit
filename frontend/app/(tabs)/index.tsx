@@ -300,6 +300,23 @@ const HomeScreen = () => {
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
+          style={[
+            styles.homeTab,
+            homeTab === "bodyScan" && styles.homeTabActive,
+          ]}
+          onPress={() => setHomeTab("bodyScan")}
+        >
+          <Text
+            style={[
+              styles.homeTabText,
+              homeTab === "bodyScan" && styles.homeTabTextActive,
+            ]}
+            numberOfLines={1}
+          >
+            Body Scan
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
           style={[styles.homeTab, homeTab === "feed" && styles.homeTabActive]}
           onPress={() => {
             setHomeTab("feed");
@@ -338,23 +355,6 @@ const HomeScreen = () => {
             numberOfLines={1}
           >
             News
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.homeTab,
-            homeTab === "bodyScan" && styles.homeTabActive,
-          ]}
-          onPress={() => setHomeTab("bodyScan")}
-        >
-          <Text
-            style={[
-              styles.homeTabText,
-              homeTab === "bodyScan" && styles.homeTabTextActive,
-            ]}
-            numberOfLines={1}
-          >
-            Body Scan
           </Text>
         </TouchableOpacity>
       </View>
