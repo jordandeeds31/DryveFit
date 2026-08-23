@@ -101,7 +101,29 @@ let rssCache: { articles: NewsArticle[]; fetchedAt: number } | null = null;
 // Local news is personalized per viewer (their saved city), so it can't
 // share the single global rssCache above — keyed by city rather than by
 // user, since two users in the same city should hit the same cached fetch.
+// Unlike rssCache (one fixed slot, always overwritten), this grows one new
+// entry per DISTINCT city ever queried — now that the city list is
+// worldwide rather than ~32k US places, that's effectively unbounded on a
+// long-lived process. LOCAL_CACHE_MAX_ENTRIES below caps it; without a
+// cap this was a real, slow memory leak.
 const localCache = new Map<string, { articles: NewsArticle[]; fetchedAt: number }>();
+const LOCAL_CACHE_MAX_ENTRIES = 500;
+
+// Maps preserve insertion order, and re-`set`ting an existing key moves it
+// to the end — so the first key is always the least-recently-(re)used one.
+// Deleting it on overflow is a cheap, good-enough LRU approximation
+// without pulling in a real LRU cache dependency for what's a soft cap.
+const setLocalCache = (
+  city: string,
+  value: { articles: NewsArticle[]; fetchedAt: number },
+): void => {
+  localCache.delete(city);
+  if (localCache.size >= LOCAL_CACHE_MAX_ENTRIES) {
+    const oldestKey = localCache.keys().next().value;
+    if (oldestKey !== undefined) localCache.delete(oldestKey);
+  }
+  localCache.set(city, value);
+};
 
 const parser = new Parser();
 
@@ -196,7 +218,7 @@ const getLocalArticlesForCity = async (city: string): Promise<NewsArticle[]> => 
 
   const url = `https://news.google.com/rss/search?q=${encodeURIComponent(`${city} news`)}&hl=en-US&gl=US&ceid=US:en`;
   const articles = await fetchFeed({ name: `${city} Local`, url, category: "local" });
-  localCache.set(city, { articles, fetchedAt: Date.now() });
+  setLocalCache(city, { articles, fetchedAt: Date.now() });
   return articles;
 };
 
