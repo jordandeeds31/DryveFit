@@ -12,9 +12,15 @@ export const useCountries = () => {
 };
 
 export const useCitySearch = (query: string, countryCode?: string) => {
+  const trimmedLength = query.trim().length;
   return useQuery({
     queryKey: ["citySearch", query, countryCode ?? ""],
     queryFn: () => searchCities(query, countryCode),
-    enabled: query.trim().length >= 2 && !!countryCode,
+    // Empty query still runs (once a country's picked) — that's the
+    // dropdown arrow's own "browse this country's cities" list, not a
+    // real search. A single character stays disabled, same as before,
+    // since one letter worldwide-within-a-country is still too broad to
+    // be a useful filter.
+    enabled: !!countryCode && (trimmedLength === 0 || trimmedLength >= 2),
   });
 };

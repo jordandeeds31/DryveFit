@@ -188,20 +188,18 @@ const CityPicker = ({ selectedCity, setSelectedCity }: CityPickerProps) => {
                     Keep typing to search cities
                   </Text>
                 )}
-                {!showMinCharsHint && debouncedCityQuery.trim().length === 0 && (
-                  <Text style={styles.loadingText}>
-                    Type to search {selectedCountryName} cities
-                  </Text>
-                )}
                 {isFetching && (
                   <ActivityIndicator style={{ marginVertical: 8 }} />
                 )}
+                {!isFetching && !showMinCharsHint && cities?.length === 0 && (
+                  <Text style={styles.loadingText}>
+                    {debouncedCityQuery.trim().length === 0
+                      ? `No cities found for ${selectedCountryName}`
+                      : "No cities found"}
+                  </Text>
+                )}
                 {!isFetching &&
-                  debouncedCityQuery.trim().length >= 2 &&
-                  cities?.length === 0 && (
-                    <Text style={styles.loadingText}>No cities found</Text>
-                  )}
-                {!isFetching &&
+                  !showMinCharsHint &&
                   cities?.map((city: string) => (
                     <TouchableOpacity
                       key={city}

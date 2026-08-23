@@ -31,13 +31,23 @@ export const isValidCity = (city: string): boolean => CITY_LABEL_SET.has(city);
 // countryCode narrows the search to one country (the picker's own flow —
 // pick a country first, then search within it) — omitted, it searches
 // worldwide, e.g. for validating/matching an already-known label.
+//
+// An empty query only returns results when countryCode is given — that's
+// "show me this country's dropdown before I've typed anything" (the
+// picker's own down-arrow), not "list something for a worldwide empty
+// search", which would be both meaningless and enormous.
 export const searchCities = (
   query: string,
   countryCode?: string,
   limit = 50,
 ): string[] => {
   const normalized = query.trim().toLowerCase();
-  if (normalized.length === 0) return [];
+  if (normalized.length === 0) {
+    if (!countryCode) return [];
+    return CITIES.filter((c) => c.countryCode === countryCode)
+      .slice(0, limit)
+      .map((c) => c.label);
+  }
 
   const pool = countryCode
     ? CITIES.filter((c) => c.countryCode === countryCode)
