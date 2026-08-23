@@ -2,7 +2,7 @@ import { Platform } from "react-native";
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
 import Constants from "expo-constants";
-import { router } from "expo-router";
+import { router, Href } from "expo-router";
 import { updatePushToken } from "@/lib/api/users.api";
 
 // Governs how a push is presented while the app is already open in the
@@ -88,7 +88,13 @@ interface PushNotificationData {
   screen?: "programs";
 }
 
-const handleNotificationTap = (response: Notifications.NotificationResponse) => {
+// Pure mapping from a tapped notification's payload to where it should
+// land — shared by the warm-tap listener below and by index.tsx's
+// cold-start redirect, which needs the target route without navigating
+// itself (see consumePendingNotificationRoute).
+const getRouteForNotification = (
+  response: Notifications.NotificationResponse,
+): Href | null => {
   const data = response.notification.request.content
     .data as PushNotificationData;
 
@@ -97,7 +103,7 @@ const handleNotificationTap = (response: Notifications.NotificationResponse) => 
     data?.type === "post_comment" ||
     data?.type === "comment_reply"
   ) {
-    if (!data.postId) return;
+    if (!data.postId) return null;
     // Same "reply to the specific comment" deep link the in-app
     // notifications screen uses for a comment tap — see notifications.tsx.
     const replyParam =
@@ -105,47 +111,61 @@ const handleNotificationTap = (response: Notifications.NotificationResponse) => 
       data.commentId
         ? `?replyTo=${data.commentId}`
         : "";
-    router.push(`/post/${data.postId}${replyParam}`);
-    return;
+    return `/post/${data.postId}${replyParam}` as Href;
   }
 
   // A follow has no post to open — the only meaningful destination is
   // the new follower's own profile, same as the in-app notification row.
   if (data?.type === "follow") {
-    if (!data.actorId) return;
-    router.push(`/user/${data.actorId}`);
-    return;
+    if (!data.actorId) return null;
+    return `/user/${data.actorId}` as Href;
   }
 
   if (data?.type === "dm_message") {
-    if (!data.conversationId) return;
-    router.push(`/messages/${data.conversationId}`);
-    return;
+    if (!data.conversationId) return null;
+    return `/messages/${data.conversationId}` as Href;
   }
 
   if (data?.programId && data?.date) {
-    router.push({
+    return {
       pathname: "/cinematic-mode",
       params: { programId: data.programId, date: data.date },
-    });
-    return;
+    } as Href;
   }
 
   if (data?.screen === "programs") {
-    router.push("/(tabs)/Programs");
+    return "/(tabs)/Programs" as Href;
   }
+
+  return null;
 };
 
-// Handles both ways a tap can reach the app: already running in the
-// background/foreground (the listener), or launched fresh by the tap
-// itself (the cold-start check). Returns an unsubscribe function.
-export const setupNotificationTapHandling = (): (() => void) => {
-  Notifications.getLastNotificationResponseAsync().then((response) => {
-    if (response) handleNotificationTap(response);
-  });
+const handleNotificationTap = (response: Notifications.NotificationResponse) => {
+  const route = getRouteForNotification(response);
+  if (route) router.push(route);
+};
 
+// Handles a tap while the app is already running (foreground/background,
+// process alive) — a real cold launch never fires this listener, only
+// getLastNotificationResponseAsync below, so there's no overlap between
+// the two. Returns an unsubscribe function.
+export const setupNotificationTapHandling = (): (() => void) => {
   const subscription = Notifications.addNotificationResponseReceivedListener(
     handleNotificationTap,
   );
   return () => subscription.remove();
+};
+
+// The cold-launch case is intentionally NOT handled by an imperative
+// router.push the way the warm-tap listener above is — on a fresh launch
+// (e.g. tapping a DM push from the Lock Screen), app/index.tsx's own
+// auth-check <Redirect> to "/(tabs)" or "/(auth)/signin" resolves
+// concurrently and, whichever settles second, silently overwrites the
+// other's navigation. Instead index.tsx calls this to learn the intended
+// destination BEFORE it ever decides where to redirect, so there's only
+// ever one redirect instead of two racing.
+export const consumePendingNotificationRoute = async (): Promise<Href | null> => {
+  const response = await Notifications.getLastNotificationResponseAsync();
+  if (!response) return null;
+  return getRouteForNotification(response);
 };
