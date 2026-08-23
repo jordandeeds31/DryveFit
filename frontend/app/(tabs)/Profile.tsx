@@ -263,7 +263,15 @@ const Profile = () => {
         <View style={styles.header}>
           <TouchableOpacity
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            onPress={() => router.back()}
+            // Explicitly back to the viewer's own profile rather than
+            // router.back() — Settings is only ever reached from there
+            // (the profile screen's gear icon), and this guarantees that
+            // regardless of what's actually on the nav stack.
+            onPress={() =>
+              currentUser
+                ? router.replace(`/user/${currentUser.id}`)
+                : router.back()
+            }
           >
             <Feather name="chevron-left" size={26} color="#000" />
           </TouchableOpacity>
