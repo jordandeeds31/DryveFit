@@ -258,14 +258,23 @@ const Profile = () => {
     >
       <SafeAreaView
         style={styles.container}
-        edges={["bottom", "left", "right"]}
+        edges={["top", "bottom", "left", "right"]}
       >
+        <View style={styles.header}>
+          <TouchableOpacity
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            onPress={() => router.back()}
+          >
+            <Feather name="chevron-left" size={26} color="#000" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Settings</Text>
+          <View style={{ width: 26 }} />
+        </View>
+
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
-          <Text style={styles.title}>Settings</Text>
-
           <View style={styles.fieldSpacer}>
             <Text style={styles.fieldLabel}>Units</Text>
             <Text style={styles.fieldHint}>
@@ -434,11 +443,18 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xl,
     flexGrow: 1,
   },
-  title: {
-    fontSize: fontSizes.xl,
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderGray,
+  },
+  headerTitle: {
+    fontSize: fontSizes.md,
     fontWeight: fontWeights.bold,
-    marginTop: spacing.sm,
-    marginBottom: spacing.lg,
   },
   fieldSpacer: {
     marginTop: spacing.md,

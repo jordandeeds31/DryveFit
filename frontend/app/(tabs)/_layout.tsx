@@ -137,6 +137,11 @@ export default function TabsLayout() {
           options={{
             title: "Settings",
             href: null,
+            // Builds its own back-button header in-file (reached by
+            // drilling in from the profile screen's gear icon) — the
+            // global AppHeader from screenOptions above would otherwise
+            // double up on top of it, same reasoning as user/[userId].
+            headerShown: false,
           }}
         />
         <Tabs.Screen
