@@ -50,6 +50,7 @@ const Feed = () => {
   const {
     data,
     isLoading,
+    error,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
@@ -203,7 +204,9 @@ const Feed = () => {
           onRefresh={handleRefresh}
           ListEmptyComponent={
             <Text style={styles.emptyText}>
-              No posts yet — be the first to share something.
+              {error
+                ? "Couldn't load the feed. Pull down to try again."
+                : "No posts yet — be the first to share something."}
             </Text>
           }
           ListFooterComponent={

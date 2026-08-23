@@ -217,13 +217,7 @@ const News = () => {
 
       {isLoading && <ActivityIndicator style={{ marginTop: 40 }} />}
 
-      {!isLoading && error && (
-        <Text style={styles.emptyText}>
-          Couldn't load news right now. Pull down to try again.
-        </Text>
-      )}
-
-      {!isLoading && !error && (
+      {!isLoading && (
         <FlatList
           data={articles ?? []}
           keyExtractor={(item) => item.id}
@@ -235,9 +229,11 @@ const News = () => {
           onRefresh={handleRefresh}
           ListEmptyComponent={
             <Text style={styles.emptyText}>
-              {debouncedQuery.trim()
-                ? `No articles matching "${debouncedQuery.trim()}".`
-                : "No articles right now."}
+              {error
+                ? "Couldn't load news right now. Pull down to try again."
+                : debouncedQuery.trim()
+                  ? `No articles matching "${debouncedQuery.trim()}".`
+                  : "No articles right now."}
             </Text>
           }
         />
