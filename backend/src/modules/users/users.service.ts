@@ -78,6 +78,7 @@ export const getPublicProfile = async (
     select: {
       id: true,
       username: true,
+      city: true,
       profileImageMimeType: true,
       _count: { select: { followers: true, following: true } },
       // At most one row: whether the viewer already follows this profile.
@@ -92,6 +93,10 @@ export const getPublicProfile = async (
   return {
     id: user.id,
     username: user.username,
+    // Already "City, ST" (US) or "City, Country" (everywhere else) — see
+    // constants/cities.ts — so this alone covers both without a separate
+    // country field.
+    city: user.city,
     profileImageUrl: user.profileImageMimeType
       ? `/api/users/${user.id}/profile-image`
       : null,

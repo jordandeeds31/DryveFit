@@ -369,6 +369,12 @@ const UserProfileScreen = () => {
               </View>
             )}
             <Text style={styles.username}>{profile.username}</Text>
+            {profile.city && (
+              <View style={styles.locationRow}>
+                <Feather name="map-pin" size={12} color={colors.textSecondary} />
+                <Text style={styles.locationText}>{profile.city}</Text>
+              </View>
+            )}
             <View style={styles.followStatsRow}>
               <Text style={styles.followStat}>
                 <Text style={styles.followStatCount}>
@@ -928,6 +934,15 @@ const styles = StyleSheet.create({
   username: {
     fontSize: fontSizes.lg,
     fontWeight: fontWeights.bold,
+  },
+  locationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  locationText: {
+    fontSize: fontSizes.xs,
+    color: colors.textSecondary,
   },
   followStatsRow: {
     flexDirection: "row",

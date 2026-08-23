@@ -19,6 +19,8 @@ export interface UserProfile {
 export interface PublicProfile {
   id: string;
   username: string | null;
+  // "City, ST" (US) or "City, Country" (everywhere else).
+  city: string | null;
   profileImageUrl: string | null;
   followerCount: number;
   followingCount: number;
