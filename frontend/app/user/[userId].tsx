@@ -51,6 +51,7 @@ import {
 import { MEAL_TYPES, MEAL_TYPE_LABELS } from "@/types/nutrition.types";
 import { Post } from "@/types/posts.types";
 import Toast from "@/components/shared/Toast/Toast";
+import Modal from "@/components/shared/Modal/Modal";
 
 const formatLoggedAt = (dateStr: string) =>
   formatCalendarDate(dateStr, {
@@ -101,6 +102,9 @@ const UserProfileScreen = () => {
   >(null);
   const { data: nutritionDays, isLoading: isNutritionLoading } =
     usePublicNutritionHistory(userId ?? null, nutritionMonthKey);
+  const selectedNutritionDay = nutritionDays?.find(
+    (day: PublicNutritionDay) => day.date === selectedNutritionDate,
+  );
   const { data: posts, isLoading: isPostsLoading } = usePublicPosts(
     userId ?? null,
   );
@@ -430,53 +434,6 @@ const UserProfileScreen = () => {
               <Text style={styles.emptyText}>No food logged that month.</Text>
             )}
 
-          {tab === "nutrition" &&
-            !isNutritionLoading &&
-            selectedNutritionDate &&
-            (() => {
-              const day = nutritionDays?.find(
-                (d: PublicNutritionDay) => d.date === selectedNutritionDate,
-              );
-              if (!day) return null;
-
-              return (
-                <View style={styles.nutritionDayCard}>
-                  <View style={styles.cardHeaderRow}>
-                    <Text style={styles.cardTitle}>
-                      {formatLoggedAt(day.date)}
-                    </Text>
-                    <Text style={styles.nutritionCalories}>
-                      {Math.round(day.totals.calories)} cal
-                    </Text>
-                  </View>
-                  <Text style={styles.nutritionMacros}>
-                    {Math.round(day.totals.proteinG)}g protein ·{" "}
-                    {Math.round(day.totals.carbsG)}g carbs ·{" "}
-                    {Math.round(day.totals.fatG)}g fat
-                  </Text>
-                  {MEAL_TYPES.map((mealType) =>
-                    day.meals[mealType].length > 0 ? (
-                      <View key={mealType} style={styles.mealBlock}>
-                        <Text style={styles.mealLabel}>
-                          {MEAL_TYPE_LABELS[mealType]}
-                        </Text>
-                        {day.meals[mealType].map((entry: PublicNutritionEntry) => (
-                          <View key={entry.id} style={styles.exerciseLine}>
-                            <Text style={styles.exerciseName} numberOfLines={1}>
-                              {entry.foodName}
-                            </Text>
-                            <Text style={styles.setText}>
-                              {Math.round(entry.calories)} cal
-                            </Text>
-                          </View>
-                        ))}
-                      </View>
-                    ) : null,
-                  )}
-                </View>
-              );
-            })()}
-
           {tab === "social" && isPostsLoading && (
             <ActivityIndicator style={{ marginTop: spacing.md }} />
           )}
@@ -733,6 +690,50 @@ const UserProfileScreen = () => {
         onConfirm={handleConfirmInheritDate}
         isSubmitting={isSchedulingInherit}
       />
+
+      <Modal
+        visible={!!selectedNutritionDate}
+        onClose={() => setSelectedNutritionDate(null)}
+      >
+        {selectedNutritionDay && (
+          <View>
+            <View style={styles.cardHeaderRow}>
+              <Text style={styles.cardTitle}>
+                {formatLoggedAt(selectedNutritionDay.date)}
+              </Text>
+              <Text style={styles.nutritionCalories}>
+                {Math.round(selectedNutritionDay.totals.calories)} cal
+              </Text>
+            </View>
+            <Text style={styles.nutritionMacros}>
+              {Math.round(selectedNutritionDay.totals.proteinG)}g protein ·{" "}
+              {Math.round(selectedNutritionDay.totals.carbsG)}g carbs ·{" "}
+              {Math.round(selectedNutritionDay.totals.fatG)}g fat
+            </Text>
+            {MEAL_TYPES.map((mealType) =>
+              selectedNutritionDay.meals[mealType].length > 0 ? (
+                <View key={mealType} style={styles.mealBlock}>
+                  <Text style={styles.mealLabel}>
+                    {MEAL_TYPE_LABELS[mealType]}
+                  </Text>
+                  {selectedNutritionDay.meals[mealType].map(
+                    (entry: PublicNutritionEntry) => (
+                      <View key={entry.id} style={styles.exerciseLine}>
+                        <Text style={styles.exerciseName} numberOfLines={1}>
+                          {entry.foodName}
+                        </Text>
+                        <Text style={styles.setText}>
+                          {Math.round(entry.calories)} cal
+                        </Text>
+                      </View>
+                    ),
+                  )}
+                </View>
+              ) : null,
+            )}
+          </View>
+        )}
+      </Modal>
     </SafeAreaView>
   );
 };
