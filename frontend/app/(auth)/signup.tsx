@@ -8,7 +8,6 @@ import { spacing } from "@/constants/spacing";
 import { colors } from "@/constants/colors";
 import { fontSizes } from "@/constants/typography";
 import { router } from "expo-router";
-import { detectAndSaveUnitSystem } from "@/lib/location/detectUnitSystem";
 
 const Signup = () => {
     const [email, setEmail] = useState("");
@@ -29,11 +28,6 @@ const Signup = () => {
         try {
             const result = await register(email, password);
             if ((result as any).meta?.requestStatus === "fulfilled") {
-                // Deliberately not awaited — the permission prompt + GPS
-                // fix + reverse-geocode can take a few seconds, and none
-                // of it should delay landing in the app. Best-effort and
-                // silent either way (see detectAndSaveUnitSystem).
-                detectAndSaveUnitSystem();
                 router.replace("/(tabs)");
             }
         } finally {
