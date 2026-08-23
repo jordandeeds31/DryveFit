@@ -1,13 +1,14 @@
 import * as Location from "expo-location";
-import { searchCities } from "@/lib/api/cities.api";
+import { searchCities, getCountries } from "@/lib/api/cities.api";
 import { updateProfile } from "@/lib/api/users.api";
 import { queryClient } from "@/lib/api/queryClient";
 
 // reverseGeocodeAsync returns the full state/province name (e.g.
-// "Illinois"), but the app's own city list — and CityPicker's search —
-// only recognizes the Census Gazetteer's "City, ST" format (2-letter USPS
-// abbreviation). This is what bridges the two; only the 50 states + DC
-// matter here since the underlying city list is US-only.
+// "Illinois"), but the app's city list keeps the Census Gazetteer's
+// "City, ST" format (2-letter USPS abbreviation) for the US specifically
+// — see backend/src/constants/cities.ts. This bridges the two; only the
+// 50 states + DC matter here, everywhere else uses the country name
+// instead (fetched from the same /api/cities/countries CityPicker uses).
 const STATE_NAME_TO_ABBR: Record<string, string> = {
   Alabama: "AL", Alaska: "AK", Arizona: "AZ", Arkansas: "AR",
   California: "CA", Colorado: "CO", Connecticut: "CT", Delaware: "DE",
@@ -31,7 +32,8 @@ const STATE_NAME_TO_ABBR: Record<string, string> = {
 // surfaces an error. A denied permission, no GPS fix, a reverse-geocode
 // miss, or a city that doesn't match the app's own list just leaves city
 // unset, which CityPicker (in EditProfileModal) already handles as "not
-// set yet" — the viewer can always search and pick one manually there.
+// set yet" — the viewer can always search (country first, then city) and
+// pick one manually there.
 export const detectAndSaveCity = async (): Promise<void> => {
   try {
     const { status } = await Location.requestForegroundPermissionsAsync();
@@ -48,16 +50,26 @@ export const detectAndSaveCity = async (): Promise<void> => {
     });
 
     const cityName = place?.city;
-    const stateAbbr = place?.region ? STATE_NAME_TO_ABBR[place.region] : null;
-    if (!cityName || !stateAbbr) return;
+    const isoCountryCode = place?.isoCountryCode;
+    if (!cityName || !isoCountryCode) return;
 
-    const candidate = `${cityName}, ${stateAbbr}`;
+    let candidate: string;
+    if (isoCountryCode === "US") {
+      const stateAbbr = place?.region ? STATE_NAME_TO_ABBR[place.region] : null;
+      if (!stateAbbr) return;
+      candidate = `${cityName}, ${stateAbbr}`;
+    } else {
+      const countries = await getCountries();
+      const country = countries.find((c) => c.code === isoCountryCode);
+      if (!country) return;
+      candidate = `${cityName}, ${country.name}`;
+    }
 
     // Confirms this is a real entry in the app's own city list (not just
-    // a plausible-looking string) — reuses the same search the manual
-    // CityPicker calls, rather than trusting the device's geocoder output
-    // to already match the Census Gazetteer's exact naming/formatting.
-    const matches = await searchCities(candidate);
+    // a plausible-looking string) — reuses the same search CityPicker
+    // itself calls once a country is chosen, rather than trusting the
+    // device geocoder's naming to already match exactly.
+    const matches = await searchCities(candidate, isoCountryCode);
     if (!matches.includes(candidate)) return;
 
     await updateProfile({ city: candidate });

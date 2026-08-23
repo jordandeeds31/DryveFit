@@ -48,6 +48,10 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
     color: colors.textSecondary,
   },
+  helperText: {
+    fontSize: fontSizes.xs,
+    color: colors.textMuted,
+  },
 });
 
 export default styles;
