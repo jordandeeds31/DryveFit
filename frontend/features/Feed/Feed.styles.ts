@@ -20,6 +20,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.sm,
   },
+  viewModeToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
   headerTitle: {
     fontSize: fontSizes.xl,
     fontWeight: fontWeights.bold,
