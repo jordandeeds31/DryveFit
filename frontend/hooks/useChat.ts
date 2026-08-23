@@ -32,14 +32,21 @@ export const useSendChatMessage = () => {
       queryClient.invalidateQueries({
         queryKey: ["conversationMessages", data.conversationId],
       });
-      // The AI coach can log sets via its log_workout_sets tool (see
-      // chat.service.ts) — invalidated unconditionally rather than only
-      // when a tool was actually called, since that's cheap (just marks
-      // these stale for the next mount/focus) and avoids threading a
-      // "did this message write anything" flag through the API just for
-      // this. Same pair useWorkoutLogs.ts invalidates after a manual log.
+      // The AI coach can log sets via its log_workout_sets/log_program_exercise
+      // tools (see chat.service.ts) — invalidated unconditionally rather
+      // than only when a tool was actually called, since that's cheap
+      // (just marks these stale for the next mount/focus) and avoids
+      // threading a "did this message write anything" flag through the API
+      // just for this. Mirrors the exact query keys useWorkoutLogs.ts and
+      // usePrograms.ts invalidate after their own manual-logging mutations,
+      // since an AI-driven log can touch either write path.
       queryClient.invalidateQueries({ queryKey: ["workoutLogs"] });
       queryClient.invalidateQueries({ queryKey: ["1rmHistory"] });
+      queryClient.invalidateQueries({ queryKey: ["schedule"] });
+      queryClient.invalidateQueries({ queryKey: ["programDay"] });
+      queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
+      queryClient.invalidateQueries({ queryKey: ["workingOutCount"] });
+      queryClient.invalidateQueries({ queryKey: ["previousSession"] });
     },
   });
 };

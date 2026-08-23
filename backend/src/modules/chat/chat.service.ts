@@ -14,7 +14,11 @@ import {
   getExercise1RMHistory,
   getPersonalRecordsForUser,
 } from "../exercises/exercises.service";
-import { getActiveProgramForUser } from "../programs/programs.service";
+import {
+  getActiveProgramForUser,
+  getProgramDayByDate,
+  logExercisePerformance,
+} from "../programs/programs.service";
 import {
   getCardioSessionsForUser,
   CARDIO_ACTIVITY_TYPES,
@@ -54,7 +58,12 @@ Today's date (the user's own local calendar date) is ${todayStr}. Use this to re
 
 You have tools to fetch this user's real workout logs, lifting personal records, cardio sessions, and active program — always call a tool to get real numbers instead of guessing or making anything up. If a tool returns no data, say so plainly rather than inventing an answer.
 
-You can also log completed sets for the user with log_workout_sets — e.g. "log 3 sets of 250lbs for 8 reps of barbell bench press for today" should call it directly, without asking for confirmation first, since logging a plain factual statement like that is exactly what the user asked for. Only ask a clarifying question first if something's genuinely ambiguous (e.g. the exercise name doesn't clearly match one thing, or reps/weight are missing). After the tool call succeeds, confirm back to the user exactly what got logged (exercise, sets, weight, reps, date). If the tool errors — e.g. no matching exercise, or multiple exercises match — relay that plainly and ask them to clarify rather than guessing which one they meant.
+You can also log completed workouts for the user. Two different tools do this, and picking the right one matters:
+
+- log_program_exercise (after calling get_program_day first) — use this whenever the workout is part of the user's active program: "log today's workout", "I completed the plan", "log the recommended sets for bench press". get_program_day tells you exactly what's prescribed for a date (each exercise's programExerciseId, sets, reps, recommendedWeight) — always call it first, never guess a programExerciseId. If the user says something like "log it as prescribed"/"as planned" without giving their own numbers, use the prescribed sets/reps/recommendedWeight straight from get_program_day. This is what actually marks the exercise (and the whole day, once every exercise in it is logged) as completed in their program.
+- log_workout_sets — use this for anything NOT part of the active program: extra work on top of the plan, a standalone workout on a day with no scheduled program day, or when the user gives specific numbers for an exercise that isn't in today's plan. This never affects program completion tracking.
+
+Call the appropriate tool directly, without asking for confirmation first, when the user states a plain factual completion like the examples above — that's exactly what they asked for. Only ask a clarifying question first if something's genuinely ambiguous (e.g. the exercise name doesn't clearly match one thing, there's no scheduled program day for that date, or reps/weight are missing and not "as prescribed"). After a tool call succeeds, confirm back to the user exactly what got logged (exercise, sets, weight, reps, date). If a tool errors — e.g. no matching exercise, multiple exercises match, or no program day found — relay that plainly and ask them to clarify rather than guessing.
 
 Be concise, specific, and encouraging — cite actual numbers, exercise names, and dates from the data you fetch. If asked something with no relevant tool (e.g. general fitness advice), just answer normally.`;
 
@@ -189,6 +198,64 @@ const tools: ChatCompletionTool[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "get_program_day",
+      description:
+        "Get the user's active program's prescribed exercises for a specific date — each exercise's programExerciseId, prescribed sets/reps, recommended weight, and whether it's already completed. Always call this before log_program_exercise to get the correct programExerciseId; never guess it. Returns an error if the user has no active program or no scheduled day on that date.",
+      parameters: {
+        type: "object",
+        properties: {
+          date: {
+            type: "string",
+            description: "Date to look up, as YYYY-MM-DD. Defaults to today if omitted.",
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "log_program_exercise",
+      description:
+        "Log completed sets against ONE prescribed exercise from the user's active program — use this (not log_workout_sets) whenever the user is logging a workout that's part of their program plan. Correctly marks that exercise, and the whole day once every exercise in it is logged, as completed. Requires the programExerciseId from get_program_day — call that first.",
+      parameters: {
+        type: "object",
+        properties: {
+          programExerciseId: {
+            type: "string",
+            description: "The id of the specific exercise being logged, from get_program_day's exercises list.",
+          },
+          sets: {
+            type: "array",
+            description: "Each set completed, in order. If the user said to log it as prescribed, use get_program_day's sets count/reps/recommendedWeight for these.",
+            items: {
+              type: "object",
+              properties: {
+                weight: {
+                  type: "number",
+                  description: "Weight used for this set. Omit entirely for a bodyweight exercise.",
+                },
+                reps: {
+                  type: "number",
+                  description: "Reps completed for this set.",
+                },
+              },
+              required: ["reps"],
+            },
+          },
+          weightUnit: {
+            type: "string",
+            enum: ["lbs", "kg"],
+            description: "Unit the weight values are in. Default \"lbs\" unless the user said kg.",
+          },
+        },
+        required: ["programExerciseId", "sets"],
+      },
+    },
+  },
 ];
 
 const clampLimit = (value: unknown, fallback: number, max: number): number => {
@@ -197,6 +264,31 @@ const clampLimit = (value: unknown, fallback: number, max: number): number => {
 };
 
 const DATE_STR_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+// Shared between log_workout_sets and log_program_exercise — both take the
+// same { weight, reps }[] shape plus an optional unit for the weight.
+const parseToolSets = (
+  rawSets: unknown,
+  weightUnit: unknown,
+): { sets: Array<{ weight: number | null; reps: number }> } | { error: string } => {
+  const list = Array.isArray(rawSets) ? rawSets : [];
+  if (list.length === 0) return { error: "At least one set is required" };
+
+  const unit = weightUnit === "kg" ? "kg" : "lbs";
+  const sets: Array<{ weight: number | null; reps: number }> = [];
+  for (const rawSet of list) {
+    const set = rawSet as Record<string, unknown>;
+    const reps = typeof set.reps === "number" ? set.reps : null;
+    if (reps == null || reps <= 0) {
+      return { error: "Every set needs a positive rep count" };
+    }
+    const rawWeight = typeof set.weight === "number" ? set.weight : null;
+    const weight =
+      rawWeight == null ? null : unit === "kg" ? rawWeight * LBS_PER_KG : rawWeight;
+    sets.push({ weight, reps });
+  }
+  return { sets };
+};
 
 const executeTool = async (
   userId: string,
@@ -249,27 +341,27 @@ const executeTool = async (
         return { error: "exerciseName is required" };
       }
 
-      const rawSets = Array.isArray(args.sets) ? args.sets : [];
-      if (rawSets.length === 0) {
-        return { error: "At least one set is required" };
-      }
+      const parsed = parseToolSets(args.sets, args.weightUnit);
+      if ("error" in parsed) return parsed;
 
-      const weightUnit = args.weightUnit === "kg" ? "kg" : "lbs";
-      const sets: Array<{ weight: number | null; reps: number }> = [];
-      for (const rawSet of rawSets) {
-        const set = rawSet as Record<string, unknown>;
-        const reps = typeof set.reps === "number" ? set.reps : null;
-        if (reps == null || reps <= 0) {
-          return { error: "Every set needs a positive rep count" };
-        }
-        const rawWeight = typeof set.weight === "number" ? set.weight : null;
-        const weight =
-          rawWeight == null
-            ? null
-            : weightUnit === "kg"
-              ? rawWeight * LBS_PER_KG
-              : rawWeight;
-        sets.push({ weight, reps });
+      const date =
+        typeof args.date === "string" && DATE_STR_PATTERN.test(args.date)
+          ? args.date
+          : todayStr;
+
+      try {
+        return await logExerciseSetsForDate(userId, exerciseName, parsed.sets, date);
+      } catch (err) {
+        return {
+          error: err instanceof AppError ? err.message : "Failed to log the workout",
+        };
+      }
+    }
+
+    case "get_program_day": {
+      const activeProgram = await getActiveProgramForUser(userId);
+      if (!activeProgram) {
+        return { error: "The user has no active program" };
       }
 
       const date =
@@ -278,10 +370,44 @@ const executeTool = async (
           : todayStr;
 
       try {
-        return await logExerciseSetsForDate(userId, exerciseName, sets, date);
+        const programDay = await getProgramDayByDate(
+          userId,
+          activeProgram.id,
+          date,
+        );
+        return {
+          date,
+          weekNumber: programDay.week.weekNumber,
+          exercises: programDay.exercises.map((exercise) => ({
+            programExerciseId: exercise.id,
+            exerciseName: exercise.exerciseName,
+            sets: exercise.sets,
+            reps: exercise.reps,
+            recommendedWeight: exercise.recommendedWeight,
+            isCompleted: exercise.isCompleted,
+          })),
+        };
       } catch (err) {
         return {
-          error: err instanceof AppError ? err.message : "Failed to log the workout",
+          error: err instanceof AppError ? err.message : "Failed to load the program day",
+        };
+      }
+    }
+
+    case "log_program_exercise": {
+      const programExerciseId = args.programExerciseId;
+      if (typeof programExerciseId !== "string" || programExerciseId.trim() === "") {
+        return { error: "programExerciseId is required — call get_program_day first to get it" };
+      }
+
+      const parsed = parseToolSets(args.sets, args.weightUnit);
+      if ("error" in parsed) return parsed;
+
+      try {
+        return await logExercisePerformance(userId, programExerciseId, parsed.sets);
+      } catch (err) {
+        return {
+          error: err instanceof AppError ? err.message : "Failed to log the exercise",
         };
       }
     }
