@@ -1,5 +1,12 @@
-import { useEffect, useRef } from "react";
-import { Animated, Easing, StyleSheet, View, ViewStyle } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import {
+  Animated,
+  Easing,
+  LayoutChangeEvent,
+  StyleSheet,
+  View,
+  ViewStyle,
+} from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { colors } from "@/constants/colors";
 
@@ -16,11 +23,9 @@ interface AnimatedGradientBorderProps {
   style?: ViewStyle;
 }
 
-// Rotates an oversized gradient square behind a masked inner area, so
-// only a thin ring around the edge is visible — RN has no native conic
-// gradient, so a spinning linear one is the standard stand-in; the sweep
-// still reads as a moving highlight traveling around the border.
-const SPINNER_SIZE = 300;
+// A reasonable guess before the real size is measured via onLayout —
+// only visible for a single frame, so it doesn't need to be exact.
+const FALLBACK_SPINNER_SIZE = 140;
 
 const AnimatedGradientBorder = ({
   children,
@@ -43,6 +48,24 @@ const AnimatedGradientBorder = ({
   style,
 }: AnimatedGradientBorderProps) => {
   const rotation = useRef(new Animated.Value(0)).current;
+  // Rotates an oversized gradient square behind a masked inner area, so
+  // only a thin ring around the edge is visible — RN has no native conic
+  // gradient, so a spinning linear one is the standard stand-in. The
+  // spinner has to scale with the wrapped element's own size: too large
+  // relative to it (e.g. a single large fixed constant used for every
+  // button regardless of size) and the visible ring only ever samples a
+  // narrow band right around the gradient's midpoint no matter the
+  // rotation angle, since it never gets far enough from center to reach
+  // the gradient's other stops — the ring barely changes color as it
+  // spins. Sizing it off the element's own measured diagonal keeps the
+  // ring sweeping through the gradient's full range.
+  const [spinnerSize, setSpinnerSize] = useState(FALLBACK_SPINNER_SIZE);
+
+  const handleLayout = (event: LayoutChangeEvent) => {
+    const { width, height } = event.nativeEvent.layout;
+    const diagonal = Math.sqrt(width * width + height * height);
+    setSpinnerSize(diagonal * 1.6);
+  };
 
   useEffect(() => {
     if (!isAnimating) return;
@@ -64,9 +87,21 @@ const AnimatedGradientBorder = ({
   });
 
   return (
-    <View style={[styles.outer, { borderRadius }, style]}>
+    <View
+      style={[styles.outer, { borderRadius }, style]}
+      onLayout={handleLayout}
+    >
       <Animated.View
-        style={[styles.spinner, { transform: [{ rotate: spin }] }]}
+        style={[
+          styles.spinner,
+          {
+            width: spinnerSize,
+            height: spinnerSize,
+            marginLeft: -spinnerSize / 2,
+            marginTop: -spinnerSize / 2,
+            transform: [{ rotate: spin }],
+          },
+        ]}
       >
         <LinearGradient
           colors={gradientColors}
@@ -104,12 +139,8 @@ const styles = StyleSheet.create({
   },
   spinner: {
     position: "absolute",
-    width: SPINNER_SIZE,
-    height: SPINNER_SIZE,
     top: "50%",
     left: "50%",
-    marginLeft: -SPINNER_SIZE / 2,
-    marginTop: -SPINNER_SIZE / 2,
   },
   inner: {
     overflow: "hidden",
