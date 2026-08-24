@@ -37,7 +37,10 @@ const STATE_NAME_TO_ABBR: Record<string, string> = {
 export const detectAndSaveCity = async (): Promise<void> => {
   try {
     const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== "granted") return;
+    if (status !== "granted") {
+      if (__DEV__) console.log("[detectAndSaveCity] bailed: permission", status);
+      return;
+    }
 
     const position = await Location.getCurrentPositionAsync({
       // City-level precision is all this needs.
@@ -51,17 +54,26 @@ export const detectAndSaveCity = async (): Promise<void> => {
 
     const cityName = place?.city;
     const isoCountryCode = place?.isoCountryCode;
-    if (!cityName || !isoCountryCode) return;
+    if (!cityName || !isoCountryCode) {
+      if (__DEV__) console.log("[detectAndSaveCity] bailed: no city/country from reverse geocode", place);
+      return;
+    }
 
     let candidate: string;
     if (isoCountryCode === "US") {
       const stateAbbr = place?.region ? STATE_NAME_TO_ABBR[place.region] : null;
-      if (!stateAbbr) return;
+      if (!stateAbbr) {
+        if (__DEV__) console.log("[detectAndSaveCity] bailed: unmapped US region", place?.region);
+        return;
+      }
       candidate = `${cityName}, ${stateAbbr}`;
     } else {
       const countries = await getCountries();
       const country = countries.find((c) => c.code === isoCountryCode);
-      if (!country) return;
+      if (!country) {
+        if (__DEV__) console.log("[detectAndSaveCity] bailed: unknown country code", isoCountryCode);
+        return;
+      }
       candidate = `${cityName}, ${country.name}`;
     }
 
@@ -70,9 +82,13 @@ export const detectAndSaveCity = async (): Promise<void> => {
     // itself calls once a country is chosen, rather than trusting the
     // device geocoder's naming to already match exactly.
     const matches = await searchCities(candidate, isoCountryCode);
-    if (!matches.includes(candidate)) return;
+    if (!matches.includes(candidate)) {
+      if (__DEV__) console.log("[detectAndSaveCity] bailed: no city-list match for", candidate, matches);
+      return;
+    }
 
     await updateProfile({ city: candidate });
+    if (__DEV__) console.log("[detectAndSaveCity] saved city:", candidate);
     // Called directly (not through useUpdateProfile), so nothing else
     // invalidates the cached currentUser query — without this, a
     // detection that finishes after the profile screen's already
@@ -80,7 +96,8 @@ export const detectAndSaveCity = async (): Promise<void> => {
     // blocking it) would leave the stale unset value cached.
     queryClient.invalidateQueries({ queryKey: ["currentUser"] });
     queryClient.invalidateQueries({ queryKey: ["publicProfile"] });
-  } catch {
+  } catch (error) {
     // Best-effort — see comment above.
+    if (__DEV__) console.log("[detectAndSaveCity] threw", error);
   }
 };

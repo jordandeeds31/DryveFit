@@ -44,6 +44,7 @@ import Toast from "@/components/shared/Toast/Toast";
 import Feed from "@/features/Feed/Feed";
 import News from "@/features/News/News";
 import BodyScan from "@/features/BodyScan/BodyScan";
+import Storefront from "@/features/Storefront/Storefront";
 import {
   isHealthKitAvailable,
   hasCompletedHealthKitConnect,
@@ -58,7 +59,7 @@ const HomeScreen = () => {
     useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [homeTab, setHomeTab] = useState<
-    "workouts" | "feed" | "news" | "bodyScan"
+    "workouts" | "feed" | "news" | "bodyScan" | "storefront"
   >("workouts");
   const [prefillExercises, setPrefillExercises] = useState<
     PendingWorkoutExercise[] | undefined
@@ -305,25 +306,10 @@ const HomeScreen = () => {
               homeTab === "workouts" && styles.homeTabTextActive,
             ]}
             numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
           >
             Workouts
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.homeTab,
-            homeTab === "bodyScan" && styles.homeTabActive,
-          ]}
-          onPress={() => setHomeTab("bodyScan")}
-        >
-          <Text
-            style={[
-              styles.homeTabText,
-              homeTab === "bodyScan" && styles.homeTabTextActive,
-            ]}
-            numberOfLines={1}
-          >
-            Body Scan
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -339,6 +325,8 @@ const HomeScreen = () => {
               homeTab === "feed" && styles.homeTabTextActive,
             ]}
             numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
           >
             Feed
           </Text>
@@ -354,6 +342,25 @@ const HomeScreen = () => {
           )}
         </TouchableOpacity>
         <TouchableOpacity
+          style={[
+            styles.homeTab,
+            homeTab === "bodyScan" && styles.homeTabActive,
+          ]}
+          onPress={() => setHomeTab("bodyScan")}
+        >
+          <Text
+            style={[
+              styles.homeTabText,
+              homeTab === "bodyScan" && styles.homeTabTextActive,
+            ]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
+          >
+            Body Scan
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
           style={[styles.homeTab, homeTab === "news" && styles.homeTabActive]}
           onPress={() => setHomeTab("news")}
         >
@@ -363,8 +370,29 @@ const HomeScreen = () => {
               homeTab === "news" && styles.homeTabTextActive,
             ]}
             numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
           >
             News
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.homeTab,
+            homeTab === "storefront" && styles.homeTabActive,
+          ]}
+          onPress={() => setHomeTab("storefront")}
+        >
+          <Text
+            style={[
+              styles.homeTabText,
+              homeTab === "storefront" && styles.homeTabTextActive,
+            ]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
+          >
+            Storefront
           </Text>
         </TouchableOpacity>
       </View>
@@ -398,6 +426,8 @@ const HomeScreen = () => {
         <News />
       ) : homeTab === "bodyScan" ? (
         <BodyScan />
+      ) : homeTab === "storefront" ? (
+        <Storefront />
       ) : (
         <KeyboardAwareScrollView
           ref={scrollViewRef}
