@@ -61,6 +61,14 @@ const styles = StyleSheet.create({
     shadowRadius: 1,
     elevation: 1,
   },
+  createButtonGradientInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.surfaceBlueLight,
+  },
   createButtonText: {
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.semibold,

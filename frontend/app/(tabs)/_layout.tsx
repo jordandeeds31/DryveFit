@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Tabs } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { colors } from "@/constants/colors";
@@ -17,10 +17,47 @@ export default function TabsLayout() {
   const { isOpen, close, toggle } = useToggle();
   const [isGeneratingProgram, setIsGeneratingProgram] = useState(false);
 
-  const handleCreateProgram = async () => {
+  const handleCreateProgram = useCallback(async () => {
     const granted = await ensureProAccess();
     if (granted) toggle();
-  };
+  }, [toggle]);
+
+  // Stabilized so React Navigation doesn't see a new `header` reference
+  // (and remount AppHeader, restarting its gradient-border animation from
+  // frame zero) every time this layout re-renders for an unrelated reason
+  // — e.g. toggling isOpen/isGeneratingProgram above.
+  const renderHeader = useCallback(
+    () => (
+      <AppHeader
+        onCreateProgram={handleCreateProgram}
+        isCreateProgramModalOpen={isOpen}
+      />
+    ),
+    [handleCreateProgram, isOpen],
+  );
+
+  const screenOptions = useMemo(
+    () => ({
+      tabBarActiveTintColor: colors.primaryBlue,
+      tabBarInactiveTintColor: colors.textMuted,
+      tabBarStyle: {
+        borderTopColor: colors.borderGray,
+      },
+      tabBarLabelStyle: {
+        fontSize: fontSizes.xs,
+        fontWeight: fontWeights.semibold,
+      },
+      tabBarItemStyle: {
+        paddingTop: 6,
+      },
+      headerShown: true,
+      header: renderHeader,
+      sceneStyle: {
+        backgroundColor: "white",
+      },
+    }),
+    [renderHeader],
+  );
 
   return (
     <>
@@ -37,25 +74,7 @@ export default function TabsLayout() {
         />
       </Modal>
       <Tabs
-        screenOptions={{
-          tabBarActiveTintColor: colors.primaryBlue,
-          tabBarInactiveTintColor: colors.textMuted,
-          tabBarStyle: {
-            borderTopColor: colors.borderGray,
-          },
-          tabBarLabelStyle: {
-            fontSize: fontSizes.xs,
-            fontWeight: fontWeights.semibold,
-          },
-          tabBarItemStyle: {
-            paddingTop: 6,
-          },
-          headerShown: true,
-          header: () => <AppHeader onCreateProgram={handleCreateProgram} />,
-          sceneStyle: {
-            backgroundColor: "white",
-          },
-        }}
+        screenOptions={screenOptions}
       >
         <Tabs.Screen
           name="index"

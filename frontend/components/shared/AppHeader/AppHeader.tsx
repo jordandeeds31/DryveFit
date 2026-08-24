@@ -7,6 +7,8 @@ import { colors } from "@/constants/colors";
 import { useUnreadNotificationCount } from "@/hooks/useNotifications";
 import { useDmConversations } from "@/hooks/useDirectMessages";
 import { useCurrentUser } from "@/hooks/useUsers";
+import { usePrograms } from "@/hooks/usePrograms";
+import AnimatedGradientBorder from "@/components/shared/AnimatedGradientBorder/AnimatedGradientBorder";
 import styles from "./AppHeader.styles";
 
 interface AppHeaderProps {
@@ -14,9 +16,15 @@ interface AppHeaderProps {
   // ProgramBuilder modal it opens) shows on every tab's header, not just
   // Home.
   onCreateProgram?: () => void;
+  // Pauses the "New Program" gradient border while its modal is open on
+  // top of it, instead of spinning uselessly underneath.
+  isCreateProgramModalOpen?: boolean;
 }
 
-const AppHeader = ({ onCreateProgram }: AppHeaderProps) => {
+const AppHeader = ({
+  onCreateProgram,
+  isCreateProgramModalOpen,
+}: AppHeaderProps) => {
   const insets = useSafeAreaInsets();
   const { data: unreadCount } = useUnreadNotificationCount();
   const hasUnread = !!unreadCount && unreadCount > 0;
@@ -29,6 +37,11 @@ const AppHeader = ({ onCreateProgram }: AppHeaderProps) => {
     (c: { unreadCount: number }) => c.unreadCount > 0,
   );
   const { data: currentUser } = useCurrentUser();
+  // Shares the ["programs"] query cache with the Home screen, so this
+  // costs no extra network request — used only to decide whether "New
+  // Program" is still the CTA a brand-new user most needs to notice.
+  const { data: programs } = usePrograms();
+  const hasPrograms = !!programs && programs.length > 0;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -40,16 +53,31 @@ const AppHeader = ({ onCreateProgram }: AppHeaderProps) => {
         />
       </TouchableOpacity>
       <View style={styles.headerActions}>
-        {onCreateProgram && (
-          <TouchableOpacity
-            style={styles.createButton}
-            onPress={onCreateProgram}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Feather name="plus" size={16} color={colors.primaryBlue} />
-            <Text style={styles.createButtonText}>New Program</Text>
-          </TouchableOpacity>
-        )}
+        {onCreateProgram &&
+          (!hasPrograms ? (
+            <AnimatedGradientBorder
+              borderRadius={12}
+              isAnimating={!isCreateProgramModalOpen}
+            >
+              <TouchableOpacity
+                style={styles.createButtonGradientInner}
+                onPress={onCreateProgram}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Feather name="plus" size={16} color={colors.primaryBlue} />
+                <Text style={styles.createButtonText}>New Program</Text>
+              </TouchableOpacity>
+            </AnimatedGradientBorder>
+          ) : (
+            <TouchableOpacity
+              style={styles.createButton}
+              onPress={onCreateProgram}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Feather name="plus" size={16} color={colors.primaryBlue} />
+              <Text style={styles.createButtonText}>New Program</Text>
+            </TouchableOpacity>
+          ))}
         <TouchableOpacity
           style={styles.settingsButton}
           onPress={() => router.push("/search")}

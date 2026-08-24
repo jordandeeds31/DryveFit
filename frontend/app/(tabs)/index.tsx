@@ -432,12 +432,7 @@ const HomeScreen = () => {
         <KeyboardAwareScrollView
           ref={scrollViewRef}
           style={styles.scrollView}
-          contentContainerStyle={[
-            styles.scrollContent,
-            !hasPrograms &&
-              !hasLoggedStandaloneWorkout &&
-              styles.scrollContentGrow,
-          ]}
+          contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           bottomOffset={60}
           // None of Home's directly-owned children have a TextInput — every
@@ -565,9 +560,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingBottom: spacing.xl,
   },
-  scrollContentGrow: {
-    flexGrow: 1,
-  },
   homeTabBar: {
     flexDirection: "row",
     backgroundColor: colors.surfaceGrayLight,
@@ -637,9 +629,7 @@ const styles = StyleSheet.create({
     color: "#000",
   },
   noProgramsContainer: {
-    flex: 1,
     alignItems: "center",
-    justifyContent: "center",
   },
   noWorkoutContainer: {
     marginBottom: spacing.sm,
@@ -661,8 +651,8 @@ const styles = StyleSheet.create({
     backgroundColor: "white",
     borderWidth: 1,
     borderColor: colors.primaryBlue,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
@@ -675,6 +665,7 @@ const styles = StyleSheet.create({
   logWorkoutButtonText: {
     color: colors.primaryBlue,
     fontWeight: fontWeights.semibold,
+    fontSize: fontSizes.sm,
   },
   modalSaveButton: {
     flex: 1,
