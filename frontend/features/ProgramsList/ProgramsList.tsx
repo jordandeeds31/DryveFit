@@ -2,6 +2,7 @@ import { useState } from "react";
 import { View, Text, Alert, ActivityIndicator } from "react-native";
 import styles from "./ProgramsList.styles";
 import Button from "@/components/shared/Button/Button";
+import Toast from "@/components/shared/Toast/Toast";
 import { colors } from "@/constants/colors";
 import { usePrograms, useDeleteProgram } from "@/hooks/usePrograms";
 import { formatCalendarDate } from "@/lib/utils/date.utils";
@@ -17,6 +18,7 @@ const ProgramsList = () => {
   const { data: programs, isLoading } = usePrograms();
   const { mutate: deleteProgram, isPending } = useDeleteProgram();
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const handleDelete = (programId: string, programName: string) => {
     Alert.alert(
@@ -30,6 +32,7 @@ const ProgramsList = () => {
           onPress: () => {
             setDeletingId(programId);
             deleteProgram(programId, {
+              onSuccess: () => setToastMessage("Program deleted"),
               onSettled: () => setDeletingId(null),
             });
           },
@@ -46,6 +49,11 @@ const ProgramsList = () => {
     return (
       <View style={styles.emptyContainer}>
         <Text style={styles.emptyText}>You haven't created any programs yet.</Text>
+        <Toast
+          visible={!!toastMessage}
+          message={toastMessage ?? ""}
+          onHide={() => setToastMessage(null)}
+        />
       </View>
     );
   }
@@ -78,6 +86,11 @@ const ProgramsList = () => {
           />
         </View>
       ))}
+      <Toast
+        visible={!!toastMessage}
+        message={toastMessage ?? ""}
+        onHide={() => setToastMessage(null)}
+      />
     </View>
   );
 };
