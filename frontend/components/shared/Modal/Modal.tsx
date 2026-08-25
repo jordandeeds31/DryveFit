@@ -7,7 +7,6 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
-import { LinearGradient } from "expo-linear-gradient";
 import Feather from "@expo/vector-icons/Feather";
 import { colors } from "@/constants/colors";
 import { spacing } from "@/constants/spacing";
@@ -23,7 +22,6 @@ const Modal = ({
   size = "default",
   keyboardAware = true,
   wide = false,
-  glass = false,
   bottom = false,
 }: ModalProps) => {
   const insets = useSafeAreaInsets();
@@ -65,23 +63,10 @@ const Modal = ({
             isLarge && styles.cardLarge,
             isLarge && { marginTop: insets.top + spacing.sm },
             wide && styles.cardWide,
-            glass && styles.cardGlass,
             bottom && styles.cardBottom,
             bottom && { paddingBottom: insets.bottom + spacing.md },
           ]}
         >
-          {glass && (
-            <LinearGradient
-              colors={[
-                "rgba(255,255,255,0.94)",
-                "rgba(239,246,255,0.88)",
-                "rgba(245,243,255,0.88)",
-              ]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={StyleSheet.absoluteFillObject}
-            />
-          )}
           {bottom && <View style={styles.dragHandle} />}
           {(closable || headerAction) && (
             <View

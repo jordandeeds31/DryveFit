@@ -29,13 +29,6 @@ export interface ModalProps {
   // room (e.g. a day-of-week picker), rather than prose that reads better
   // narrower.
   wide?: boolean;
-  // Swaps the flat white card for a frosted glassmorphism look: a
-  // translucent theme-tinted gradient instead of solid white, with a soft
-  // blue-tinted border. Only affects the card itself — the backdrop stays
-  // the normal dark overlay. Opt-in per modal instance rather than the
-  // default, since most modals (confirmations, pickers) read better with
-  // the plain solid card.
-  glass?: boolean;
   // Anchors the card to the bottom of the screen (edge-to-edge, only the
   // top corners rounded, with a drag handle) and slides it up from below
   // instead of fading in centered — the bottom-sheet treatment, for

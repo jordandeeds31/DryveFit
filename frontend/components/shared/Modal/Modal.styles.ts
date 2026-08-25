@@ -33,17 +33,6 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     elevation: 10,
   },
-  cardGlass: {
-    backgroundColor: "transparent",
-    borderWidth: 1,
-    borderColor: "rgba(191,219,254,0.6)",
-    overflow: "hidden",
-    shadowColor: colors.primaryBlue,
-    shadowOffset: { width: 0, height: 14 },
-    shadowOpacity: 0.18,
-    shadowRadius: 28,
-    elevation: 14,
-  },
   cardLarge: {
     maxHeight: "95%",
   },
