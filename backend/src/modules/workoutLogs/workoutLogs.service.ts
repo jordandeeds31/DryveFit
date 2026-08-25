@@ -2,35 +2,6 @@ import prisma from "../../lib/prisma";
 import AppError from "../../utils/AppError";
 import { assertNotFutureLog } from "../../utils/futureLogGuard";
 
-// Best-effort catalog match for a name typed in natural language (via the
-// AI chat tool below) rather than picked from DropdownExerciseSelect's
-// exact list — tries an exact case-insensitive match first, then falls
-// back to a "contains" search. Multiple contains-matches throws instead of
-// guessing, since silently picking the wrong exercise (e.g. "press" for a
-// user who logs both Barbell Bench Press and Overhead Press) is worse than
-// asking the model to ask the user which one they meant.
-const findCatalogExercise = async (exerciseName: string) => {
-  const exact = await prisma.exercise.findFirst({
-    where: { name: { equals: exerciseName, mode: "insensitive" } },
-  });
-  if (exact) return exact;
-
-  const candidates = await prisma.exercise.findMany({
-    where: { name: { contains: exerciseName, mode: "insensitive" } },
-    take: 5,
-  });
-  if (candidates.length === 1) return candidates[0];
-  if (candidates.length > 1) {
-    throw new AppError(
-      409,
-      `Multiple exercises match "${exerciseName}": ${candidates
-        .map((c) => c.name)
-        .join(", ")}. Ask the user which one they meant.`,
-    );
-  }
-  return null;
-};
-
 export const logStandaloneWorkout = async (
   userId: string,
   exercises: Array<{
@@ -119,14 +90,24 @@ export const logStandaloneWorkout = async (
   };
 };
 
-// Used by the AI chat tool (log_workout_sets) — deliberately additive,
-// unlike logStandaloneWorkout above which replaces the whole day's log
-// wholesale. A chat message like "log 3 sets of bench press" should only
-// ever add to whatever's already logged for that date (e.g. squats logged
-// earlier), never silently wipe it out to leave just the one exercise.
+// Used by the AI chat tool (log_set, exerciseId path) — deliberately
+// additive, unlike logStandaloneWorkout above which replaces the whole
+// day's log wholesale. A chat message like "log 3 sets of bench press"
+// should only ever add to whatever's already logged for that date (e.g.
+// squats logged earlier), never silently wipe it out to leave just the
+// one exercise.
+//
+// Takes an already-resolved exerciseId, not a free-text name — resolving
+// natural-language exercise names against the catalog now happens
+// upstream, via the search_exercises chat tool (see
+// exercises.service.ts's searchExercises), before this is ever called.
+// That split is deliberate: the model reasons about candidates/confidence
+// and disambiguates with the user BEFORE committing to a write, instead
+// of this function discovering ambiguity/no-match only after the model
+// already guessed a name.
 export const logExerciseSetsForDate = async (
   userId: string,
-  exerciseName: string,
+  exerciseId: string,
   sets: Array<{ weight: number | null; reps: number }>,
   dateStr: string,
 ) => {
@@ -134,11 +115,13 @@ export const logExerciseSetsForDate = async (
     throw new AppError(400, "At least one set is required");
   }
 
-  const catalogEntry = await findCatalogExercise(exerciseName);
+  const catalogEntry = await prisma.exercise.findUnique({
+    where: { id: exerciseId },
+  });
   if (!catalogEntry) {
     throw new AppError(
       404,
-      `No exercise in the catalog matches "${exerciseName}".`,
+      "That exercise id doesn't exist — call search_exercises again.",
     );
   }
 

@@ -18,6 +18,12 @@ export const getConversationMessages = async (
 export const sendChatMessage = async (params: {
   content: string;
   conversationId?: string;
+  // RevenueCat's own entitlement check (same source of truth as every
+  // other Pro gate in the app, e.g. requirePro.ts) — the backend has no
+  // independent subscription record to check against, so this is trusted
+  // the same way every other Pro gate in this app already trusts the
+  // client.
+  isPro: boolean;
 }): Promise<{ message: ChatMessage; conversationId: string }> => {
   const { data } = await apiClient.post("/api/chat/messages", params);
   return data.result;

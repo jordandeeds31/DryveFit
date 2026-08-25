@@ -12,8 +12,10 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useSelector } from "react-redux";
 import Feather from "@expo/vector-icons/Feather";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import type { RootState } from "@/store";
 import { colors } from "@/constants/colors";
 import { spacing } from "@/constants/spacing";
 import { fontSizes, fontWeights } from "@/constants/typography";
@@ -58,6 +60,7 @@ const AiChatScreen = () => {
   const { data: messages, isLoading: isLoadingMessages } =
     useConversationMessages(activeConversationId);
   const { mutate: sendMessage, isPending: isSending } = useSendChatMessage();
+  const isPro = useSelector((state: RootState) => state.subscription.isPro);
 
   useEffect(() => {
     if (!isResolvingInitialChat || conversations === undefined) return;
@@ -75,14 +78,21 @@ const AiChatScreen = () => {
     setOptimisticMessage(trimmed);
 
     sendMessage(
-      { content: trimmed, conversationId: activeConversationId },
+      { content: trimmed, conversationId: activeConversationId, isPro },
       {
         onSuccess: (data) => {
           setOptimisticMessage(null);
           setActiveConversationId(data.conversationId);
         },
-        onError: () => {
+        onError: (error: any) => {
           setOptimisticMessage(null);
+          // 429 = the daily chat-message cap (chat.service.ts) — "please
+          // try again" would be misleading here, since retrying
+          // immediately won't help.
+          if (error?.status === 429) {
+            Alert.alert("Chat limit reached", error.message);
+            return;
+          }
           Alert.alert("Couldn't send message", "Please try again.");
         },
       },

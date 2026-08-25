@@ -13,6 +13,7 @@ import {
 import {
   getExercise1RMHistory,
   getPersonalRecordsForUser,
+  searchExercises,
 } from "../exercises/exercises.service";
 import {
   getActiveProgramForUser,
@@ -24,6 +25,20 @@ import {
   CARDIO_ACTIVITY_TYPES,
   CardioActivityType,
 } from "../cardio/cardio.service";
+import { UNRESTRICTED_TEST_EMAIL } from "../../utils/futureLogGuard";
+
+// Mirrors frontend/lib/purchases/requirePro.ts's UNRESTRICTED_EMAILS — the
+// developer's own account plus one comped account, both exempted from the
+// Pro paywall everywhere else in the app (that list bypasses
+// RevenueCatUI.presentPaywallIfNeeded entirely). The client-sent isPro
+// param here comes from RevenueCat's raw entitlement check
+// (subscriptionSlice's fetchSubscriptionStatus), which knows nothing about
+// that bypass — so without this, these two accounts would correctly skip
+// the paywall on every OTHER Pro-gated action but still get blocked here.
+const UNRESTRICTED_PRO_EMAILS = [
+  UNRESTRICTED_TEST_EMAIL,
+  "pineapplecrafty@gmail.com",
+];
 
 const MODEL = "gpt-4o-mini";
 // How many prior persisted turns to replay back to OpenAI — bounds cost per
@@ -33,10 +48,17 @@ const HISTORY_LIMIT = 40;
 // model gets stuck repeatedly calling tools instead of answering.
 const MAX_TOOL_ROUNDS = 5;
 
+// Cost/abuse guard — a rolling 24h window rather than a calendar-day
+// boundary, so it doesn't need per-user timezone handling to be correct.
+// Generous for a real user (a normal chat session is a handful of
+// messages), just bounds the worst case of a runaway client loop or
+// scripted abuse racking up OpenAI cost.
+const DAILY_MESSAGE_LIMIT = 60;
+
 // Weight is always persisted in lbs (see frontend/lib/utils/units.ts's
-// toStoredLbs) regardless of the user's display unitSystem — the
-// log_workout_sets tool accepts either unit from the model and converts
-// here so the stored value matches what every other write path produces.
+// toStoredLbs) regardless of the user's display unitSystem — the log_set
+// tool accepts either unit from the model and converts here so the
+// stored value matches what every other write path produces.
 const LBS_PER_KG = 2.20462262185;
 
 // "Today"/"yesterday" in a chat message means the user's own local
@@ -52,18 +74,36 @@ const getUserLocalDateStr = (timezone: string | null): string =>
     day: "2-digit",
   }).format(new Date());
 
-const buildSystemPrompt = (todayStr: string): string => `You are DryveFit AI Coach, the AI coach built into DryveFit, a fitness tracking app. You're chatting directly with the user about their own training.
+const PRO_LOGGING_INSTRUCTIONS = `You can also log completed workouts for the user, with log_set. Picking the right target and resolving the exercise correctly both matter:
+
+- If the workout is part of the user's active program ("log today's workout", "I completed the plan", "log the recommended sets for bench press"): call get_program_day first — never guess a programExerciseId. It tells you exactly what's prescribed for a date (each exercise's programExerciseId, prescribedSets, prescribedReps, recommendedWeight) AND, per exercise, loggedSets — whatever's actually been logged for it today already, if anything. If the user says "as prescribed"/"as planned" without their own numbers, use prescribedSets/prescribedReps/recommendedWeight directly. Then call log_set with that programExerciseId. This is what marks the exercise (and the whole day, once every exercise in it is logged) as completed in their program.
+- For anything NOT part of the active program (extra work on top of the plan, a standalone workout with no scheduled program day, or a specific exercise not in today's plan): you need a real exerciseId, and the ONLY way to get one is search_exercises — never invent an exerciseId or pass a name directly to log_set. Call search_exercises with the exercise name exactly as the user said it. Then, from the results:
+  - exactMatch: true, or one candidate scored clearly above the rest (roughly 0.85+, with real separation from the next-best score) → that's a confident match. Call log_set with its id directly — don't ask the user to confirm first, that's an extra round-trip for something you're already sure of.
+  - Multiple candidates close in score, or nothing scored high enough to be confident → do NOT guess. Reply listing 2–4 of the actual candidate names (never invented ones) and ask which one they meant. Once they answer, resolve to that one and call log_set — call search_exercises again first if their reply doesn't make the id obvious.
+  - No candidates at all → tell them plainly that exercise isn't in the catalog yet, and ask them to try a different/more common name for it. Don't create one or log against a fabricated id.
+
+Call log_set directly, without asking for confirmation first, whenever the exercise is already confidently resolved (either path above) and the user gave a plain factual completion — that's exactly what they asked for. After it succeeds, confirm back exactly what got logged: the resolved exercise name (from the tool result, not your own guess), sets, weight, reps, and date. If log_set errors, relay that plainly and ask them to clarify rather than retrying blindly.
+
+Logging the same exercise more than once on the same date is completely normal and always allowed — a user doing 5 sets of squats will often say so one or two at a time ("squats 135 for 8" ... then later "another set, same weight, 6 reps"), or ask you directly to "log the same thing again" / "one more set of that" / "add another set". Never tell the user you "can't" log an exercise again because they already logged it today — that's not a real restriction, and how to actually do it correctly differs by path:
+- exerciseId path: each log_set call ADDS more sets on top of whatever's already logged for that exercise/date — just call it again with only the new set(s).
+- programExerciseId path: each log_set call REPLACES that exercise's entire set list, it does not append. Before adding a set here, get that exercise's current loggedSets (from get_program_day — call it again if you don't already have a fresh copy) and pass ALL of them plus the new one(s) together in one log_set call. Passing only the new set would silently erase the ones already logged.
+
+Either path, if they're clearly continuing the same exercise from earlier in this conversation, reuse the exerciseId/programExerciseId you already resolved rather than re-resolving it.`;
+
+// Kept short deliberately — this user's tool list still includes log_set
+// (the model can't be un-taught a tool exists mid-schema), but log_set
+// itself refuses to execute for a non-Pro user (see executeTool) as the
+// real enforcement. This is just what steers the model away from ever
+// attempting it and toward telling the user why in plain language.
+const NON_PRO_LOGGING_INSTRUCTIONS = `This user does NOT have an active DryveFit Pro subscription. Logging workouts (log_set) is a Pro feature — calling it for this user will be rejected. If they ask you to log a workout/set/exercise, tell them plainly that logging through the AI coach requires DryveFit Pro, and that they can subscribe from the app to unlock it. Everything else (their history, PRs, program, general advice) is still fully available — the Pro requirement is only for writing new logs through chat.`;
+
+const buildSystemPrompt = (todayStr: string, isPro: boolean): string => `You are DryveFit AI Coach, the AI coach built into DryveFit, a fitness tracking app. You're chatting directly with the user about their own training.
 
 Today's date (the user's own local calendar date) is ${todayStr}. Use this to resolve relative dates like "today" or "yesterday" — never guess or use a different date.
 
 You have tools to fetch this user's real workout logs, lifting personal records, cardio sessions, and active program — always call a tool to get real numbers instead of guessing or making anything up. If a tool returns no data, say so plainly rather than inventing an answer.
 
-You can also log completed workouts for the user. Two different tools do this, and picking the right one matters:
-
-- log_program_exercise (after calling get_program_day first) — use this whenever the workout is part of the user's active program: "log today's workout", "I completed the plan", "log the recommended sets for bench press". get_program_day tells you exactly what's prescribed for a date (each exercise's programExerciseId, sets, reps, recommendedWeight) — always call it first, never guess a programExerciseId. If the user says something like "log it as prescribed"/"as planned" without giving their own numbers, use the prescribed sets/reps/recommendedWeight straight from get_program_day. This is what actually marks the exercise (and the whole day, once every exercise in it is logged) as completed in their program.
-- log_workout_sets — use this for anything NOT part of the active program: extra work on top of the plan, a standalone workout on a day with no scheduled program day, or when the user gives specific numbers for an exercise that isn't in today's plan. This never affects program completion tracking.
-
-Call the appropriate tool directly, without asking for confirmation first, when the user states a plain factual completion like the examples above — that's exactly what they asked for. Only ask a clarifying question first if something's genuinely ambiguous (e.g. the exercise name doesn't clearly match one thing, there's no scheduled program day for that date, or reps/weight are missing and not "as prescribed"). After a tool call succeeds, confirm back to the user exactly what got logged (exercise, sets, weight, reps, date). If a tool errors — e.g. no matching exercise, multiple exercises match, or no program day found — relay that plainly and ask them to clarify rather than guessing.
+${isPro ? PRO_LOGGING_INSTRUCTIONS : NON_PRO_LOGGING_INSTRUCTIONS}
 
 Be concise, specific, and encouraging — cite actual numbers, exercise names, and dates from the data you fetch. If asked something with no relevant tool (e.g. general fitness advice), just answer normally.`;
 
@@ -155,46 +195,18 @@ const tools: ChatCompletionTool[] = [
   {
     type: "function",
     function: {
-      name: "log_workout_sets",
+      name: "search_exercises",
       description:
-        "Log one or more completed sets of a single exercise for the user, for a given date. Adds to whatever's already logged that day rather than replacing it — safe to call even if other exercises were already logged for the same date. If the exercise name doesn't clearly match exactly one exercise in the catalog, this returns an error listing the possible matches instead of guessing.",
+        "Search the exercise catalog by free-text name. Always call this before log_set for anything not part of the active program (i.e. whenever you'd pass exerciseId, not programExerciseId) — never guess or invent an exerciseId. Returns up to 5 ranked candidates with a 0-1 confidence score, plus exactMatch (true only for a literal name match).",
       parameters: {
         type: "object",
         properties: {
-          exerciseName: {
+          query: {
             type: "string",
-            description:
-              "The exercise name as the user said it, e.g. \"barbell bench press\". Matched case-insensitively against the exercise catalog.",
-          },
-          sets: {
-            type: "array",
-            description: "Each set completed, in order.",
-            items: {
-              type: "object",
-              properties: {
-                weight: {
-                  type: "number",
-                  description: "Weight used for this set. Omit entirely for a bodyweight exercise.",
-                },
-                reps: {
-                  type: "number",
-                  description: "Reps completed for this set.",
-                },
-              },
-              required: ["reps"],
-            },
-          },
-          weightUnit: {
-            type: "string",
-            enum: ["lbs", "kg"],
-            description: "Unit the weight values are in. Default \"lbs\" unless the user said kg.",
-          },
-          date: {
-            type: "string",
-            description: "Date to log for, as YYYY-MM-DD. Defaults to today (see the date given in the system prompt) if omitted.",
+            description: "The exercise name as the user said it, e.g. \"shoulder raises\".",
           },
         },
-        required: ["exerciseName", "sets"],
+        required: ["query"],
       },
     },
   },
@@ -203,7 +215,7 @@ const tools: ChatCompletionTool[] = [
     function: {
       name: "get_program_day",
       description:
-        "Get the user's active program's prescribed exercises for a specific date — each exercise's programExerciseId, prescribed sets/reps, recommended weight, and whether it's already completed. Always call this before log_program_exercise to get the correct programExerciseId; never guess it. Returns an error if the user has no active program or no scheduled day on that date.",
+        "Get the user's active program's prescribed exercises for a specific date — each exercise's programExerciseId, prescribedSets/prescribedReps, recommendedWeight, isCompleted, and loggedSets (the actual sets logged so far, if any — needed before adding another set to an already-logged program exercise, since log_set replaces this exercise's set list rather than appending). Always call this before logging against the program to get the correct programExerciseId; never guess it. Returns an error if the user has no active program or no scheduled day on that date.",
       parameters: {
         type: "object",
         properties: {
@@ -218,19 +230,23 @@ const tools: ChatCompletionTool[] = [
   {
     type: "function",
     function: {
-      name: "log_program_exercise",
+      name: "log_set",
       description:
-        "Log completed sets against ONE prescribed exercise from the user's active program — use this (not log_workout_sets) whenever the user is logging a workout that's part of their program plan. Correctly marks that exercise, and the whole day once every exercise in it is logged, as completed. Requires the programExerciseId from get_program_day — call that first.",
+        "Log completed sets for one resolved exercise. Pass exactly one of exerciseId (from a prior search_exercises result — never invented, never a raw name) or programExerciseId (from get_program_day, to log against today's prescribed exercise and mark it/the day complete). Repeating an exercise on the same date is always fine — it's just never rejected for that — but the two paths behave differently: exerciseId ADDS to whatever's already logged, safe to call again with only the new set(s); programExerciseId REPLACES that exercise's entire set list each call, so adding to an already-logged one means passing get_program_day's loggedSets plus the new set(s) together, not just the new one(s) alone.",
       parameters: {
         type: "object",
         properties: {
+          exerciseId: {
+            type: "string",
+            description: "Exercise catalog id from a prior search_exercises result. Omit if programExerciseId is given.",
+          },
           programExerciseId: {
             type: "string",
-            description: "The id of the specific exercise being logged, from get_program_day's exercises list.",
+            description: "ProgramExercise id from get_program_day. Omit if exerciseId is given.",
           },
           sets: {
             type: "array",
-            description: "Each set completed, in order. If the user said to log it as prescribed, use get_program_day's sets count/reps/recommendedWeight for these.",
+            description: "Each set completed, in order. If the user said to log it as prescribed, use get_program_day's prescribedSets/prescribedReps/recommendedWeight for these. When targeting programExerciseId and the exercise already has loggedSets, include those sets here too (see log_set's own description) — this replaces the full list, it doesn't append.",
             items: {
               type: "object",
               properties: {
@@ -251,8 +267,12 @@ const tools: ChatCompletionTool[] = [
             enum: ["lbs", "kg"],
             description: "Unit the weight values are in. Default \"lbs\" unless the user said kg.",
           },
+          date: {
+            type: "string",
+            description: "Date to log for (exerciseId path only), as YYYY-MM-DD. Defaults to today if omitted. Ignored for programExerciseId, which logs against that exercise's own scheduled date.",
+          },
         },
-        required: ["programExerciseId", "sets"],
+        required: ["sets"],
       },
     },
   },
@@ -265,8 +285,9 @@ const clampLimit = (value: unknown, fallback: number, max: number): number => {
 
 const DATE_STR_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
-// Shared between log_workout_sets and log_program_exercise — both take the
-// same { weight, reps }[] shape plus an optional unit for the weight.
+// log_set's sets array is the same { weight, reps }[] shape plus an
+// optional unit for the weight, regardless of which id (exerciseId or
+// programExerciseId) it's targeting.
 const parseToolSets = (
   rawSets: unknown,
   weightUnit: unknown,
@@ -295,6 +316,7 @@ const executeTool = async (
   name: string,
   args: Record<string, unknown>,
   todayStr: string,
+  isPro: boolean,
 ): Promise<unknown> => {
   switch (name) {
     case "get_recent_workouts":
@@ -335,27 +357,12 @@ const executeTool = async (
     case "get_active_program":
       return getActiveProgramForUser(userId);
 
-    case "log_workout_sets": {
-      const exerciseName = args.exerciseName;
-      if (typeof exerciseName !== "string" || exerciseName.trim() === "") {
-        return { error: "exerciseName is required" };
+    case "search_exercises": {
+      const query = args.query;
+      if (typeof query !== "string" || query.trim() === "") {
+        return { error: "query is required" };
       }
-
-      const parsed = parseToolSets(args.sets, args.weightUnit);
-      if ("error" in parsed) return parsed;
-
-      const date =
-        typeof args.date === "string" && DATE_STR_PATTERN.test(args.date)
-          ? args.date
-          : todayStr;
-
-      try {
-        return await logExerciseSetsForDate(userId, exerciseName, parsed.sets, date);
-      } catch (err) {
-        return {
-          error: err instanceof AppError ? err.message : "Failed to log the workout",
-        };
-      }
+      return searchExercises(query);
     }
 
     case "get_program_day": {
@@ -381,10 +388,21 @@ const executeTool = async (
           exercises: programDay.exercises.map((exercise) => ({
             programExerciseId: exercise.id,
             exerciseName: exercise.exerciseName,
-            sets: exercise.sets,
-            reps: exercise.reps,
+            prescribedSets: exercise.sets,
+            prescribedReps: exercise.reps,
             recommendedWeight: exercise.recommendedWeight,
             isCompleted: exercise.isCompleted,
+            // The ACTUAL sets already logged for this exercise today, if
+            // any — log_set (programExerciseId path) replaces this
+            // exercise's whole set list on every call rather than
+            // appending, so adding one more set to an already-completed
+            // exercise means passing THESE plus the new one, not just the
+            // new one alone.
+            loggedSets: exercise.exerciseLogs[0]?.sets.map((set) => ({
+              setNumber: set.setNumber,
+              weight: set.weight,
+              reps: set.reps,
+            })) ?? [],
           })),
         };
       } catch (err) {
@@ -394,20 +412,53 @@ const executeTool = async (
       }
     }
 
-    case "log_program_exercise": {
-      const programExerciseId = args.programExerciseId;
-      if (typeof programExerciseId !== "string" || programExerciseId.trim() === "") {
-        return { error: "programExerciseId is required — call get_program_day first to get it" };
+    case "log_set": {
+      // Real enforcement, not just prompt steering — the model is told not
+      // to attempt this for a non-Pro user, but that's persuasion, not a
+      // guarantee. This is what actually stops the write.
+      if (!isPro) {
+        return {
+          error:
+            "Logging workouts through the AI coach requires DryveFit Pro. Tell the user to subscribe from the app to unlock this.",
+        };
+      }
+
+      const exerciseId =
+        typeof args.exerciseId === "string" && args.exerciseId.trim() !== ""
+          ? args.exerciseId
+          : null;
+      const programExerciseId =
+        typeof args.programExerciseId === "string" &&
+        args.programExerciseId.trim() !== ""
+          ? args.programExerciseId
+          : null;
+
+      if (!exerciseId && !programExerciseId) {
+        return {
+          error:
+            "Either exerciseId (from search_exercises) or programExerciseId (from get_program_day) is required",
+        };
+      }
+      if (exerciseId && programExerciseId) {
+        return { error: "Pass only one of exerciseId or programExerciseId, not both" };
       }
 
       const parsed = parseToolSets(args.sets, args.weightUnit);
       if ("error" in parsed) return parsed;
 
       try {
-        return await logExercisePerformance(userId, programExerciseId, parsed.sets);
+        if (programExerciseId) {
+          return await logExercisePerformance(userId, programExerciseId, parsed.sets);
+        }
+
+        const date =
+          typeof args.date === "string" && DATE_STR_PATTERN.test(args.date)
+            ? args.date
+            : todayStr;
+        return await logExerciseSetsForDate(userId, exerciseId!, parsed.sets, date);
       } catch (err) {
         return {
-          error: err instanceof AppError ? err.message : "Failed to log the exercise",
+          error: err instanceof AppError ? err.message : "Failed to log the set",
         };
       }
     }
@@ -467,11 +518,39 @@ export const deleteConversation = async (
   await prisma.conversation.delete({ where: { id: conversationId } });
 };
 
+// isPro is supplied by the client (RevenueCat's own entitlement check,
+// same as every other Pro gate in this app — e.g. requirePro.ts's
+// ensureProAccess — there's no backend-side subscription record to check
+// independently; RevenueCat entitlements are never synced to the DB).
+// Trusting the client here is consistent with the rest of the app, not a
+// weaker check than elsewhere it's used. It's OR'd with the
+// UNRESTRICTED_PRO_EMAILS bypass (below, computed as effectiveIsPro)
+// server-side, since that bypass is exactly what the client's RevenueCat
+// check alone doesn't know about — without it, the dev/comped accounts
+// would correctly skip the paywall everywhere else but still get blocked
+// here. What executeTool's own log_set check (further down) buys beyond
+// all of this: if the model ignores or misreads the system prompt's
+// instruction and calls log_set anyway for a non-Pro user, the write
+// still gets refused there — defense against LLM non-compliance, not
+// against a client sending a false isPro value, which nothing here can
+// detect.
 export const sendChatMessage = async (
   userId: string,
   content: string,
-  conversationId?: string,
+  conversationId: string | undefined,
+  isPro: boolean,
 ) => {
+  const rollingWindowStart = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const messagesInWindow = await prisma.chatMessage.count({
+    where: { userId, role: "user", createdAt: { gte: rollingWindowStart } },
+  });
+  if (messagesInWindow >= DAILY_MESSAGE_LIMIT) {
+    throw new AppError(
+      429,
+      "You've hit today's chat message limit — try again in a bit.",
+    );
+  }
+
   const conversation = conversationId
     ? await requireOwnedConversation(userId, conversationId)
     : await prisma.conversation.create({
@@ -488,13 +567,18 @@ export const sendChatMessage = async (
       orderBy: { createdAt: "desc" },
       take: HISTORY_LIMIT,
     }),
-    prisma.user.findUnique({ where: { id: userId }, select: { timezone: true } }),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { timezone: true, email: true },
+    }),
   ]);
 
   const todayStr = getUserLocalDateStr(user?.timezone ?? null);
+  const effectiveIsPro =
+    isPro || (!!user?.email && UNRESTRICTED_PRO_EMAILS.includes(user.email));
 
   const messages: ChatCompletionMessageParam[] = [
-    { role: "system", content: buildSystemPrompt(todayStr) },
+    { role: "system", content: buildSystemPrompt(todayStr, effectiveIsPro) },
     ...priorMessages
       .reverse()
       .map((message): ChatCompletionMessageParam => ({
@@ -542,6 +626,7 @@ export const sendChatMessage = async (
         toolCall.function.name,
         args,
         todayStr,
+        effectiveIsPro,
       );
 
       messages.push({

@@ -34,7 +34,7 @@ export const getConversationMessagesHandler = catchAsync(
 
 export const sendChatMessageHandler = catchAsync(
   async (req: AuthRequest, res: Response) => {
-    const { content, conversationId } = req.body;
+    const { content, conversationId, isPro } = req.body;
 
     if (typeof content !== "string" || content.trim() === "") {
       throw new AppError(400, "content is required");
@@ -46,10 +46,14 @@ export const sendChatMessageHandler = catchAsync(
       throw new AppError(400, "conversationId must be a string");
     }
 
+    // Fails closed on anything but a literal true — same philosophy as
+    // subscriptionSlice's own fetchSubscriptionStatus.rejected handler
+    // ("don't silently treat the user as pro").
     const result = await sendChatMessage(
       req.userId!,
       content.trim(),
       conversationId,
+      isPro === true,
     );
     sendSuccess(res, 201, "CHAT_MESSAGE_SENT", result);
   },

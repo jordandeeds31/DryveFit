@@ -30,6 +30,95 @@ export const getAllExercises = async () => {
   }));
 };
 
+const normalize = (value: string): string => value.trim().toLowerCase();
+
+const tokenize = (value: string): string[] =>
+  normalize(value)
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+
+export interface ExerciseSearchCandidate {
+  id: string;
+  name: string;
+  muscleGroup: string;
+  equipment: string;
+  score: number;
+}
+
+const MIN_CANDIDATE_SCORE = 0.3;
+const MAX_CANDIDATES = 5;
+
+// Used by the AI chat tool (search_exercises) to resolve a free-text
+// exercise name against the real catalog BEFORE any log gets written —
+// the model must call this and reason about the candidates/scores, rather
+// than logging against a guessed or hallucinated exercise id. The catalog
+// is small (~80 rows), so this scores every row in memory rather than
+// needing a real search index.
+//
+// Scoring, highest first:
+//  1.0  exact match (case-insensitive)
+//  0.75 substring match, either direction ("bench" in "Barbell Bench
+//       Press", or a longer typed name containing the catalog name)
+//  else token-overlap: fraction of the query's own words found (as an
+//       exact or prefix match) among the exercise name's words — handles
+//       reordered/partial phrasing like "shoulder raises" for "Lateral
+//       Shoulder Raise" that a substring check alone would miss, since
+//       "shoulder raises" is not a substring of "Lateral Shoulder Raise"
+//       (extra word "Lateral" in between, plural "raises" vs "Raise").
+// exactMatch is only true for a real 1.0 score — the caller (the model)
+// is instructed to still treat one clearly-ahead high-scoring candidate
+// as safe to log directly, but that judgment call belongs to the model
+// grounded in the actual scores, not baked into this function.
+export const searchExercises = async (
+  query: string,
+): Promise<{ exactMatch: boolean; candidates: ExerciseSearchCandidate[] }> => {
+  const normalizedQuery = normalize(query);
+  if (!normalizedQuery) return { exactMatch: false, candidates: [] };
+
+  const queryTokens = tokenize(query);
+  const exercises = await prisma.exercise.findMany({
+    select: { id: true, name: true, muscleGroup: true, equipment: true },
+  });
+
+  const scored = exercises.map((exercise) => {
+    const normalizedName = normalize(exercise.name);
+    let score: number;
+
+    if (normalizedName === normalizedQuery) {
+      score = 1;
+    } else if (
+      normalizedName.includes(normalizedQuery) ||
+      normalizedQuery.includes(normalizedName)
+    ) {
+      score = 0.75;
+    } else {
+      const nameTokens = tokenize(exercise.name);
+      const matchedTokens = queryTokens.filter((queryToken) =>
+        nameTokens.some(
+          (nameToken) =>
+            nameToken.startsWith(queryToken) || queryToken.startsWith(nameToken),
+        ),
+      );
+      score =
+        queryTokens.length === 0
+          ? 0
+          : (matchedTokens.length / queryTokens.length) * 0.7;
+    }
+
+    return { ...exercise, score: Math.round(score * 100) / 100 };
+  });
+
+  const candidates = scored
+    .filter((candidate) => candidate.score >= MIN_CANDIDATE_SCORE)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, MAX_CANDIDATES);
+
+  return {
+    exactMatch: candidates.length > 0 && candidates[0].score === 1,
+    candidates,
+  };
+};
+
 // Every exercise's DERIVED image bytes (static PNG vs. animated GIF are
 // different encodings of the same source), keyed by name+variant. The
 // catalog is small and fixed (~80 exercises), so this is bounded and
