@@ -1,14 +1,5 @@
 import apiClient from "./client";
-import {
-  Exercise,
-  OneRepMaxEntry,
-  PreviousSession,
-} from "@/types/exercise.types";
-
-export const getExercises = async (): Promise<Exercise[]> => {
-  const { data } = await apiClient.get("/api/exercises");
-  return data.result.exercises;
-};
+import { OneRepMaxEntry, PreviousSession } from "@/types/exercise.types";
 
 export const getExercise1RMHistory = async (
   exerciseName: string,
