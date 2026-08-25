@@ -22,6 +22,12 @@ import ProgramGenerationModal from "./components/ProgramGenerationModal/ProgramG
 interface ProgramBuilderProps {
   onCreated?: () => void;
   onGeneratingChange?: (isGenerating: boolean) => void;
+  // Distinct from onGeneratingChange: this covers the whole generation/
+  // result view (in-progress AND failed), not just "actively generating"
+  // — the outer Modal uses it to switch its own chrome (the bottom-sheet
+  // treatment is only for the question form; the generation view should
+  // stay a plain centered box, on failure too).
+  onViewChange?: (isGenerationView: boolean) => void;
 }
 
 // Strips the time-of-day, keeping only the local calendar date — so
@@ -34,6 +40,7 @@ const normalizeToLocalMidnight = (date: Date): Date => {
 const ProgramBuilder = ({
   onCreated,
   onGeneratingChange,
+  onViewChange,
 }: ProgramBuilderProps) => {
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const [sessionMinutes, setSessionMinutes] = useState<number>(30);
@@ -77,6 +84,7 @@ const ProgramBuilder = ({
         onSuccess: (program) => {
           setGeneratingProgramId(program.id);
           setModalVisible(true);
+          onViewChange?.(true);
         },
         onError: (error: any) => {
           setValidationError(
@@ -91,6 +99,7 @@ const ProgramBuilder = ({
     setModalVisible(false);
     setGeneratingProgramId(null);
     onGeneratingChange?.(false);
+    onViewChange?.(false);
     onCreated?.();
   };
 

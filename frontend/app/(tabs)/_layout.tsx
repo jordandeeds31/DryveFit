@@ -18,6 +18,10 @@ export default function TabsLayout() {
   // it's mounted from, so one instance here covers the whole tab group.
   const { isOpen, close, toggle } = useToggle();
   const [isGeneratingProgram, setIsGeneratingProgram] = useState(false);
+  // The bottom-sheet treatment is only for the question form — the
+  // generation/result view (in progress or failed) goes back to a plain
+  // centered box, same as before that treatment existed.
+  const [isGenerationView, setIsGenerationView] = useState(false);
 
   const handleCreateProgram = useCallback(async () => {
     const granted = await ensureProAccess();
@@ -75,17 +79,19 @@ export default function TabsLayout() {
         onClose={close}
         closable={!isGeneratingProgram}
         headerAction={
-          <Text style={programBuilderStyles.title}>Build Your Program</Text>
+          isGenerationView ? undefined : (
+            <Text style={programBuilderStyles.title}>Build Your Program</Text>
+          )
         }
-        size="large"
+        size={isGenerationView ? undefined : "large"}
         wide
-        glass
-        bottom
+        bottom={!isGenerationView}
         keyboardAware={false}
       >
         <ProgramBuilder
           onCreated={close}
           onGeneratingChange={setIsGeneratingProgram}
+          onViewChange={setIsGenerationView}
         />
       </Modal>
       <Tabs
