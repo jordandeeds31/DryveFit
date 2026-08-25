@@ -8,12 +8,7 @@ import { useProgramGenerationStatus } from "@/hooks/usePrograms";
 import { spacing } from "@/constants/spacing";
 import { fontSizes, fontWeights } from "@/constants/typography";
 
-// ActivityIndicator's "large" size isn't a pixel value we can read back
-// (it's native-fixed per platform — ~37pt iOS, ~46dp Android), so the
-// wrapper is sized generously and both children are centered within it
-// via flex rather than the logo being sized off the spinner's own bounds.
-const SPINNER_WRAPPER_SIZE = 56;
-const LOGO_SIZE = 22;
+const LOGO_SIZE = 40;
 
 interface ProgramGenerationModalProps {
   visible: boolean;
@@ -60,13 +55,13 @@ const ProgramGenerationModal = ({
   return (
     <View style={styles.content}>
       {!isFailed && (
-        <View style={[styles.spinnerWrapper, { marginBottom: spacing.md }]}>
-          <ActivityIndicator size="large" />
+        <View style={[styles.spinnerColumn, { marginBottom: spacing.md }]}>
           <Image
             source={require("@/assets/images/logo.png")}
-            style={styles.spinnerLogo}
+            style={styles.logo}
             contentFit="contain"
           />
+          <ActivityIndicator size="large" style={{ marginTop: spacing.sm }} />
         </View>
       )}
 
@@ -106,14 +101,10 @@ const styles = StyleSheet.create({
   content: {
     alignItems: "center",
   },
-  spinnerWrapper: {
-    width: SPINNER_WRAPPER_SIZE,
-    height: SPINNER_WRAPPER_SIZE,
+  spinnerColumn: {
     alignItems: "center",
-    justifyContent: "center",
   },
-  spinnerLogo: {
-    position: "absolute",
+  logo: {
     width: LOGO_SIZE,
     height: LOGO_SIZE,
   },
