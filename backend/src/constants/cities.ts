@@ -4,12 +4,17 @@ import worldCountries from "../data/countries.json";
 // ~33k worldwide cities/towns (population 15,000+, GeoNames' cities15000
 // export) — US entries keep the "City, ST" format the app already used
 // (GeoNames' own admin1 code for US rows IS the 2-letter state
-// abbreviation), everywhere else is "City, Country". See
-// /Users/jordandeeds/Documents/coding/fitness/backend for the generation
-// script if this ever needs regenerating from a newer GeoNames release.
+// abbreviation), everywhere else is "City, Country". lat/lng were joined
+// in afterward from the same cities15000 export (matched on country +
+// name, and admin1 too for US rows) — every one of the existing 33,463
+// entries matched with none dropped or added, so this is the exact same
+// city list as before, just with coordinates attached for
+// findNearestCity below.
 interface CityEntry {
   label: string;
   countryCode: string;
+  lat: number;
+  lng: number;
 }
 
 export const CITIES: readonly CityEntry[] = worldCities;
@@ -74,4 +79,59 @@ export const searchCities = (
   }
 
   return results;
+};
+
+const EARTH_RADIUS_KM = 6371;
+
+const toRadians = (degrees: number): number => (degrees * Math.PI) / 180;
+
+const haversineDistanceKm = (
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number,
+): number => {
+  const dLat = toRadians(lat2 - lat1);
+  const dLng = toRadians(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRadians(lat1)) *
+      Math.cos(toRadians(lat2)) *
+      Math.sin(dLng / 2) ** 2;
+  return 2 * EARTH_RADIUS_KM * Math.asin(Math.sqrt(a));
+};
+
+// For auto-detecting a signup's city from GPS: nearest entry in the same
+// list searchCities already draws from (still just the most-populous
+// cities per state/country — this never adds smaller towns to the list,
+// it just finds which listed city a coordinate is actually closest to,
+// instead of requiring the device's reverse-geocoded city name to be an
+// exact — and often absent — entry in that list).
+//
+// usState scopes US lookups to one state (matching the label's ", ST"
+// suffix) so a coordinate just across a state line never returns a city
+// in the wrong state; non-US callers are already scoped to one country
+// via countryCode alone, since the list doesn't carry a finer admin
+// division for them.
+export const findNearestCity = (
+  lat: number,
+  lng: number,
+  countryCode: string,
+  usState?: string,
+): string | null => {
+  let nearestLabel: string | null = null;
+  let nearestDistanceKm = Infinity;
+
+  for (const city of CITIES) {
+    if (city.countryCode !== countryCode) continue;
+    if (usState && !city.label.endsWith(`, ${usState}`)) continue;
+
+    const distanceKm = haversineDistanceKm(lat, lng, city.lat, city.lng);
+    if (distanceKm < nearestDistanceKm) {
+      nearestDistanceKm = distanceKm;
+      nearestLabel = city.label;
+    }
+  }
+
+  return nearestLabel;
 };

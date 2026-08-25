@@ -1,5 +1,5 @@
 import * as Location from "expo-location";
-import { searchCities, getCountries } from "@/lib/api/cities.api";
+import { getNearestCity } from "@/lib/api/cities.api";
 import { updateProfile } from "@/lib/api/users.api";
 import { queryClient } from "@/lib/api/queryClient";
 
@@ -29,11 +29,21 @@ const STATE_NAME_TO_ABBR: Record<string, string> = {
 // Fire-and-forget, called right after signup (mirrors the old
 // detectAndSaveUnitSystem, which did the same for unitSystem before that
 // became an unconditional default) — never awaited by the caller, never
-// surfaces an error. A denied permission, no GPS fix, a reverse-geocode
-// miss, or a city that doesn't match the app's own list just leaves city
+// surfaces an error. A denied permission or no GPS fix just leaves city
 // unset, which CityPicker (in EditProfileModal) already handles as "not
 // set yet" — the viewer can always search (country first, then city) and
 // pick one manually there.
+//
+// Deliberately does NOT require the device's reverse-geocoded city name
+// to exactly match an entry in the app's list (that was the original
+// approach, and silently failed for most non-major-metro users — the
+// list only carries population 15,000+ cities, so anyone in a suburb or
+// small town got a city name that simply wasn't in the list under any
+// spelling). Instead it sends the raw GPS fix to the backend, which finds
+// the *nearest* listed city by distance — findNearestCity in
+// backend/src/constants/cities.ts. The list itself is unchanged (still
+// only the most-populous city per area); this only changes how a
+// coordinate gets matched to it.
 export const detectAndSaveCity = async (): Promise<void> => {
   try {
     const { status } = await Location.requestForegroundPermissionsAsync();
@@ -52,38 +62,29 @@ export const detectAndSaveCity = async (): Promise<void> => {
       longitude: position.coords.longitude,
     });
 
-    const cityName = place?.city;
+    // Reverse geocoding is only used for isoCountryCode/region now (to
+    // scope the nearest-city search to the right state/country) — the
+    // city NAME it returns is no longer used at all, since that's exactly
+    // the field that used to cause silent failures.
     const isoCountryCode = place?.isoCountryCode;
-    if (!cityName || !isoCountryCode) {
-      if (__DEV__) console.log("[detectAndSaveCity] bailed: no city/country from reverse geocode", place);
+    if (!isoCountryCode) {
+      if (__DEV__) console.log("[detectAndSaveCity] bailed: no country from reverse geocode", place);
       return;
     }
 
-    let candidate: string;
-    if (isoCountryCode === "US") {
-      const stateAbbr = place?.region ? STATE_NAME_TO_ABBR[place.region] : null;
-      if (!stateAbbr) {
-        if (__DEV__) console.log("[detectAndSaveCity] bailed: unmapped US region", place?.region);
-        return;
-      }
-      candidate = `${cityName}, ${stateAbbr}`;
-    } else {
-      const countries = await getCountries();
-      const country = countries.find((c) => c.code === isoCountryCode);
-      if (!country) {
-        if (__DEV__) console.log("[detectAndSaveCity] bailed: unknown country code", isoCountryCode);
-        return;
-      }
-      candidate = `${cityName}, ${country.name}`;
-    }
+    const usState =
+      isoCountryCode === "US" && place?.region
+        ? STATE_NAME_TO_ABBR[place.region]
+        : undefined;
 
-    // Confirms this is a real entry in the app's own city list (not just
-    // a plausible-looking string) — reuses the same search CityPicker
-    // itself calls once a country is chosen, rather than trusting the
-    // device geocoder's naming to already match exactly.
-    const matches = await searchCities(candidate, isoCountryCode);
-    if (!matches.includes(candidate)) {
-      if (__DEV__) console.log("[detectAndSaveCity] bailed: no city-list match for", candidate, matches);
+    const candidate = await getNearestCity(
+      position.coords.latitude,
+      position.coords.longitude,
+      isoCountryCode,
+      usState,
+    );
+    if (!candidate) {
+      if (__DEV__) console.log("[detectAndSaveCity] bailed: no listed city near", { isoCountryCode, usState });
       return;
     }
 
