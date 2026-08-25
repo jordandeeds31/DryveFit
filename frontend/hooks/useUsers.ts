@@ -31,10 +31,13 @@ export const usePublicProfile = (userId: string | null) => {
   });
 };
 
-export const usePublicWorkoutHistory = (userId: string | null) => {
+export const usePublicWorkoutHistory = (
+  userId: string | null,
+  monthKey?: string,
+) => {
   return useQuery({
-    queryKey: ["publicWorkoutHistory", userId],
-    queryFn: () => getPublicWorkoutHistory(userId!),
+    queryKey: ["publicWorkoutHistory", userId, monthKey ?? "current"],
+    queryFn: () => getPublicWorkoutHistory(userId!, monthKey),
     enabled: !!userId,
   });
 };

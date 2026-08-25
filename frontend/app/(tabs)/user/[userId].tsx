@@ -37,7 +37,7 @@ import {
 } from "@/hooks/usePrograms";
 import InheritDatePickerModal from "@/features/InheritWorkout/InheritDatePickerModal";
 import EditProfileModal from "@/features/PublicProfile/EditProfileModal";
-import NutritionMonthCalendar from "@/features/PublicProfile/NutritionMonthCalendar";
+import MonthCalendar from "@/features/PublicProfile/MonthCalendar";
 import { useAuthImageHeaders } from "@/hooks/useAuthImageHeaders";
 import { useCreateDmConversation } from "@/hooks/useDirectMessages";
 import { ensureProAccess } from "@/lib/purchases/requirePro";
@@ -125,8 +125,23 @@ const UserProfileScreen = () => {
     isLoading: isProfileLoading,
     error: profileError,
   } = usePublicProfile(userId ?? null);
+  // undefined = current month (the hook/API default) — set once the viewer
+  // navigates the calendar to a different month.
+  const [workoutMonthKey, setWorkoutMonthKey] = useState<string | undefined>(
+    undefined,
+  );
+  const [selectedWorkoutDate, setSelectedWorkoutDate] = useState<
+    string | null
+  >(null);
   const { data: workoutLogs, isLoading: isHistoryLoading } =
-    usePublicWorkoutHistory(userId ?? null);
+    usePublicWorkoutHistory(userId ?? null, workoutMonthKey);
+  // loggedAt is stored as UTC midnight for that day (see date.utils.ts) —
+  // slicing the ISO string's date portion directly avoids the local-
+  // timezone rollback toDateKey's local getters would cause for a viewer
+  // west of UTC.
+  const selectedWorkoutLog = workoutLogs?.find(
+    (log: PublicWorkoutLog) => log.loggedAt.slice(0, 10) === selectedWorkoutDate,
+  );
   const { data: activeProgram, isLoading: isProgramLoading } =
     usePublicActiveProgram(userId ?? null);
   // undefined = current month (the hook/API default) — set once the viewer
@@ -520,7 +535,7 @@ const UserProfileScreen = () => {
           </View>
 
           {tab === "nutrition" && (
-            <NutritionMonthCalendar
+            <MonthCalendar
               loggedDates={
                 new Set((nutritionDays ?? []).map((day: PublicNutritionDay) => day.date))
               }
@@ -635,14 +650,6 @@ const UserProfileScreen = () => {
             <ActivityIndicator style={{ marginTop: spacing.md }} />
           )}
 
-          {tab === "workouts" &&
-            !isProgramLoading &&
-            !isHistoryLoading &&
-            !activeProgram &&
-            (!workoutLogs || workoutLogs.length === 0) && (
-              <Text style={styles.emptyText}>No workouts logged yet.</Text>
-            )}
-
           {tab === "workouts" && !isProgramLoading && activeProgram && (
             <>
               <Text style={styles.sectionLabel}>Current Program</Text>
@@ -733,71 +740,33 @@ const UserProfileScreen = () => {
             </>
           )}
 
+          {tab === "workouts" && (
+            <MonthCalendar
+              loggedDates={
+                new Set(
+                  (workoutLogs ?? []).map((log: PublicWorkoutLog) =>
+                    log.loggedAt.slice(0, 10),
+                  ),
+                )
+              }
+              selectedDate={selectedWorkoutDate}
+              onSelectDate={setSelectedWorkoutDate}
+              onMonthChange={(monthKey) => {
+                setWorkoutMonthKey(monthKey);
+                // Same reasoning as the nutrition calendar — the
+                // previously-selected date almost certainly doesn't
+                // exist in the newly-fetched month's data.
+                setSelectedWorkoutDate(null);
+              }}
+            />
+          )}
+
           {tab === "workouts" &&
             !isHistoryLoading &&
-            workoutLogs &&
-            workoutLogs.length > 0 && (
-              <>
-                <Text
-                  style={[
-                    styles.sectionLabel,
-                    !!activeProgram && styles.standaloneSectionLabel,
-                  ]}
-                >
-                  {activeProgram ? "Other Logged Workouts" : "Recent Workouts"}
-                </Text>
-                <View style={styles.grid}>
-                  {workoutLogs.map((log: PublicWorkoutLog) => (
-                    <View key={log.id} style={styles.gridCard}>
-                      <View style={styles.cardHeaderRow}>
-                        <Text style={styles.cardTitle}>
-                          {formatLoggedAt(log.loggedAt)}
-                        </Text>
-                        <View style={[styles.badge, styles.badgeActive]}>
-                          <Text
-                            style={[styles.badgeText, styles.badgeTextActive]}
-                          >
-                            {log.exercises.length}{" "}
-                            {log.exercises.length === 1
-                              ? "exercise"
-                              : "exercises"}
-                          </Text>
-                        </View>
-                      </View>
-                      {log.exercises.map((exercise) => (
-                        <View key={exercise.id} style={styles.exerciseBlock}>
-                          <Text style={styles.exerciseName} numberOfLines={1}>
-                            {exercise.exerciseName}
-                          </Text>
-                          <Text style={styles.setSummary} numberOfLines={1}>
-                            {exercise.sets
-                              .map(
-                                (set) =>
-                                  `${set.weight != null ? `${set.weight}lb×` : ""}${set.reps ?? "-"}`,
-                              )
-                              .join(", ")}
-                          </Text>
-                        </View>
-                      ))}
-                      {!isOwnProfile && (
-                        <TouchableOpacity
-                          style={styles.inheritButton}
-                          onPress={() => handleInheritLogAsNewProgram(log)}
-                        >
-                          <Feather
-                            name="download"
-                            size={12}
-                            color={colors.primaryBlue}
-                          />
-                          <Text style={styles.inheritButtonText}>
-                            Inherit Workout
-                          </Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  ))}
-                </View>
-              </>
+            (!workoutLogs || workoutLogs.length === 0) && (
+              <Text style={styles.emptyText}>
+                No workouts logged that month.
+              </Text>
             )}
         </ScrollView>
       )}
@@ -868,6 +837,53 @@ const UserProfileScreen = () => {
                   )}
                 </View>
               ) : null,
+            )}
+          </View>
+        )}
+      </Modal>
+
+      <Modal
+        visible={!!selectedWorkoutDate}
+        onClose={() => setSelectedWorkoutDate(null)}
+      >
+        {selectedWorkoutLog && (
+          <View>
+            <View style={styles.cardHeaderRow}>
+              <Text style={styles.cardTitle}>
+                {formatLoggedAt(selectedWorkoutLog.loggedAt)}
+              </Text>
+              <View style={[styles.badge, styles.badgeActive]}>
+                <Text style={[styles.badgeText, styles.badgeTextActive]}>
+                  {selectedWorkoutLog.exercises.length}{" "}
+                  {selectedWorkoutLog.exercises.length === 1
+                    ? "exercise"
+                    : "exercises"}
+                </Text>
+              </View>
+            </View>
+            {selectedWorkoutLog.exercises.map((exercise) => (
+              <View key={exercise.id} style={styles.exerciseBlock}>
+                <Text style={styles.exerciseName} numberOfLines={1}>
+                  {exercise.exerciseName}
+                </Text>
+                <Text style={styles.setSummary} numberOfLines={1}>
+                  {exercise.sets
+                    .map(
+                      (set) =>
+                        `${set.weight != null ? `${set.weight}lb×` : ""}${set.reps ?? "-"}`,
+                    )
+                    .join(", ")}
+                </Text>
+              </View>
+            ))}
+            {!isOwnProfile && (
+              <TouchableOpacity
+                style={styles.inheritButton}
+                onPress={() => handleInheritLogAsNewProgram(selectedWorkoutLog)}
+              >
+                <Feather name="download" size={12} color={colors.primaryBlue} />
+                <Text style={styles.inheritButtonText}>Inherit Workout</Text>
+              </TouchableOpacity>
             )}
           </View>
         )}

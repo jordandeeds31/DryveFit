@@ -116,12 +116,17 @@ export const getPublicProfileHandler = catchAsync(
 export const getPublicWorkoutHistoryHandler = catchAsync(
   async (req: AuthRequest, res: Response) => {
     const { userId } = req.params;
+    const { month } = req.query;
 
     if (typeof userId !== "string") {
       throw new AppError(400, "userId is required");
     }
 
-    const workoutLogs = await getPublicWorkoutHistory(req.userId!, userId);
+    const workoutLogs = await getPublicWorkoutHistory(
+      req.userId!,
+      userId,
+      typeof month === "string" ? month : undefined,
+    );
     sendSuccess(res, 200, "PUBLIC_WORKOUT_HISTORY_FETCHED", { workoutLogs });
   },
 );

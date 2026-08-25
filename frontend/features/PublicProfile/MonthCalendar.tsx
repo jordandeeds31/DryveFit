@@ -32,7 +32,7 @@ const buildMonthGrid = (year: number, month: number): (number | null)[][] => {
   return weeks;
 };
 
-interface NutritionMonthCalendarProps {
+interface MonthCalendarProps {
   // "YYYY-MM-DD" keys that actually have a logged entry — everything else
   // in the grid renders as a plain, untappable day number.
   loggedDates: Set<string>;
@@ -46,15 +46,16 @@ interface NutritionMonthCalendarProps {
 // A real month grid (every day of the month, aligned to weekday columns),
 // not the app's existing 7-day week strip (WeeklySchedule) — this is a
 // different, bigger view purpose-built for browsing a whole month of
-// someone else's nutrition history. Logged days render as a filled blue
-// circle (tappable, shows that day's meals); everything else is a plain
-// number.
-const NutritionMonthCalendar = ({
+// someone else's history. Fully generic over what "logged" means — used
+// for both the Nutrition and Workouts tabs on the public profile screen.
+// Logged days render as a filled blue circle (tappable, shows that day's
+// detail); everything else is a plain number.
+const MonthCalendar = ({
   loggedDates,
   selectedDate,
   onSelectDate,
   onMonthChange,
-}: NutritionMonthCalendarProps) => {
+}: MonthCalendarProps) => {
   const [anchor, setAnchor] = useState(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
@@ -152,7 +153,7 @@ const NutritionMonthCalendar = ({
   );
 };
 
-export default NutritionMonthCalendar;
+export default MonthCalendar;
 
 const CELL_SIZE = 34;
 

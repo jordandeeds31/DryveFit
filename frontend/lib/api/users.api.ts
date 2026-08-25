@@ -23,8 +23,12 @@ export const getPublicProfile = async (
 
 export const getPublicWorkoutHistory = async (
   userId: string,
+  // "YYYY-MM" — defaults server-side to the current month when omitted.
+  monthKey?: string,
 ): Promise<PublicWorkoutLog[]> => {
-  const { data } = await apiClient.get(`/api/users/${userId}/workouts`);
+  const { data } = await apiClient.get(`/api/users/${userId}/workouts`, {
+    params: monthKey ? { month: monthKey } : undefined,
+  });
   return data.result.workoutLogs;
 };
 

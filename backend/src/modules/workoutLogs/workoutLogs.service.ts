@@ -322,9 +322,8 @@ export const getDistinctExerciseNamesForUser = async (userId: string) => {
   return logs.map((log) => log.exerciseName).sort();
 };
 
-const PUBLIC_WORKOUT_HISTORY_LIMIT = 20;
-
-// Shown on another user's public profile (reached from the leaderboard) —
+// Shown on another user's public profile's Workouts tab (rendered as a
+// month calendar, same as getPublicNutritionHistory's Nutrition tab) —
 // gated by the same isLeaderboardVisible/username eligibility as
 // getPublicProfile, except when viewing your own profile (that gate
 // controls what OTHER people can see, not your own access to your own
@@ -336,6 +335,9 @@ const PUBLIC_WORKOUT_HISTORY_LIMIT = 20;
 export const getPublicWorkoutHistory = async (
   viewerId: string,
   targetUserId: string,
+  // "YYYY-MM" — defaults to the current calendar month (server's own
+  // clock) when omitted, same convention as getPublicNutritionHistory.
+  monthKey?: string,
 ) => {
   if (viewerId !== targetUserId) {
     const user = await prisma.user.findFirst({
@@ -352,14 +354,23 @@ export const getPublicWorkoutHistory = async (
     }
   }
 
+  const today = new Date();
+  const [monthYear, monthNum] =
+    monthKey && /^\d{4}-\d{2}$/.test(monthKey)
+      ? monthKey.split("-").map(Number)
+      : [today.getFullYear(), today.getMonth() + 1];
+
+  const windowStart = new Date(monthYear, monthNum - 1, 1, 0, 0, 0, 0);
+  const windowEnd = new Date(monthYear, monthNum, 0, 23, 59, 59, 999);
+
   const workoutLogs = await prisma.workoutLog.findMany({
     where: {
       userId: targetUserId,
+      loggedAt: { gte: windowStart, lte: windowEnd },
       exercises: { every: { programExerciseId: null } },
     },
     include: { exercises: { include: { sets: true } } },
     orderBy: { loggedAt: "desc" },
-    take: PUBLIC_WORKOUT_HISTORY_LIMIT,
   });
 
   return workoutLogs.map((log) => ({
