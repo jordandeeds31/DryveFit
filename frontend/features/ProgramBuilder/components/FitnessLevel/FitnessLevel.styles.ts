@@ -7,9 +7,17 @@ const styles = StyleSheet.create({
   container: {},
   levelRow: {
     flexDirection: "row",
-    backgroundColor: colors.surfaceGray,
+    backgroundColor: "white",
+    borderWidth: 1,
+    borderColor: colors.borderBlueLight,
     borderRadius: 12,
+    padding: 4,
     gap: 4,
+    shadowColor: colors.primaryBlue,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 5,
+    elevation: 2,
   },
   levelButton: {
     flex: 1,

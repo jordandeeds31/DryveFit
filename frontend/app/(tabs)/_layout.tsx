@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { Text } from "react-native";
 import { Tabs } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { colors } from "@/constants/colors";
@@ -6,6 +7,7 @@ import { fontSizes, fontWeights } from "@/constants/typography";
 import AppHeader from "@/components/shared/AppHeader/AppHeader";
 import Modal from "@/components/shared/Modal/Modal";
 import ProgramBuilder from "@/features/ProgramBuilder/ProgramBuilder";
+import programBuilderStyles from "@/features/ProgramBuilder/ProgramBuilder.styles";
 import useToggle from "@/hooks/useToggle";
 import { ensureProAccess } from "@/lib/purchases/requirePro";
 
@@ -40,8 +42,15 @@ export default function TabsLayout() {
     () => ({
       tabBarActiveTintColor: colors.primaryBlue,
       tabBarInactiveTintColor: colors.textMuted,
+      // The Program Builder sheet is a real full-screen RN Modal, but on
+      // some platforms the tab bar's own layer can still paint above it
+      // (observed on device: the tab bar rendered on top of, and covered,
+      // the "Build & Activate Program" button). Hiding it outright while
+      // the sheet is open is a hard guarantee rather than relying on
+      // z-index/elevation ordering to hold.
       tabBarStyle: {
         borderTopColor: colors.borderGray,
+        display: isOpen ? ("none" as const) : ("flex" as const),
       },
       tabBarLabelStyle: {
         fontSize: fontSizes.xs,
@@ -56,7 +65,7 @@ export default function TabsLayout() {
         backgroundColor: "white",
       },
     }),
-    [renderHeader],
+    [renderHeader, isOpen],
   );
 
   return (
@@ -65,7 +74,13 @@ export default function TabsLayout() {
         visible={isOpen}
         onClose={close}
         closable={!isGeneratingProgram}
+        headerAction={
+          <Text style={programBuilderStyles.title}>Build Your Program</Text>
+        }
+        size="large"
         wide
+        glass
+        bottom
         keyboardAware={false}
       >
         <ProgramBuilder

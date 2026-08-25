@@ -1,11 +1,19 @@
 import { useEffect } from "react";
 import { View, Text, ActivityIndicator, StyleSheet } from "react-native";
+import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import Button from "@/components/shared/Button/Button";
 import { useProgramGenerationStatus } from "@/hooks/usePrograms";
 import { spacing } from "@/constants/spacing";
 import { fontSizes, fontWeights } from "@/constants/typography";
+
+// ActivityIndicator's "large" size isn't a pixel value we can read back
+// (it's native-fixed per platform — ~37pt iOS, ~46dp Android), so the
+// wrapper is sized generously and both children are centered within it
+// via flex rather than the logo being sized off the spinner's own bounds.
+const SPINNER_WRAPPER_SIZE = 56;
+const LOGO_SIZE = 22;
 
 interface ProgramGenerationModalProps {
   visible: boolean;
@@ -52,7 +60,14 @@ const ProgramGenerationModal = ({
   return (
     <View style={styles.content}>
       {!isFailed && (
-        <ActivityIndicator size="large" style={{ marginBottom: spacing.md }} />
+        <View style={[styles.spinnerWrapper, { marginBottom: spacing.md }]}>
+          <ActivityIndicator size="large" />
+          <Image
+            source={require("@/assets/images/logo.png")}
+            style={styles.spinnerLogo}
+            contentFit="contain"
+          />
+        </View>
       )}
 
       <Text style={styles.title}>
@@ -90,6 +105,17 @@ export default ProgramGenerationModal;
 const styles = StyleSheet.create({
   content: {
     alignItems: "center",
+  },
+  spinnerWrapper: {
+    width: SPINNER_WRAPPER_SIZE,
+    height: SPINNER_WRAPPER_SIZE,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  spinnerLogo: {
+    position: "absolute",
+    width: LOGO_SIZE,
+    height: LOGO_SIZE,
   },
   title: {
     fontSize: fontSizes.md,

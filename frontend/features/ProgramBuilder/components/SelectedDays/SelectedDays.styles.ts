@@ -7,9 +7,17 @@ const styles = StyleSheet.create({
   container: {},
   selectedDaysContainer: {
     flexDirection: "row",
-    backgroundColor: colors.lightGray,
+    backgroundColor: "white",
+    borderWidth: 1,
+    borderColor: colors.borderBlueLight,
     borderRadius: 8,
     width: "100%",
+    padding: 3,
+    shadowColor: colors.primaryBlue,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 5,
+    elevation: 2,
   },
   dayButton: {
     flex: 1,

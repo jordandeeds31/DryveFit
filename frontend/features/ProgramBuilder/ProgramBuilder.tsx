@@ -107,10 +107,8 @@ const ProgramBuilder = ({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Build Your Program</Text>
       <Text style={styles.subtitle}>
-        Answer a few questions and we'll generate a personalized training
-        program for you.
+        Answer a few quick questions to generate your personalized plan.
       </Text>
       <View style={styles.programFormContainer}>
         <View style={styles.section}>

@@ -6,10 +6,18 @@ import { fontSizes, fontWeights } from "@/constants/typography";
 const styles = StyleSheet.create({
   container: {},
   sessionRow: {
-    backgroundColor: colors.lightGray,
+    backgroundColor: "white",
+    borderWidth: 1,
+    borderColor: colors.borderBlueLight,
     borderRadius: 8,
     width: "100%",
     flexDirection: "row",
+    padding: 3,
+    shadowColor: colors.primaryBlue,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 5,
+    elevation: 2,
   },
   sessionButton: {
     flex: 1,
