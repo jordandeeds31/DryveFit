@@ -59,7 +59,6 @@ const SearchScreen = () => {
           placeholder="Search by username or email"
           value={query}
           onChangeText={setQuery}
-          autoFocus
           autoCapitalize="none"
           autoCorrect={false}
         />
