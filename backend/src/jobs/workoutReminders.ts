@@ -1,6 +1,7 @@
 import { Expo } from "expo-server-sdk";
 import prisma from "../lib/prisma";
 import expo from "../lib/expoPush";
+import { getCurrentStreak } from "../modules/programs/programs.service";
 
 // Fixed local-clock target (8:30pm) rather than a fixed server-clock
 // time — the job itself runs on a server-timezone cron tick every 15
@@ -70,7 +71,43 @@ const findIncompleteScheduledDay = async (userId: string, dateKey: string) => {
   return { programId: programDay.week.program.id, focus: programDay.focus };
 };
 
-type ReminderField = "lastWorkoutReminderSentAt" | "lastNoProgramReminderSentAt";
+// The complementary check to findIncompleteScheduledDay above — used to
+// fire the streak notification once today's scheduled workout (if any)
+// is actually finished, instead of nagging about something already done.
+// Deliberately excludes rest days (isRestDay: false, same filter as
+// above): nothing was due today on a rest day, so there's nothing to
+// congratulate yet — the streak notification only fires the moment a
+// real workout gets completed.
+const findCompletedScheduledDay = async (
+  userId: string,
+  dateKey: string,
+): Promise<boolean> => {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const startOfDay = new Date(year, month - 1, day, 0, 0, 0, 0);
+  const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
+
+  const programDay = await prisma.programDay.findFirst({
+    where: {
+      date: { gte: startOfDay, lte: endOfDay },
+      isRestDay: false,
+      week: { program: { userId, isActive: true } },
+    },
+    include: {
+      exercises: { include: { _count: { select: { exerciseLogs: true } } } },
+    },
+  });
+
+  if (!programDay || programDay.exercises.length === 0) return false;
+
+  return programDay.exercises.every(
+    (exercise) => exercise._count.exerciseLogs > 0,
+  );
+};
+
+type ReminderField =
+  | "lastWorkoutReminderSentAt"
+  | "lastNoProgramReminderSentAt"
+  | "lastStreakNotificationSentAt";
 
 // Atomically claims the right to send a given reminder to this user right
 // now: only updates (and only reports success) if the field is unset or
@@ -93,7 +130,10 @@ const claimReminder = async (
 
 // Runs on every cron tick (see index.ts) — cheap no-op for almost every
 // tick/user, since it bails immediately for anyone outside their own
-// 8:25-8:44pm local window or already reminded today.
+// 8:25-8:44pm local window or already notified today. Also covers the
+// streak congratulation push (see findCompletedScheduledDay below) —
+// same daily window/per-user-timezone machinery, just branching on
+// whether today's scheduled workout is done rather than overdue.
 export const sendDueWorkoutReminders = async (): Promise<void> => {
   const candidates = await prisma.user.findMany({
     where: { expoPushToken: { not: null }, timezone: { not: null } },
@@ -140,17 +180,36 @@ export const sendDueWorkoutReminders = async (): Promise<void> => {
     }
 
     const dueDay = await findIncompleteScheduledDay(user.id, local.dateKey);
-    if (!dueDay) continue;
+    if (dueDay) {
+      if (!(await claimReminder(user.id, "lastWorkoutReminderSentAt"))) continue;
 
-    if (!(await claimReminder(user.id, "lastWorkoutReminderSentAt"))) continue;
+      await expo.sendPushNotificationsAsync([
+        {
+          to: user.expoPushToken,
+          sound: "default",
+          title: "Still time to get it in",
+          body: `You haven't logged today's ${dueDay.focus} workout yet.`,
+          data: { programId: dueDay.programId, date: local.dateKey },
+        },
+      ]);
+      continue;
+    }
+
+    // Nothing left incomplete — if today's scheduled workout is what just
+    // got finished (not simply a rest day with nothing due), congratulate
+    // and report the running streak instead of staying silent.
+    if (!(await findCompletedScheduledDay(user.id, local.dateKey))) continue;
+    if (!(await claimReminder(user.id, "lastStreakNotificationSentAt"))) continue;
+
+    const currentStreak = await getCurrentStreak(user.id);
 
     await expo.sendPushNotificationsAsync([
       {
         to: user.expoPushToken,
         sound: "default",
-        title: "Still time to get it in",
-        body: `You haven't logged today's ${dueDay.focus} workout yet.`,
-        data: { programId: dueDay.programId, date: local.dateKey },
+        title: `🔥 ${currentStreak}-day streak`,
+        body: "You stuck to your plan today. Keep it going tomorrow!",
+        data: { screen: "personal-record-progress" },
       },
     ]);
   }

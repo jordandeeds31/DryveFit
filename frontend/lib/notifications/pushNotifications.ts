@@ -82,10 +82,11 @@ interface PushNotificationData {
   programId?: string;
   date?: string;
   conversationId?: string;
-  // Set on the "you don't have a program yet" reminder — the only other
-  // non-social push besides the workout reminder above, which carries
-  // programId/date instead since it deep-links to a specific day.
-  screen?: "programs";
+  // Set on the "you don't have a program yet" reminder and the streak
+  // notification — the other non-social pushes besides the workout
+  // reminder above, which carries programId/date instead since it
+  // deep-links to a specific day.
+  screen?: "programs" | "personal-record-progress";
 }
 
 // Pure mapping from a tapped notification's payload to where it should
@@ -135,6 +136,10 @@ const getRouteForNotification = (
 
   if (data?.screen === "programs") {
     return "/(tabs)/Programs" as Href;
+  }
+
+  if (data?.screen === "personal-record-progress") {
+    return "/(tabs)/PersonalRecordProgress" as Href;
   }
 
   return null;

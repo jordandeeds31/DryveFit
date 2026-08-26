@@ -680,6 +680,58 @@ export const getActiveProgramForUser = async (userId: string) => {
   });
 };
 
+// A rest day always counts as "stuck to the plan" — the plan itself might
+// not call for working out every day (e.g. a 3-day split has 4 rest days
+// a week), so only a scheduled WORKOUT day breaks the streak, and only
+// when it goes by without every prescribed exercise having at least one
+// logged set. Same "done" signal the workout-reminder job already uses
+// (exerciseLogs existing, not the isCompleted flag) — see
+// workoutReminders.ts's findIncompleteScheduledDay.
+const isProgramDayComplete = (day: {
+  isRestDay: boolean;
+  exercises: { _count: { exerciseLogs: number } }[];
+}): boolean =>
+  day.isRestDay ||
+  day.exercises.every((exercise) => exercise._count.exerciseLogs > 0);
+
+// Consecutive calendar days, walking backward from today, where the user
+// stuck to their ACTIVE program. Today itself is skipped (not counted,
+// but doesn't break the streak either) if it isn't done yet — the day
+// isn't over. Returns 0 with no active program, or if the program's most
+// recent scheduled day (today or earlier) was missed.
+export const getCurrentStreak = async (userId: string): Promise<number> => {
+  const activeProgram = await prisma.program.findFirst({
+    where: { userId, isActive: true },
+    select: { id: true },
+  });
+  if (!activeProgram) return 0;
+
+  const todayEnd = new Date();
+  todayEnd.setHours(23, 59, 59, 999);
+
+  const days = await prisma.programDay.findMany({
+    where: { week: { programId: activeProgram.id }, date: { lte: todayEnd } },
+    orderBy: { date: "desc" },
+    include: {
+      exercises: { include: { _count: { select: { exerciseLogs: true } } } },
+    },
+  });
+
+  const todayKey = toLocalDateKey(new Date());
+  let streak = 0;
+
+  for (const day of days) {
+    const complete = isProgramDayComplete(day);
+    if (!complete) {
+      if (toLocalDateKey(day.date) === todayKey) continue;
+      break;
+    }
+    streak++;
+  }
+
+  return streak;
+};
+
 export const getProgramById = async (userId: string, programId: string) => {
   const program = await prisma.program.findFirst({
     where: { id: programId, userId },

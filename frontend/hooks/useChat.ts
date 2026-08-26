@@ -43,6 +43,7 @@ export const useSendChatMessage = () => {
       queryClient.invalidateQueries({ queryKey: ["workoutLogs"] });
       queryClient.invalidateQueries({ queryKey: ["1rmHistory"] });
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
+      queryClient.invalidateQueries({ queryKey: ["streak"] });
       queryClient.invalidateQueries({ queryKey: ["programDay"] });
       queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
       queryClient.invalidateQueries({ queryKey: ["workingOutCount"] });

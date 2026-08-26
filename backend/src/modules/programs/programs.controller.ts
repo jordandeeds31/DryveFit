@@ -11,6 +11,7 @@ import {
   deleteProgram,
   getScheduleForUser,
   getProgramDayByDate,
+  getCurrentStreak,
   logExercisePerformance,
   deleteExercisePerformance,
   swapProgramExercise,
@@ -89,6 +90,13 @@ export const getScheduleHandler = catchAsync(
   async (req: AuthRequest, res: Response) => {
     const schedule = await getScheduleForUser(req.userId!);
     sendSuccess(res, 200, "SCHEDULE_FETCHED", { schedule });
+  },
+);
+
+export const getStreakHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const currentStreak = await getCurrentStreak(req.userId!);
+    sendSuccess(res, 200, "STREAK_FETCHED", { currentStreak });
   },
 );
 

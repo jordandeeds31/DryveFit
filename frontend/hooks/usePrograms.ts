@@ -4,6 +4,7 @@ import {
   createProgram,
   getProgramById,
   getProgramSchedules,
+  getCurrentStreak,
   getProgramDay,
   logExercisePerformance,
   deleteExercisePerformance,
@@ -55,6 +56,13 @@ export const useSchedule = () => {
   });
 };
 
+export const useCurrentStreak = () => {
+  return useQuery({
+    queryKey: ["streak"],
+    queryFn: getCurrentStreak,
+  });
+};
+
 export const useProgramDay = (
   programId: string | null,
   date: string | null,
@@ -81,6 +89,7 @@ export const useLogExercisePerformance = () => {
     }) => logExercisePerformance(programExerciseId, sets, durationSecs),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
+      queryClient.invalidateQueries({ queryKey: ["streak"] });
       queryClient.invalidateQueries({ queryKey: ["programDay"] });
       queryClient.invalidateQueries({ queryKey: ["1rmHistory"] });
       queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
@@ -98,6 +107,7 @@ export const useDeleteExercisePerformance = () => {
       deleteExercisePerformance(programExerciseId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
+      queryClient.invalidateQueries({ queryKey: ["streak"] });
       queryClient.invalidateQueries({ queryKey: ["programDay"] });
       queryClient.invalidateQueries({ queryKey: ["workingOutCount"] });
       queryClient.invalidateQueries({ queryKey: ["previousSession"] });
@@ -142,6 +152,7 @@ export const useAddProgramExercise = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["programDay"] });
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
+      queryClient.invalidateQueries({ queryKey: ["streak"] });
     },
   });
 };
@@ -155,6 +166,7 @@ export const useDeleteProgramExercise = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["programDay"] });
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
+      queryClient.invalidateQueries({ queryKey: ["streak"] });
     },
   });
 };
@@ -167,6 +179,7 @@ export const useRevertDaySwaps = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["programDay"] });
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
+      queryClient.invalidateQueries({ queryKey: ["streak"] });
     },
   });
 };
@@ -179,6 +192,7 @@ export const usePostponeProgramDay = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["programDay"] });
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
+      queryClient.invalidateQueries({ queryKey: ["streak"] });
     },
   });
 };
@@ -199,6 +213,7 @@ export const useInheritWorkoutDay = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["programDay"] });
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
+      queryClient.invalidateQueries({ queryKey: ["streak"] });
     },
   });
 };
@@ -215,6 +230,7 @@ export const useInheritWorkoutDayAsNewProgram = () => {
       queryClient.invalidateQueries({ queryKey: ["programs"] });
       queryClient.invalidateQueries({ queryKey: ["programDay"] });
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
+      queryClient.invalidateQueries({ queryKey: ["streak"] });
     },
   });
 };
@@ -231,6 +247,7 @@ export const useInheritStandaloneLogAsNewProgram = () => {
       queryClient.invalidateQueries({ queryKey: ["programs"] });
       queryClient.invalidateQueries({ queryKey: ["programDay"] });
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
+      queryClient.invalidateQueries({ queryKey: ["streak"] });
     },
   });
 };
@@ -243,6 +260,7 @@ export const useDeleteProgram = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["programs"] });
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
+      queryClient.invalidateQueries({ queryKey: ["streak"] });
       queryClient.invalidateQueries({ queryKey: ["programDay"] });
       queryClient.invalidateQueries({ queryKey: ["workoutLogs"] });
       queryClient.invalidateQueries({ queryKey: ["1rmHistory"] });

@@ -33,6 +33,11 @@ model User {
   unitSystem                  String?
   lastWorkoutReminderSentAt   DateTime?
   lastNoProgramReminderSentAt DateTime?
+  // Separate from the two fields above — this fires on the OPPOSITE
+  // condition (today's scheduled day is already complete, not
+  // incomplete), so it needs its own once-per-day claim rather than
+  // sharing lastWorkoutReminderSentAt's cooldown.
+  lastStreakNotificationSentAt DateTime?
   // Drives the Feed tab's "new posts" badge — posts created after this
   // timestamp count as unseen. Defaults to now() so the migration itself
   // doesn't retroactively count every existing post as "new" for

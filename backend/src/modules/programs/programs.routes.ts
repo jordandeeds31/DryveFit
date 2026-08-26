@@ -7,6 +7,7 @@ import {
   deactivateProgramHandler,
   deleteProgramHandler,
   getScheduleHandler,
+  getStreakHandler,
   getProgramDayHandler,
   logExercisePerformanceHandler,
   deleteExercisePerformanceHandler,
@@ -27,6 +28,7 @@ router.use(authMiddleware);
 router.post("/", createProgramHandler);
 router.get("/", listProgramsHandler);
 router.get("/schedules", getScheduleHandler);
+router.get("/streak", getStreakHandler);
 router.get("/:id/day", getProgramDayHandler);
 router.get("/:id", getProgramHandler);
 
