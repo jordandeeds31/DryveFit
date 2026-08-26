@@ -11,11 +11,20 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
   buttonOutline: {
     backgroundColor: "white",
     borderWidth: 1,
     borderColor: colors.primaryBlue,
+    // Flat, unlike the solid blue button above — an outline/white button
+    // isn't the "plain blue button" this shadow is for.
+    shadowOpacity: 0,
+    elevation: 0,
   },
   buttonDisabled: {
     opacity: 0.5,

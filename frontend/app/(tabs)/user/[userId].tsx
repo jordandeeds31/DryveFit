@@ -982,6 +982,11 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     borderRadius: 20,
     backgroundColor: colors.primaryBlue,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
   followButtonActive: {
     backgroundColor: colors.surfaceGrayLight,

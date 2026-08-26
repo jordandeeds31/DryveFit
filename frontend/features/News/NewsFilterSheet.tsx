@@ -189,6 +189,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: spacing.md,
     alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
   doneButtonText: {
     color: "white",

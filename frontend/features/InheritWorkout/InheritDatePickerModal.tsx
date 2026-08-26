@@ -178,6 +178,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryBlue,
     borderRadius: 12,
     paddingVertical: spacing.md,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
   confirmButtonText: {
     color: "white",
