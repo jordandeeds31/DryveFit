@@ -151,6 +151,17 @@ const cleanSummary = (html: string | undefined): string | null => {
   return plainText.length > 0 ? plainText : null;
 };
 
+// CBS Sports' feed (verified by hand, same way ESPN's was) has real,
+// varying per-item pubDates — no bug there — but roughly 1 in 6 items are
+// sportsbook affiliate pages ("Borgata Sportsbook promo code", "Best
+// Legal AR Sportsbooks & Betting Apps", "Best horse racing betting
+// sites"), not reported news. CBS republishes/touches these constantly,
+// so they keep resurfacing with a fresh-looking timestamp forever. None
+// of the ~30 legitimate picks/predictions/odds articles in the same feed
+// use any of these phrases, so this only strips the affiliate pages.
+const AFFILIATE_CONTENT_PATTERN =
+  /\b(sportsbooks?|promo code|bonus code|bonus bets?|betting (?:guide|apps|sites)|where to bet)\b/i;
+
 const fetchFeed = async (source: {
   name: string;
   url: string;
@@ -159,17 +170,33 @@ const fetchFeed = async (source: {
   try {
     const feed = await parser.parseURL(source.url);
     return (feed.items ?? [])
-      .filter((item) => !!item.title && !!item.link)
-      .map((item) => ({
-        type: "rss" as const,
-        id: item.link!,
-        title: item.title!,
-        link: item.link!,
-        source: source.name,
-        category: source.category,
-        publishedAt: item.isoDate ?? item.pubDate ?? null,
-        summary: cleanSummary(item.contentSnippet ?? item.content),
-      }));
+      .filter(
+        (item) =>
+          !!item.title &&
+          !!item.link &&
+          !AFFILIATE_CONTENT_PATTERN.test(item.title),
+      )
+      .map((item) => {
+        // rss-parser doesn't trim text-node whitespace — most feeds keep
+        // <title>value</title> on one line so this is a no-op, but CBS
+        // Sports indents every tag's value onto its own line, so its raw
+        // title/link come through wrapped in a leading/trailing newline +
+        // indentation (e.g. "\n                Title\n            "). Left
+        // untrimmed, that leading "\n" renders as a real blank line above
+        // the headline in the app.
+        const title = item.title!.trim();
+        const link = item.link!.trim();
+        return {
+          type: "rss" as const,
+          id: link,
+          title,
+          link,
+          source: source.name,
+          category: source.category,
+          publishedAt: item.isoDate ?? item.pubDate ?? null,
+          summary: cleanSummary(item.contentSnippet ?? item.content),
+        };
+      });
   } catch (err) {
     // One dead/slow feed shouldn't take down the whole request — logged,
     // not thrown, same "never fail the whole request over one bad
