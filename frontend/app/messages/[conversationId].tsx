@@ -7,11 +7,13 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useSelector } from "react-redux";
 import Feather from "@expo/vector-icons/Feather";
 import type { RootState } from "@/store";
@@ -71,6 +73,7 @@ const ThreadScreen = () => {
   );
 
   const [text, setText] = useState("");
+  const [pickedImageUri, setPickedImageUri] = useState<string | null>(null);
   const isTypingRef = useRef(false);
   const typingStopTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -106,9 +109,29 @@ const ThreadScreen = () => {
     }, TYPING_STOP_DELAY_MS);
   };
 
+  const handlePickImage = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert(
+        "Permission needed",
+        "Allow photo library access to attach a photo to this message.",
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      quality: 0.8,
+    });
+
+    if (result.canceled) return;
+    setPickedImageUri(result.assets[0].uri);
+  };
+
   const handleSend = () => {
     const trimmed = text.trim();
-    if (!trimmed || !conversationId) return;
+    if ((!trimmed && !pickedImageUri) || !conversationId) return;
 
     if (typingStopTimer.current) clearTimeout(typingStopTimer.current);
     if (isTypingRef.current) {
@@ -116,8 +139,9 @@ const ThreadScreen = () => {
       sendTyping(conversationId, false);
     }
 
-    send(trimmed);
+    send({ content: trimmed, imageUri: pickedImageUri ?? undefined });
     setText("");
+    setPickedImageUri(null);
   };
 
   const isOtherUserTyping = typingUserIds.length > 0;
@@ -134,7 +158,11 @@ const ThreadScreen = () => {
         >
           <Feather name="chevron-left" size={26} color="#000" />
         </TouchableOpacity>
-        <View style={styles.headerCenter}>
+        <TouchableOpacity
+          style={styles.headerCenter}
+          disabled={!conversation?.otherUser}
+          onPress={() => router.push(`/user/${conversation!.otherUser!.id}`)}
+        >
           {conversation?.otherUser?.profileImageUrl && authImageHeaders ? (
             <Image
               source={{
@@ -151,7 +179,7 @@ const ThreadScreen = () => {
           <Text style={styles.headerTitle} numberOfLines={1}>
             {conversation?.otherUser?.username ?? "Conversation"}
           </Text>
-        </View>
+        </TouchableOpacity>
         <View style={{ width: 26 }} />
       </View>
 
@@ -191,22 +219,49 @@ const ThreadScreen = () => {
             { paddingBottom: Math.max(insets.bottom, 8) },
           ]}
         >
-          <TextInput
-            style={styles.input}
-            placeholder="Message..."
-            value={text}
-            onChangeText={handleChangeText}
-            multiline
-          />
+          <TouchableOpacity
+            onPress={handlePickImage}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Feather name="image" size={22} color={colors.textSecondary} />
+          </TouchableOpacity>
+          <View style={styles.inputContainer}>
+            {pickedImageUri && (
+              <View style={styles.inlineImageWrapper}>
+                <Image
+                  source={{ uri: pickedImageUri }}
+                  style={styles.inlineImagePreview}
+                />
+                <TouchableOpacity
+                  style={styles.removeImageButton}
+                  onPress={() => setPickedImageUri(null)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Feather name="x" size={12} color="white" />
+                </TouchableOpacity>
+              </View>
+            )}
+            <TextInput
+              style={styles.input}
+              placeholder="Message..."
+              value={text}
+              onChangeText={handleChangeText}
+              multiline
+            />
+          </View>
           <TouchableOpacity
             onPress={handleSend}
-            disabled={!text.trim() || isSending}
+            disabled={(!text.trim() && !pickedImageUri) || isSending}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Feather
               name="send"
               size={20}
-              color={text.trim() ? colors.primaryBlue : colors.textMuted}
+              color={
+                text.trim() || pickedImageUri
+                  ? colors.primaryBlue
+                  : colors.textMuted
+              }
             />
           </TouchableOpacity>
         </View>
@@ -265,23 +320,61 @@ const styles = StyleSheet.create({
   },
   inputRow: {
     flexDirection: "row",
-    alignItems: "flex-end",
+    alignItems: "center",
     gap: spacing.sm,
     borderTopWidth: 1,
     borderTopColor: colors.borderGray,
-    paddingTop: spacing.sm,
+    paddingTop: spacing.md,
     paddingHorizontal: spacing.md,
     backgroundColor: "white",
   },
-  input: {
+  // Wraps the thumbnail + TextInput together inside one bordered pill —
+  // the attachment lives INSIDE the input field (iMessage/WhatsApp-style),
+  // not as a separate bar stacked above the whole input row. Column, not
+  // row: the thumbnail sits on its own line above the text, which then
+  // wraps below it full-width rather than squeezing in beside it.
+  inputContainer: {
     flex: 1,
+    flexDirection: "column",
+    gap: spacing.xs,
     borderWidth: 1,
     borderColor: colors.borderGray,
     borderRadius: 8,
+    // Same inset the TextInput used on its own before it moved in here —
+    // this pill needs to look identical to the original input when
+    // there's no attachment, only growing/changing for the image case.
     paddingHorizontal: spacing.sm,
-    paddingVertical: 8,
+  },
+  inlineImageWrapper: {
+    width: 56,
+    // Default alignItems ("stretch") would otherwise force this to the
+    // container's full width since it's the lone item on its row.
+    alignSelf: "flex-start",
+    marginTop: 6,
+  },
+  inlineImagePreview: {
+    width: 56,
+    height: 56,
+    borderRadius: 10,
+    backgroundColor: colors.borderGray,
+  },
+  removeImageButton: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  input: {
+    flex: 1,
+    minHeight: 40,
+    paddingVertical: 10,
     fontSize: fontSizes.sm,
-    textAlignVertical: "top",
+    textAlignVertical: "center",
     maxHeight: 80,
   },
 });

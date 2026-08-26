@@ -20,13 +20,15 @@ const toDmMessagePayload = (message: {
   id: string;
   conversationId: string;
   senderId: string;
-  content: string;
+  content: string | null;
+  imageUrl: string | null;
   createdAt: Date;
 }): DmMessagePayload => ({
   id: message.id,
   conversationId: message.conversationId,
   senderId: message.senderId,
   content: message.content,
+  imageUrl: message.imageUrl,
   createdAt: message.createdAt.toISOString(),
 });
 

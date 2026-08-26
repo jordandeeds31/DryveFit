@@ -1,10 +1,41 @@
+import { Readable } from "stream";
+import { UploadApiErrorResponse, UploadApiResponse } from "cloudinary";
 import prisma from "../../lib/prisma";
+import cloudinary from "../../lib/cloudinary";
 import expo from "../../lib/expoPush";
 import { Expo } from "expo-server-sdk";
 import AppError from "../../utils/AppError";
 import { broadcastToUser, isUserConnected } from "../../ws/registry";
 
 const MESSAGES_PAGE_SIZE = 30;
+
+// Same Cloudinary-stream-upload approach as posts.service.ts's
+// uploadPostMedia — image-only here, no video, since a DM attachment is a
+// quick photo, not a media post.
+const uploadDmImage = (
+  buffer: Buffer,
+): Promise<{ url: string; publicId: string }> =>
+  new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder: "dm-messages",
+        resource_type: "image",
+        transformation: [
+          { width: 1080, height: 1080, crop: "limit" },
+          { quality: "auto", fetch_format: "auto" },
+        ],
+      },
+      (error?: UploadApiErrorResponse, result?: UploadApiResponse) => {
+        if (error || !result) {
+          reject(error ?? new Error("Cloudinary upload returned no result"));
+          return;
+        }
+        resolve({ url: result.secure_url, publicId: result.public_id });
+      },
+    );
+
+    Readable.from(buffer).pipe(uploadStream);
+  });
 
 // Self-DM guard mirrors followUser's self-follow guard (follows.service.ts).
 // DM access is intentionally open (any authenticated user can message any
@@ -103,7 +134,12 @@ export const listDmConversations = async (userId: string) => {
           messages: {
             orderBy: { createdAt: "desc" },
             take: 1,
-            select: { content: true, createdAt: true, senderId: true },
+            select: {
+              content: true,
+              imageUrl: true,
+              createdAt: true,
+              senderId: true,
+            },
           },
         },
       },
@@ -144,7 +180,9 @@ export const listDmConversations = async (userId: string) => {
         : null,
       lastMessage: lastMessage
         ? {
-            content: lastMessage.content,
+            // No text content on an image-only message — same "📷 Photo"
+            // stand-in used for its push notification body.
+            content: lastMessage.content ?? "📷 Photo",
             createdAt: lastMessage.createdAt,
             isOwnMessage: lastMessage.senderId === userId,
           }
@@ -181,17 +219,38 @@ export const sendDmMessage = async (
   senderId: string,
   conversationId: string,
   content: string,
+  imageBuffer?: Buffer | null,
 ) => {
   const trimmed = content.trim();
-  if (!trimmed) {
+  if (!trimmed && !imageBuffer) {
     throw new AppError(400, "Message can't be empty");
   }
 
   await requireParticipant(senderId, conversationId);
 
+  let imageUrl: string | null = null;
+  let imagePublicId: string | null = null;
+
+  if (imageBuffer) {
+    try {
+      const uploaded = await uploadDmImage(imageBuffer);
+      imageUrl = uploaded.url;
+      imagePublicId = uploaded.publicId;
+    } catch (err) {
+      console.error("Cloudinary DM image upload failed:", err);
+      throw new AppError(502, "Couldn't upload the image — try again");
+    }
+  }
+
   const [message] = await prisma.$transaction([
     prisma.dmMessage.create({
-      data: { conversationId, senderId, content: trimmed },
+      data: {
+        conversationId,
+        senderId,
+        content: trimmed || null,
+        imageUrl,
+        imagePublicId,
+      },
     }),
     prisma.dmConversation.update({
       where: { id: conversationId },
@@ -211,6 +270,7 @@ export const sendDmMessage = async (
       conversationId: message.conversationId,
       senderId: message.senderId,
       content: message.content,
+      imageUrl: message.imageUrl,
       createdAt: message.createdAt.toISOString(),
     },
   };
@@ -246,7 +306,7 @@ export const sendDmMessage = async (
           to: recipient.expoPushToken,
           sound: "default",
           title: sender?.username ?? sender?.email ?? "New message",
-          body: trimmed,
+          body: trimmed || "📷 Photo",
           data: { type: "dm_message", conversationId },
         },
       ]);

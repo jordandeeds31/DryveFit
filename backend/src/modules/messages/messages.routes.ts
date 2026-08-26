@@ -1,6 +1,8 @@
-import { Router } from "express";
+import { Router, Request, Response, NextFunction } from "express";
+import multer from "multer";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { authMiddleware, AuthRequest } from "../../middleware/authMiddleware";
+import AppError from "../../utils/AppError";
 import {
   listDmConversationsHandler,
   createDmConversationHandler,
@@ -8,6 +10,36 @@ import {
   sendDmMessageHandler,
   markDmConversationReadHandler,
 } from "./messages.controller";
+
+// Same memoryStorage + error-wrapping approach as posts.routes.ts's
+// uploadMediaMiddleware — a DM attachment is a photo, not a video, so a
+// much smaller cap than posts' 50MB is plenty.
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
+
+const uploadImageMiddleware = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  upload.single("image")(req, res, (err: unknown) => {
+    if (!err) return next();
+    if (err instanceof multer.MulterError) {
+      if (err.code === "LIMIT_FILE_SIZE") {
+        return next(
+          new AppError(
+            413,
+            "That image is too large — try a smaller photo (10MB max).",
+          ),
+        );
+      }
+      return next(new AppError(400, err.message));
+    }
+    next(err instanceof Error ? new AppError(400, err.message) : err);
+  });
+};
 
 const router = Router();
 
@@ -46,6 +78,7 @@ router.get("/conversations/:conversationId/messages", getDmMessagesHandler);
 router.post(
   "/conversations/:conversationId/messages",
   sendMessageLimiter,
+  uploadImageMiddleware,
   sendDmMessageHandler,
 );
 router.patch("/conversations/:conversationId/read", markDmConversationReadHandler);

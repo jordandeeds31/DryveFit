@@ -1,4 +1,5 @@
 import { View, Text } from "react-native";
+import { Image } from "expo-image";
 import { DmMessage } from "@/types/directMessages.types";
 import styles from "./MessageBubble.styles";
 
@@ -38,13 +39,26 @@ const MessageBubble = ({ message, isOwnMessage }: MessageBubbleProps) => {
           styles.bubble,
           isOwnMessage ? styles.bubbleOwn : styles.bubbleOther,
           isPending && styles.bubblePending,
+          !!message.imageUrl && styles.bubbleWithImage,
         ]}
       >
-        <Text
-          style={isOwnMessage ? styles.textOwn : styles.textOther}
-        >
-          {message.content}
-        </Text>
+        {message.imageUrl && (
+          <Image
+            source={{ uri: message.imageUrl }}
+            style={[styles.image, !!message.content && styles.imageWithCaption]}
+            contentFit="cover"
+          />
+        )}
+        {message.content && (
+          <Text
+            style={[
+              isOwnMessage ? styles.textOwn : styles.textOther,
+              !!message.imageUrl && styles.textUnderImage,
+            ]}
+          >
+            {message.content}
+          </Text>
+        )}
       </View>
       <Text style={styles.timestamp}>
         {formatMessageTime(message.createdAt)}

@@ -82,12 +82,18 @@ const upsertMessageInCache = (
   };
 };
 
+interface SendDmMessageInput {
+  content: string;
+  imageUri?: string;
+}
+
 export const useSendDmMessage = (conversationId: string) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (content: string) => sendDmMessage(conversationId, content),
-    onMutate: async (content: string) => {
+    mutationFn: ({ content, imageUri }: SendDmMessageInput) =>
+      sendDmMessage(conversationId, content, imageUri),
+    onMutate: async ({ content, imageUri }: SendDmMessageInput) => {
       await queryClient.cancelQueries({
         queryKey: ["dmMessages", conversationId],
       });
@@ -97,12 +103,15 @@ export const useSendDmMessage = (conversationId: string) => {
 
       // Negative id — can't collide with a real (uuid) message id, and
       // doubles as the "is this still pending" check the UI uses to show
-      // a sending/failed state on the bubble.
+      // a sending/failed state on the bubble. imageUrl is the local
+      // (file://) uri while pending — swapped for the real Cloudinary URL
+      // once the upload resolves, same bubble in the meantime.
       const optimisticMessage: DmMessage = {
         id: `pending-${Date.now()}`,
         conversationId,
         senderId: "__pending__",
-        content,
+        content: content || null,
+        imageUrl: imageUri ?? null,
         createdAt: new Date().toISOString(),
       };
 
@@ -114,7 +123,7 @@ export const useSendDmMessage = (conversationId: string) => {
 
       return { previous, optimisticId: optimisticMessage.id };
     },
-    onSuccess: (message, _content, context) => {
+    onSuccess: (message, _input, context) => {
       queryClient.setQueryData<InfiniteData<DmMessagesPage>>(
         ["dmMessages", conversationId],
         (old: InfiniteData<DmMessagesPage> | undefined) => {

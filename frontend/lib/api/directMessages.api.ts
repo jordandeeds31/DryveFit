@@ -35,10 +35,35 @@ export const getDmMessages = async (
 export const sendDmMessage = async (
   conversationId: string,
   content: string,
+  imageUri?: string,
 ): Promise<DmMessage> => {
+  if (!imageUri) {
+    const { data } = await apiClient.post(
+      `/api/messages/conversations/${conversationId}/messages`,
+      { content },
+    );
+    return data.result.message;
+  }
+
+  const formData = new FormData();
+  if (content) {
+    formData.append("content", content);
+  }
+  formData.append("image", {
+    uri: imageUri,
+    name: "message.jpg",
+    type: "image/jpeg",
+  } as unknown as Blob);
+
   const { data } = await apiClient.post(
     `/api/messages/conversations/${conversationId}/messages`,
-    { content },
+    formData,
+    {
+      headers: { "Content-Type": "multipart/form-data" },
+      // Same reasoning as posts.api.ts's createPost — an image upload on a
+      // slow connection can easily outrun the client's default JSON timeout.
+      timeout: 60000,
+    },
   );
   return data.result.message;
 };

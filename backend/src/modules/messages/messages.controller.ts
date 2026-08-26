@@ -57,16 +57,28 @@ export const getDmMessagesHandler = catchAsync(
 export const sendDmMessageHandler = catchAsync(
   async (req: AuthRequest, res: Response) => {
     const { conversationId } = req.params;
+    // multipart/form-data (when an image is attached) puts non-file fields
+    // in req.body same as JSON does — content is optional here since an
+    // image-only message has none.
     const { content } = req.body;
+    const file = req.file;
 
     if (typeof conversationId !== "string") {
       throw new AppError(400, "conversationId is required");
     }
-    if (typeof content !== "string") {
-      throw new AppError(400, "content is required");
+    if (content !== undefined && typeof content !== "string") {
+      throw new AppError(400, "content must be a string");
+    }
+    if (file && !file.mimetype.startsWith("image/")) {
+      throw new AppError(400, "Attachment must be an image");
     }
 
-    const message = await sendDmMessage(req.userId!, conversationId, content);
+    const message = await sendDmMessage(
+      req.userId!,
+      conversationId,
+      content ?? "",
+      file?.buffer ?? null,
+    );
     sendSuccess(res, 201, "DM_MESSAGE_SENT", { message });
   },
 );

@@ -10,7 +10,16 @@ datasource db {
 model User {
   id                          String          @id @default(uuid())
   email                       String          @unique
-  password                    String
+  // Nullable — an account created via Google sign-in has no password of
+  // its own (see auth.service.ts's authenticateWithGoogle). validateUser
+  // explicitly checks for null before ever calling bcrypt.compare, so a
+  // Google-only account cleanly gets "Invalid email or password" instead
+  // of a crash when someone tries the password login form.
+  password                    String?
+  // Google's stable per-account identifier (the ID token's `sub` claim) —
+  // set the first time this email signs in via Google, whether that's a
+  // brand new account or linking onto an existing password account.
+  googleId                    String?         @unique
   username                    String?         @unique
   city                        String?
   gender                      String?
@@ -294,7 +303,15 @@ model DmMessage {
   id             String         @id @default(uuid())
   conversationId String
   senderId       String
-  content        String
+  // Nullable — a message can be image-only, same "at least one of the two"
+  // rule as Post.caption/Post.mediaUrl.
+  content        String?
+  // Cloudinary-hosted URL, same publicly-servable-by-anyone-with-the-link
+  // tradeoff as Post.mediaUrl (see that field's comment) — accepted here
+  // too since a DM's actual privacy already rests on the conversation
+  // access check, not on the image URL being unguessable.
+  imageUrl       String?
+  imagePublicId  String?
   createdAt      DateTime       @default(now())
   conversation   DmConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender         User           @relation(fields: [senderId], references: [id], onDelete: Cascade)

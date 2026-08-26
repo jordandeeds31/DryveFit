@@ -21,6 +21,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: 8,
   },
+  // A photo should fill the bubble completely edge-to-edge, not sit inside
+  // the same text padding — overflow:hidden so the bubble's own rounded
+  // corners clip the image, instead of the bubble's background color
+  // (blue for bubbleOwn) showing through as a border around it.
+  //
+  // Explicit paddingHorizontal/paddingVertical here, NOT the `padding`
+  // shorthand — RN resolves the more-specific paddingHorizontal/Vertical
+  // from `bubble` ahead of a later, less-specific `padding` regardless of
+  // style-array order, so a bare `padding: 0` here silently loses to
+  // bubble's `paddingHorizontal: spacing.sm` and does nothing.
+  bubbleWithImage: {
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    overflow: "hidden",
+  },
+  image: {
+    width: 200,
+    height: 200,
+    backgroundColor: colors.borderGray,
+  },
+  imageWithCaption: {
+    marginBottom: 4,
+  },
+  textUnderImage: {
+    paddingHorizontal: spacing.xs,
+    paddingTop: 6,
+    paddingBottom: 2,
+  },
   bubbleOwn: {
     backgroundColor: colors.primaryBlue,
     borderBottomRightRadius: 4,

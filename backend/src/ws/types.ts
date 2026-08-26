@@ -7,7 +7,8 @@ export interface DmMessagePayload {
   id: string;
   conversationId: string;
   senderId: string;
-  content: string;
+  content: string | null;
+  imageUrl: string | null;
   createdAt: string;
 }
 
