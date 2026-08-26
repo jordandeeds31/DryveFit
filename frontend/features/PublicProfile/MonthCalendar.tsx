@@ -155,11 +155,11 @@ const MonthCalendar = ({
 
 export default MonthCalendar;
 
-const CELL_SIZE = 34;
+const CELL_SIZE = 28;
 
 const styles = StyleSheet.create({
   container: {
-    gap: spacing.sm,
+    gap: 2,
   },
   header: {
     flexDirection: "row",
@@ -189,7 +189,10 @@ const styles = StyleSheet.create({
   },
   dayCell: {
     flex: 1,
-    aspectRatio: 1,
+    // Shorter than square on purpose — each cell's width is still a full
+    // 1/7 of the container (unchanged), this only compresses row height
+    // so the whole grid takes up less vertical space.
+    aspectRatio: 1.6,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -208,7 +211,7 @@ const styles = StyleSheet.create({
     borderColor: colors.textSecondary,
   },
   dayNumber: {
-    fontSize: fontSizes.sm,
+    fontSize: fontSizes.xs,
     fontWeight: fontWeights.semibold,
     color: colors.textSecondary,
   },
