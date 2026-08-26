@@ -190,6 +190,29 @@ export const getFeed = async (viewerId: string, cursor?: string) => {
   };
 };
 
+// Lightweight companion to getFeed — the client caches post content
+// (author/caption/media) indefinitely once fetched, but likeCount/
+// commentCount/isLikedByViewer still change from other users' activity, so
+// it re-polls just those three fields for the posts currently on screen
+// instead of re-fetching (and re-caching) everything about them.
+export const getPostCounts = async (viewerId: string, ids: string[]) => {
+  const posts = await prisma.post.findMany({
+    where: { id: { in: ids } },
+    select: {
+      id: true,
+      _count: { select: { likes: true, comments: true } },
+      likes: { where: { userId: viewerId }, select: { id: true } },
+    },
+  });
+
+  return posts.map((post) => ({
+    id: post.id,
+    likeCount: post._count.likes,
+    commentCount: post._count.comments,
+    isLikedByViewer: post.likes.length > 0,
+  }));
+};
+
 // Own posts don't count toward the badge — you already know about a post
 // the moment you make it.
 export const getNewPostsCount = async (viewerId: string) => {

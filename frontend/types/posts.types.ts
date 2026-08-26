@@ -22,6 +22,13 @@ export interface FeedPage {
   nextCursor: string | null;
 }
 
+export interface PostCounts {
+  id: string;
+  likeCount: number;
+  commentCount: number;
+  isLikedByViewer: boolean;
+}
+
 export interface PostComment {
   id: string;
   content: string;

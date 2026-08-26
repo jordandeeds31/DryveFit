@@ -12,7 +12,12 @@ import { router } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
 import Feather from "@expo/vector-icons/Feather";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useFeed, useDeletePost, useToggleLike } from "@/hooks/usePosts";
+import {
+  useFeed,
+  useFeedCounts,
+  useDeletePost,
+  useToggleLike,
+} from "@/hooks/usePosts";
 import { useAuthImageHeaders } from "@/hooks/useAuthImageHeaders";
 import { formatCalendarDate } from "@/lib/utils/date.utils";
 import { colors } from "@/constants/colors";
@@ -74,6 +79,12 @@ const Feed = () => {
   };
 
   const posts: Post[] = data?.pages.flatMap((page) => page.posts) ?? [];
+
+  // Post content itself is cached indefinitely (see useFeed) — this just
+  // re-pulls likeCount/commentCount/isLikedByViewer for whatever's already
+  // loaded, so revisiting the tab shows cached posts instantly while these
+  // three fields quietly catch up in the background.
+  useFeedCounts(posts.map((post) => post.id));
 
   const handleDelete = (post: Post) => {
     Alert.alert("Delete this post?", "This can't be undone.", [

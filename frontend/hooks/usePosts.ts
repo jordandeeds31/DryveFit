@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-query";
 import {
   getFeed,
+  getPostCounts,
   getNewPostsCount,
   markFeedViewed,
   getPost,
@@ -29,6 +30,80 @@ export const useFeed = () => {
       getFeed(pageParam),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    // Post content itself (caption/media/author) never changes once
+    // fetched — only likeCount/commentCount do, and those are kept fresh
+    // via the optimistic patches below rather than a background refetch.
+    // Without this, remounting the Feed tab re-fetches every page already
+    // loaded (an infinite query refetches all its pages, not just the
+    // first), which is what made older posts feel slow to reappear.
+    // Pull-to-refresh (Feed.tsx's onRefresh) still forces a real refetch.
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+};
+
+// Refreshes likeCount/commentCount/isLikedByViewer for whatever posts are
+// currently loaded in the feed, without touching the (effectively
+// immutable) post content cached by useFeed above. A short staleTime, not
+// a poll — this re-runs whenever the Feed screen remounts/refocuses (its
+// query key includes the id set, so a stale-but-still-mounted screen
+// doesn't hammer the network on every re-render), which matches "revisiting
+// the tab refreshes likes/comments" without a background interval.
+const FEED_COUNTS_STALE_TIME_MS = 30000;
+
+export const useFeedCounts = (postIds: string[]) => {
+  const queryClient = useQueryClient();
+  const idsKey = postIds.join(",");
+
+  return useQuery({
+    queryKey: ["feedCounts", idsKey],
+    queryFn: async () => {
+      const counts = await getPostCounts(postIds);
+      const byId = new Map(counts.map((c) => [c.id, c]));
+
+      queryClient.setQueryData<InfiniteData<FeedPage>>(
+        ["feed"],
+        (old: InfiniteData<FeedPage> | undefined) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page: FeedPage) => ({
+              ...page,
+              posts: page.posts.map((post: FeedPage["posts"][number]) => {
+                const fresh = byId.get(post.id);
+                return fresh
+                  ? {
+                      ...post,
+                      likeCount: fresh.likeCount,
+                      commentCount: fresh.commentCount,
+                      isLikedByViewer: fresh.isLikedByViewer,
+                    }
+                  : post;
+              }),
+            })),
+          };
+        },
+      );
+
+      counts.forEach((fresh) => {
+        queryClient.setQueryData<Post>(
+          ["post", fresh.id],
+          (old: Post | undefined) =>
+            old
+              ? {
+                  ...old,
+                  likeCount: fresh.likeCount,
+                  commentCount: fresh.commentCount,
+                  isLikedByViewer: fresh.isLikedByViewer,
+                }
+              : old,
+        );
+      });
+
+      return counts;
+    },
+    enabled: postIds.length > 0,
+    staleTime: FEED_COUNTS_STALE_TIME_MS,
   });
 };
 
@@ -74,8 +149,24 @@ export const useCreatePost = () => {
 
   return useMutation({
     mutationFn: createPost,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["feed"] });
+    // Prepends directly into the cached first page rather than
+    // invalidating ["feed"] — an invalidate would refetch every
+    // already-loaded page over the network for the sake of one new post.
+    onSuccess: (post) => {
+      queryClient.setQueryData<InfiniteData<FeedPage>>(
+        ["feed"],
+        (old: InfiniteData<FeedPage> | undefined) => {
+          if (!old || old.pages.length === 0) return old;
+          const [firstPage, ...restPages] = old.pages;
+          return {
+            ...old,
+            pages: [
+              { ...firstPage, posts: [post, ...firstPage.posts] },
+              ...restPages,
+            ],
+          };
+        },
+      );
     },
   });
 };
@@ -85,8 +176,24 @@ export const useDeletePost = () => {
 
   return useMutation({
     mutationFn: deletePost,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["feed"] });
+    // Same reasoning as useCreatePost above — remove the one post from the
+    // cached pages instead of invalidating and refetching all of them.
+    onSuccess: (_data, postId) => {
+      queryClient.setQueryData<InfiniteData<FeedPage>>(
+        ["feed"],
+        (old: InfiniteData<FeedPage> | undefined) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page: FeedPage) => ({
+              ...page,
+              posts: page.posts.filter(
+                (post: FeedPage["posts"][number]) => post.id !== postId,
+              ),
+            })),
+          };
+        },
+      );
     },
   });
 };
@@ -171,6 +278,38 @@ export const useComments = (postId: string | null) => {
   });
 };
 
+// Patches commentCount on the one affected post in both the feed and post-
+// detail caches instead of invalidating them — an invalidate would refetch
+// every already-loaded feed page over the network just to reflect a single
+// post's comment count changing.
+const patchCommentCount = (
+  queryClient: ReturnType<typeof useQueryClient>,
+  postId: string,
+  delta: number,
+) => {
+  queryClient.setQueryData<InfiniteData<FeedPage>>(
+    ["feed"],
+    (old: InfiniteData<FeedPage> | undefined) => {
+      if (!old) return old;
+      return {
+        ...old,
+        pages: old.pages.map((page: FeedPage) => ({
+          ...page,
+          posts: page.posts.map((post: FeedPage["posts"][number]) =>
+            post.id === postId
+              ? { ...post, commentCount: post.commentCount + delta }
+              : post,
+          ),
+        })),
+      };
+    },
+  );
+
+  queryClient.setQueryData<Post>(["post", postId], (old: Post | undefined) =>
+    old ? { ...old, commentCount: old.commentCount + delta } : old,
+  );
+};
+
 export const useAddComment = () => {
   const queryClient = useQueryClient();
 
@@ -186,8 +325,7 @@ export const useAddComment = () => {
     }) => addComment(postId, content, parentId),
     onSuccess: (_data, { postId }) => {
       queryClient.invalidateQueries({ queryKey: ["comments", postId] });
-      queryClient.invalidateQueries({ queryKey: ["feed"] });
-      queryClient.invalidateQueries({ queryKey: ["post", postId] });
+      patchCommentCount(queryClient, postId, 1);
     },
   });
 };
@@ -200,8 +338,7 @@ export const useDeleteComment = () => {
       deleteComment(commentId),
     onSuccess: (_data, { postId }) => {
       queryClient.invalidateQueries({ queryKey: ["comments", postId] });
-      queryClient.invalidateQueries({ queryKey: ["feed"] });
-      queryClient.invalidateQueries({ queryKey: ["post", postId] });
+      patchCommentCount(queryClient, postId, -1);
     },
   });
 };

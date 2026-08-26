@@ -6,6 +6,7 @@ import AppError from "../../utils/AppError";
 import {
   createPost,
   getFeed,
+  getPostCounts,
   getNewPostsCount,
   markFeedViewed,
   getPostById,
@@ -57,6 +58,20 @@ export const getFeedHandler = catchAsync(
 
     const feed = await getFeed(req.userId!, cursor);
     sendSuccess(res, 200, "FEED_FETCHED", feed);
+  },
+);
+
+export const getPostCountsHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const idsParam = req.query.ids;
+
+    if (typeof idsParam !== "string" || !idsParam.trim()) {
+      throw new AppError(400, "ids is required");
+    }
+
+    const ids = idsParam.split(",").filter(Boolean);
+    const counts = await getPostCounts(req.userId!, ids);
+    sendSuccess(res, 200, "POST_COUNTS_FETCHED", { counts });
   },
 );
 

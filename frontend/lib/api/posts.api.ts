@@ -1,11 +1,21 @@
 import apiClient from "./client";
-import { FeedPage, Post, PostComment } from "@/types/posts.types";
+import { FeedPage, Post, PostComment, PostCounts } from "@/types/posts.types";
 
 export const getFeed = async (cursor?: string): Promise<FeedPage> => {
   const { data } = await apiClient.get("/api/posts", {
     params: cursor ? { cursor } : undefined,
   });
   return data.result;
+};
+
+// Lightweight refresh for posts already sitting in the feed cache — just
+// the fields that actually go stale (likes/comments), not the full post
+// payload.
+export const getPostCounts = async (ids: string[]): Promise<PostCounts[]> => {
+  const { data } = await apiClient.get("/api/posts/counts", {
+    params: { ids: ids.join(",") },
+  });
+  return data.result.counts;
 };
 
 export const getNewPostsCount = async (): Promise<number> => {
