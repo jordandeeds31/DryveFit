@@ -35,11 +35,15 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.sm,
+    // Kept small on purpose — the sections stack with only a spacing.xs
+    // gap between them (see programFormContainer), so a tall/wide shadow
+    // here would visibly bleed into the top of the next card instead of
+    // reading as this card's own edge.
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   lastSection: {},
   buildButton: {
