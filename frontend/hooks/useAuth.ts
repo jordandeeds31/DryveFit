@@ -3,6 +3,7 @@ import type { RootState, AppDispatch } from "@/store";
 import {
   loginThunk,
   registerThunk,
+  googleAuthThunk,
   logoutThunk,
   restoreSession,
 } from "@/store/slices/authSlice";
@@ -17,6 +18,8 @@ export const useAuth = () => {
     dispatch(loginThunk({ email, password }));
   const register = (email: string, password: string) =>
     dispatch(registerThunk({ email, password }));
+  const loginWithGoogle = (idToken: string) =>
+    dispatch(googleAuthThunk(idToken));
   const logout = () => dispatch(logoutThunk());
 
   return {
@@ -26,6 +29,7 @@ export const useAuth = () => {
     error,
     login,
     register,
+    loginWithGoogle,
     logout,
   };
 };

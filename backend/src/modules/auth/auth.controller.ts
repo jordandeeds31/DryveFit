@@ -7,6 +7,7 @@ import {
   generateAccessToken,
   requestPasswordReset,
   resetPasswordWithCode,
+  authenticateWithGoogle,
 } from "./auth.service";
 
 export const signup = catchAsync(async (req: Request, res: Response) => {
@@ -33,6 +34,19 @@ export const login = catchAsync(async (req: Request, res: Response) => {
   const accessToken = generateAccessToken(user.id);
 
   res.status(200).json({ user, accessToken });
+});
+
+export const googleAuth = catchAsync(async (req: Request, res: Response) => {
+  const { idToken } = req.body;
+
+  if (typeof idToken !== "string" || idToken.trim() === "") {
+    throw new AppError(400, "idToken is required");
+  }
+
+  const { user, isNewUser } = await authenticateWithGoogle(idToken);
+  const accessToken = generateAccessToken(user.id);
+
+  res.status(200).json({ user, accessToken, isNewUser });
 });
 
 export const forgotPassword = catchAsync(

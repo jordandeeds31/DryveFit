@@ -34,3 +34,20 @@ export const deleteConversation = async (
 ): Promise<void> => {
   await apiClient.delete(`/api/chat/conversations/${conversationId}`);
 };
+
+export const transcribeAudio = async (audioUri: string): Promise<string> => {
+  const formData = new FormData();
+  formData.append("audio", {
+    uri: audioUri,
+    name: "recording.m4a",
+    type: "audio/m4a",
+  } as unknown as Blob);
+
+  const { data } = await apiClient.post("/api/chat/transcribe", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+    // Same reasoning as posts.api.ts's createPost — Whisper transcription
+    // takes longer than the client's default JSON timeout.
+    timeout: 30000,
+  });
+  return data.result.text;
+};

@@ -12,7 +12,9 @@
       "distribution": "internal",
       "env": {
         "EXPO_PUBLIC_API_URL": "https://fitness-vioh.onrender.com",
-        "EXPO_PUBLIC_REVENUECAT_API_KEY_IOS": "appl_wZQCWJksaxmmKYDSNqLQFjlZZGe"
+        "EXPO_PUBLIC_REVENUECAT_API_KEY_IOS": "appl_wZQCWJksaxmmKYDSNqLQFjlZZGe",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "285548672928-7gqiugfc9uvsjr8es3221k5mgbt29abp.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "285548672928-c7nbjuof2rsi5vggnvvtim8haqu9k053.apps.googleusercontent.com"
       }
     },
     "production": {
@@ -22,7 +24,9 @@
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://fitness-vioh.onrender.com",
-        "EXPO_PUBLIC_REVENUECAT_API_KEY_IOS": "appl_wZQCWJksaxmmKYDSNqLQFjlZZGe"
+        "EXPO_PUBLIC_REVENUECAT_API_KEY_IOS": "appl_wZQCWJksaxmmKYDSNqLQFjlZZGe",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "285548672928-7gqiugfc9uvsjr8es3221k5mgbt29abp.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "285548672928-c7nbjuof2rsi5vggnvvtim8haqu9k053.apps.googleusercontent.com"
       }
     }
   },

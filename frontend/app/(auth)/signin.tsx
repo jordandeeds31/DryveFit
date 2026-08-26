@@ -4,10 +4,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Input from "@/components/shared/TextInput/TextInput";
 import { spacing } from "@/constants/spacing";
 import Button from "@/components/shared/Button/Button";
+import GoogleSignInButton from "@/components/shared/GoogleSignInButton/GoogleSignInButton";
 import { useAuth } from "@/hooks/useAuth";
 import { router, useLocalSearchParams } from "expo-router";
 import { colors } from "@/constants/colors";
 import { fontSizes } from "@/constants/typography";
+import { detectAndSaveCity } from "@/lib/location/detectAndSaveCity";
 
 const Signin = () => {
     const { passwordResetSuccess } = useLocalSearchParams<{ passwordResetSuccess?: string }>();
@@ -33,6 +35,11 @@ const Signin = () => {
         router.push("/(auth)/signup");
     }
 
+    const handleGoogleSuccess = (isNewUser: boolean) => {
+        if (isNewUser) detectAndSaveCity();
+        router.replace("/(tabs)");
+    }
+
     return (
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
             <SafeAreaView style={styles.container}>
@@ -56,6 +63,14 @@ const Signin = () => {
 
                 <View style={styles.buttonContainer}>
                     <Button title={isSubmitting ? "Signing In..." : "Sign In"} onPress={handleSignin} disabled={isSubmitting} />
+                </View>
+                <View style={styles.dividerRow}>
+                    <View style={styles.dividerLine} />
+                    <Text style={styles.dividerText}>or</Text>
+                    <View style={styles.dividerLine} />
+                </View>
+                <View style={styles.buttonContainer}>
+                    <GoogleSignInButton onSuccess={handleGoogleSuccess} />
                 </View>
                 <View style={styles.accountRow}>
                     <Text>Don't have an account?</Text>
@@ -106,6 +121,21 @@ const styles = StyleSheet.create({
     },
     buttonContainer: {
         marginBottom: spacing.lg
+    },
+    dividerRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: spacing.sm,
+        marginBottom: spacing.lg
+    },
+    dividerLine: {
+        flex: 1,
+        height: 1,
+        backgroundColor: colors.borderGray
+    },
+    dividerText: {
+        color: colors.textSecondary,
+        fontSize: fontSizes.sm
     },
     accountRow: {
         flexDirection: "row",

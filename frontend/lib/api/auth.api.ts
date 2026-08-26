@@ -17,6 +17,16 @@ export const login = async (payload: SigninPayload): Promise<AuthResponse> => {
   return data;
 };
 
+export const googleAuth = async (
+  idToken: string,
+): Promise<AuthResponse & { isNewUser: boolean }> => {
+  const { data } = await apiClient.post<AuthResponse & { isNewUser: boolean }>(
+    "/api/auth/google",
+    { idToken },
+  );
+  return data;
+};
+
 export const forgotPassword = async (email: string): Promise<{ message: string }> => {
   const { data } = await apiClient.post<{ message: string }>(
     "/api/auth/forgot-password",

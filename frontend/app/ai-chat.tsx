@@ -24,7 +24,9 @@ import {
   useConversations,
   useConversationMessages,
   useSendChatMessage,
+  useTranscribeAudio,
 } from "@/hooks/useChat";
+import { useVoiceRecording } from "@/hooks/useVoiceRecording";
 import { ChatRole } from "@/types/chat.types";
 import ChatHistoryDrawer from "@/features/ChatHistoryDrawer/ChatHistoryDrawer";
 
@@ -60,6 +62,9 @@ const AiChatScreen = () => {
   const { data: messages, isLoading: isLoadingMessages } =
     useConversationMessages(activeConversationId);
   const { mutate: sendMessage, isPending: isSending } = useSendChatMessage();
+  const { mutate: transcribeAudio, isPending: isTranscribing } =
+    useTranscribeAudio();
+  const { isRecording, startRecording, stopRecording } = useVoiceRecording();
   const isPro = useSelector((state: RootState) => state.subscription.isPro);
 
   useEffect(() => {
@@ -97,6 +102,32 @@ const AiChatScreen = () => {
         },
       },
     );
+  };
+
+  const handleMicPress = async () => {
+    if (isRecording) {
+      const uri = await stopRecording();
+      if (!uri) return;
+
+      transcribeAudio(uri, {
+        onSuccess: (text) => {
+          const trimmed = text.trim();
+          if (!trimmed) return;
+          // Appends rather than replaces — lets someone type part of a
+          // message, dictate the rest, and keep going either way.
+          setDraft((prev) => (prev.trim() ? `${prev.trim()} ${trimmed}` : trimmed));
+        },
+        onError: () => {
+          Alert.alert(
+            "Couldn't transcribe that",
+            "Please try recording again.",
+          );
+        },
+      });
+      return;
+    }
+
+    await startRecording();
   };
 
   const handleNewChat = () => {
@@ -222,9 +253,29 @@ const AiChatScreen = () => {
         )}
 
         <View style={styles.inputRow}>
+          <TouchableOpacity
+            style={[
+              styles.micButton,
+              isRecording && styles.micButtonRecording,
+            ]}
+            onPress={handleMicPress}
+            disabled={isTranscribing || isSending}
+          >
+            {isTranscribing ? (
+              <ActivityIndicator size="small" color={colors.textSecondary} />
+            ) : (
+              <Feather
+                name={isRecording ? "square" : "mic"}
+                size={18}
+                color={isRecording ? "white" : colors.textSecondary}
+              />
+            )}
+          </TouchableOpacity>
           <TextInput
             style={styles.input}
-            placeholder="Ask about your training..."
+            placeholder={
+              isRecording ? "Listening..." : "Ask about your training..."
+            }
             placeholderTextColor={colors.textMuted}
             value={draft}
             onChangeText={setDraft}
@@ -271,6 +322,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderGray,
+    position: "relative",
   },
   headerLeft: {
     flexDirection: "row",
@@ -278,8 +330,13 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   headerTitle: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    textAlign: "center",
     fontSize: fontSizes.md,
     fontWeight: fontWeights.bold,
+    pointerEvents: "none",
   },
   emptyState: {
     flex: 1,
@@ -380,5 +437,19 @@ const styles = StyleSheet.create({
   },
   sendButtonDisabled: {
     backgroundColor: colors.textMuted,
+  },
+  micButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.surfaceGrayLight,
+    borderWidth: 1,
+    borderColor: colors.borderGray,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  micButtonRecording: {
+    backgroundColor: colors.dangerRed,
+    borderColor: colors.dangerRed,
   },
 });

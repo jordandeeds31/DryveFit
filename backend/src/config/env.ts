@@ -34,6 +34,17 @@ const envSchema = z.object({
   CLOUDINARY_CLOUD_NAME: z.string().min(1).optional(),
   CLOUDINARY_API_KEY: z.string().min(1).optional(),
   CLOUDINARY_API_SECRET: z.string().min(1).optional(),
+  // Every OAuth client ID this app has registered with Google — one per
+  // platform, since each platform's Sign-In flow stamps the ID token's
+  // `aud` claim with whichever client ID it used to request it (see
+  // auth.service.ts's authenticateWithGoogle). All configured ones are
+  // accepted as valid audiences; GOOGLE_ANDROID_CLIENT_ID stays unset
+  // until an Android build exists. Optional so normal app startup never
+  // hard-fails without it — Google sign-in just 501s with a clear
+  // message until at least one is set.
+  GOOGLE_IOS_CLIENT_ID: z.string().min(1).optional(),
+  GOOGLE_ANDROID_CLIENT_ID: z.string().min(1).optional(),
+  GOOGLE_WEB_CLIENT_ID: z.string().min(1).optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

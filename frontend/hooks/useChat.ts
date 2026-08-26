@@ -4,6 +4,7 @@ import {
   getConversationMessages,
   sendChatMessage,
   deleteConversation,
+  transcribeAudio,
 } from "@/lib/api/chat.api";
 
 export const useConversations = () => {
@@ -40,14 +41,47 @@ export const useSendChatMessage = () => {
       // just for this. Mirrors the exact query keys useWorkoutLogs.ts and
       // usePrograms.ts invalidate after their own manual-logging mutations,
       // since an AI-driven log can touch either write path.
-      queryClient.invalidateQueries({ queryKey: ["workoutLogs"] });
-      queryClient.invalidateQueries({ queryKey: ["1rmHistory"] });
-      queryClient.invalidateQueries({ queryKey: ["schedule"] });
-      queryClient.invalidateQueries({ queryKey: ["streak"] });
-      queryClient.invalidateQueries({ queryKey: ["programDay"] });
-      queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
-      queryClient.invalidateQueries({ queryKey: ["workingOutCount"] });
-      queryClient.invalidateQueries({ queryKey: ["previousSession"] });
+      //
+      // refetchType: "all" (not the default "active") because the screen
+      // that actually shows this — Home/WorkoutLogger — is very often not
+      // mounted while the user is off in the chat screen logging via the
+      // AI coach. A plain invalidate would just mark that query stale and
+      // leave it showing pre-log data until it happens to remount, i.e.
+      // the user would have to pull-to-refresh to see what was just
+      // logged. Refetching now, eagerly, means the cache is already
+      // correct by the time they navigate over.
+      queryClient.invalidateQueries({
+        queryKey: ["workoutLogs"],
+        refetchType: "all",
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["1rmHistory"],
+        refetchType: "all",
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["schedule"],
+        refetchType: "all",
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["streak"],
+        refetchType: "all",
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["programDay"],
+        refetchType: "all",
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["leaderboard"],
+        refetchType: "all",
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["workingOutCount"],
+        refetchType: "all",
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["previousSession"],
+        refetchType: "all",
+      });
     },
   });
 };
@@ -59,5 +93,11 @@ export const useDeleteConversation = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
     },
+  });
+};
+
+export const useTranscribeAudio = () => {
+  return useMutation({
+    mutationFn: transcribeAudio,
   });
 };

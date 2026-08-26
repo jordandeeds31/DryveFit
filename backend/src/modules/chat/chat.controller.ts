@@ -8,6 +8,7 @@ import {
   getConversationMessages,
   sendChatMessage,
   deleteConversation,
+  transcribeAudio,
 } from "./chat.service";
 
 const getParam = (value: string | string[]): string => {
@@ -64,5 +65,16 @@ export const deleteConversationHandler = catchAsync(
     const conversationId = getParam(req.params.conversationId);
     await deleteConversation(req.userId!, conversationId);
     sendSuccess(res, 200, "CONVERSATION_DELETED", {});
+  },
+);
+
+export const transcribeAudioHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    if (!req.file) {
+      throw new AppError(400, "audio file is required");
+    }
+
+    const text = await transcribeAudio(req.file.buffer);
+    sendSuccess(res, 200, "AUDIO_TRANSCRIBED", { text });
   },
 );

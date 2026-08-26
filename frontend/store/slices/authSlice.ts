@@ -1,5 +1,5 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
-import { login, signup } from "@/lib/api/auth.api";
+import { login, signup, googleAuth } from "@/lib/api/auth.api";
 import { clearPushToken } from "@/lib/api/users.api";
 import { getToken, setToken, clearToken } from "@/lib/storage/secureStore";
 import { queryClient } from "@/lib/api/queryClient";
@@ -66,6 +66,22 @@ export const registerThunk = createAsyncThunk(
   },
 );
 
+export const googleAuthThunk = createAsyncThunk(
+  "auth/googleAuth",
+  async (idToken: string, { rejectWithValue }) => {
+    try {
+      const response = await googleAuth(idToken);
+      // Same reasoning as loginThunk/registerThunk — clear stale
+      // cross-account cache before this session's queries start firing.
+      queryClient.clear();
+      await setToken(response.accessToken);
+      return { accessToken: response.accessToken, isNewUser: response.isNewUser };
+    } catch (error: any) {
+      return rejectWithValue(error?.message ?? "Google sign-in failed");
+    }
+  },
+);
+
 export const logoutThunk = createAsyncThunk("auth/logout", async () => {
   // Must happen before clearToken() below — this needs the still-present
   // auth header. Without this, this device's push token stays attached
@@ -128,6 +144,19 @@ const authSlice = createSlice({
       .addCase(registerThunk.rejected, (state, action) => {
         state.isLoading = false;
         state.error = (action.payload as string) ?? "Registration failed";
+      })
+      .addCase(googleAuthThunk.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(googleAuthThunk.fulfilled, (state, action) => {
+        state.accessToken = action.payload.accessToken;
+        state.isAuthenticated = true;
+        state.isLoading = false;
+      })
+      .addCase(googleAuthThunk.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = (action.payload as string) ?? "Google sign-in failed";
       })
       .addCase(logoutThunk.fulfilled, (state) => {
         state.accessToken = null;

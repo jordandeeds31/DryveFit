@@ -2,6 +2,7 @@ import type {
   ChatCompletionMessageParam,
   ChatCompletionTool,
 } from "openai/resources/chat/completions";
+import { toFile } from "openai";
 import openai from "../../lib/openai";
 import prisma from "../../lib/prisma";
 import AppError from "../../utils/AppError";
@@ -516,6 +517,20 @@ export const deleteConversation = async (
 ) => {
   await requireOwnedConversation(userId, conversationId);
   await prisma.conversation.delete({ where: { id: conversationId } });
+};
+
+// Backs the AI chat's mic button (frontend records with expo-audio's
+// HIGH_QUALITY preset, which outputs .m4a — Whisper accepts that natively,
+// no transcoding needed here). Transcribed text lands back in the
+// composer for the user to review/edit, same as if they'd typed it — it's
+// never sent straight to sendChatMessage on its own.
+export const transcribeAudio = async (buffer: Buffer): Promise<string> => {
+  const file = await toFile(buffer, "recording.m4a");
+  const transcription = await openai.audio.transcriptions.create({
+    file,
+    model: "whisper-1",
+  });
+  return transcription.text;
 };
 
 // isPro is supplied by the client (RevenueCat's own entitlement check,
