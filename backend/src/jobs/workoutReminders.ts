@@ -201,7 +201,7 @@ export const sendDueWorkoutReminders = async (): Promise<void> => {
     if (!(await findCompletedScheduledDay(user.id, local.dateKey))) continue;
     if (!(await claimReminder(user.id, "lastStreakNotificationSentAt"))) continue;
 
-    const currentStreak = await getCurrentStreak(user.id);
+    const { streak: currentStreak } = await getCurrentStreak(user.id);
 
     await expo.sendPushNotificationsAsync([
       {

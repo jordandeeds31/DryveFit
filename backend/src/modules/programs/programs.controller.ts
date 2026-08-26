@@ -95,8 +95,11 @@ export const getScheduleHandler = catchAsync(
 
 export const getStreakHandler = catchAsync(
   async (req: AuthRequest, res: Response) => {
-    const currentStreak = await getCurrentStreak(req.userId!);
-    sendSuccess(res, 200, "STREAK_FETCHED", { currentStreak });
+    const { streak, hasActiveProgram } = await getCurrentStreak(req.userId!);
+    sendSuccess(res, 200, "STREAK_FETCHED", {
+      currentStreak: streak,
+      hasActiveProgram,
+    });
   },
 );
 

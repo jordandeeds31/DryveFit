@@ -694,17 +694,64 @@ const isProgramDayComplete = (day: {
   day.isRestDay ||
   day.exercises.every((exercise) => exercise._count.exerciseLogs > 0);
 
+// Consecutive calendar days, walking backward from today, that have at
+// least one logged workout. Used as the streak measure when the user has
+// no active program to check adherence against — with nothing scheduled,
+// any day they logged something counts. Today is skipped (not counted,
+// but doesn't break the streak) if nothing's logged yet, same "day isn't
+// over" treatment as the program-based streak below.
+const getLoggedDayStreak = async (userId: string): Promise<number> => {
+  const logs = await prisma.workoutLog.findMany({
+    where: { userId },
+    select: { loggedAt: true },
+  });
+  const loggedDateKeys = new Set(
+    logs.map((log) => toLocalDateKey(log.loggedAt)),
+  );
+
+  const todayKey = toLocalDateKey(new Date());
+  const cursor = new Date();
+  cursor.setHours(0, 0, 0, 0);
+
+  let streak = 0;
+  while (true) {
+    const key = toLocalDateKey(cursor);
+    if (loggedDateKeys.has(key)) {
+      streak++;
+    } else if (key !== todayKey) {
+      break;
+    }
+    cursor.setDate(cursor.getDate() - 1);
+  }
+
+  return streak;
+};
+
 // Consecutive calendar days, walking backward from today, where the user
 // stuck to their ACTIVE program. Today itself is skipped (not counted,
 // but doesn't break the streak either) if it isn't done yet — the day
-// isn't over. Returns 0 with no active program, or if the program's most
-// recent scheduled day (today or earlier) was missed.
-export const getCurrentStreak = async (userId: string): Promise<number> => {
+// isn't over. Falls back to getLoggedDayStreak with no active program
+// (nothing to check adherence against, so any logged day counts), or
+// returns 0 if the program's most recent scheduled day (today or
+// earlier) was missed.
+//
+// hasActiveProgram rides along so callers can phrase the streak correctly
+// — "stuck to your plan" only makes sense when there IS a plan; a
+// logged-day streak (no program) needs its own, plan-agnostic wording
+// (see PersonalRecordProgress.tsx).
+export const getCurrentStreak = async (
+  userId: string,
+): Promise<{ streak: number; hasActiveProgram: boolean }> => {
   const activeProgram = await prisma.program.findFirst({
     where: { userId, isActive: true },
     select: { id: true },
   });
-  if (!activeProgram) return 0;
+  if (!activeProgram) {
+    return {
+      streak: await getLoggedDayStreak(userId),
+      hasActiveProgram: false,
+    };
+  }
 
   const todayEnd = new Date();
   todayEnd.setHours(23, 59, 59, 999);
@@ -729,7 +776,7 @@ export const getCurrentStreak = async (userId: string): Promise<number> => {
     streak++;
   }
 
-  return streak;
+  return { streak, hasActiveProgram: true };
 };
 
 export const getProgramById = async (userId: string, programId: string) => {

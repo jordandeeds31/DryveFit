@@ -25,8 +25,9 @@ const PersonalRecordProgress = () => {
   const { data: history, isLoading } = use1RMHistory(
     selectedExercise?.name ?? null,
   );
-  const { data: currentStreak, isLoading: isStreakLoading } =
-    useCurrentStreak();
+  const { data: streakData, isLoading: isStreakLoading } = useCurrentStreak();
+  const currentStreak = streakData?.streak;
+  const hasActiveProgram = streakData?.hasActiveProgram ?? false;
 
   return (
     <SafeAreaView style={styles.container} edges={["bottom", "left", "right"]}>
@@ -70,9 +71,11 @@ const PersonalRecordProgress = () => {
                 {currentStreak} {currentStreak === 1 ? "day" : "days"}
               </Text>
               <Text style={styles.streakLabel}>
-                {currentStreak > 0
-                  ? "stuck to your plan in a row"
-                  : "log today's workout to start a streak"}
+                {currentStreak === 0
+                  ? "log today's workout to start a streak"
+                  : hasActiveProgram
+                    ? "stuck to your plan in a row"
+                    : "day streak"}
               </Text>
             </View>
           </View>

@@ -25,9 +25,15 @@ export const getProgramSchedules = async (): Promise<ScheduleEntry[]> => {
   return data.result.schedule;
 };
 
-export const getCurrentStreak = async (): Promise<number> => {
+export const getCurrentStreak = async (): Promise<{
+  streak: number;
+  hasActiveProgram: boolean;
+}> => {
   const { data } = await apiClient.get("/api/programs/streak");
-  return data.result.currentStreak;
+  return {
+    streak: data.result.currentStreak,
+    hasActiveProgram: data.result.hasActiveProgram,
+  };
 };
 
 export const getProgramDay = async (programId: string, date: string) => {
