@@ -26,6 +26,13 @@ import {
   CARDIO_ACTIVITY_TYPES,
   CardioActivityType,
 } from "../cardio/cardio.service";
+import {
+  getDiaryForDate,
+  logFood,
+  estimateMacros,
+  MEAL_TYPES,
+  MealType,
+} from "../nutrition/nutrition.service";
 import { UNRESTRICTED_TEST_EMAIL } from "../../utils/futureLogGuard";
 
 // Mirrors frontend/lib/purchases/requirePro.ts's UNRESTRICTED_EMAILS — the
@@ -75,6 +82,32 @@ const getUserLocalDateStr = (timezone: string | null): string =>
     day: "2-digit",
   }).format(new Date());
 
+// Needed alongside todayStr specifically for meal-type inference
+// ("log 'eggs and toast'" with no meal named) — the date alone doesn't
+// say whether it's breakfast or a midnight snack.
+const getUserLocalTimeStr = (timezone: string | null): string =>
+  new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone || "UTC",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(new Date());
+
+// Mirrors the same restriction food-search.tsx already enforces for
+// manual logging — a diary entry with no goal to compare against isn't
+// useful, so both write paths require one before creating any entries.
+const NO_NUTRITION_GOAL_INSTRUCTIONS = `This user hasn't set up their nutrition goals yet. Logging food (log_food) requires a daily calorie/macro goal to exist first — calling it will be rejected. If they ask you to log food, tell them plainly that they need to set up their nutrition goals in the app first (Nutrition tab), then they can log through you. Everything else is unaffected.`;
+
+const NUTRITION_LOGGING_INSTRUCTIONS = `You can also log food the user describes, with log_food. This logs the food text VERBATIM and gets its macros from an LLM estimate — there's no database lookup or matching involved, so never try to resolve the description to a specific catalog item first.
+
+Resolving date and meal:
+- Date: same as everywhere else — resolve "today"/"yesterday"/a named day using today's date above, default to today if unstated.
+- Meal: if the user names one ("for lunch", "as a snack"), use it directly. Otherwise infer from the current local time above: before 11am → breakfast, 11am-3pm → lunch, 5pm-9pm → dinner, anything else → snacks. Before finalizing an inferred meal, call get_nutrition_diary_summary for that date and check what's already logged — e.g. at 2:30pm with lunch already logged, that's a signal this new food is actually a snack, not a second lunch. Only ask the user to pick a meal when the time is genuinely borderline (e.g. logging at 4pm with nothing logged yet today) and the diary doesn't resolve it either — otherwise just resolve it yourself, same confidence bar as exercise matching.
+
+Logging: one logFood call per resolved meal. If the user describes several distinct foods for the same meal ("eggs, toast, and orange juice for breakfast"), pass them as separate entries in the items array so each is logged individually — don't merge them into one text string. If they describe foods across different meals in one message, make one logFood call per meal.
+
+After it succeeds, confirm back using the REAL numbers the tool returns (never estimate them yourself in your reply) and always make clear these are estimates, e.g. "Logged '2 eggs and toast' to breakfast — ~320 cal, 18g protein (estimated)". If the tool reports low confidence on an item, say so plainly rather than stating the number flatly — e.g. "~200 cal (rough estimate — hard to tell exactly what that is)".`;
+
 const PRO_LOGGING_INSTRUCTIONS = `You can also log completed workouts for the user, with log_set. Picking the right target and resolving the exercise correctly both matter:
 
 - If the workout is part of the user's active program ("log today's workout", "I completed the plan", "log the recommended sets for bench press"): call get_program_day first — never guess a programExerciseId. It tells you exactly what's prescribed for a date (each exercise's programExerciseId, prescribedSets, prescribedReps, recommendedWeight) AND, per exercise, loggedSets — whatever's actually been logged for it today already, if anything. If the user says "as prescribed"/"as planned" without their own numbers, use prescribedSets/prescribedReps/recommendedWeight directly. Then call log_set with that programExerciseId. This is what marks the exercise (and the whole day, once every exercise in it is logged) as completed in their program.
@@ -98,13 +131,20 @@ Either path, if they're clearly continuing the same exercise from earlier in thi
 // attempting it and toward telling the user why in plain language.
 const NON_PRO_LOGGING_INSTRUCTIONS = `This user does NOT have an active DryveFit Pro subscription. Logging workouts (log_set) is a Pro feature — calling it for this user will be rejected. If they ask you to log a workout/set/exercise, tell them plainly that logging through the AI coach requires DryveFit Pro, and that they can subscribe from the app to unlock it. Everything else (their history, PRs, program, general advice) is still fully available — the Pro requirement is only for writing new logs through chat.`;
 
-const buildSystemPrompt = (todayStr: string, isPro: boolean): string => `You are DryveFit AI Coach, the AI coach built into DryveFit, a fitness tracking app. You're chatting directly with the user about their own training.
+const buildSystemPrompt = (
+  todayStr: string,
+  nowStr: string,
+  isPro: boolean,
+  hasNutritionGoal: boolean,
+): string => `You are DryveFit AI Coach, the AI coach built into DryveFit, a fitness tracking app. You're chatting directly with the user about their own training.
 
-Today's date (the user's own local calendar date) is ${todayStr}. Use this to resolve relative dates like "today" or "yesterday" — never guess or use a different date.
+Today's date (the user's own local calendar date) is ${todayStr}, and the current local time is ${nowStr}. Use these to resolve relative dates like "today" or "yesterday", and to infer meal type when logging food — never guess or use a different date.
 
 You have tools to fetch this user's real workout logs, lifting personal records, cardio sessions, and active program — always call a tool to get real numbers instead of guessing or making anything up. If a tool returns no data, say so plainly rather than inventing an answer.
 
 ${isPro ? PRO_LOGGING_INSTRUCTIONS : NON_PRO_LOGGING_INSTRUCTIONS}
+
+${hasNutritionGoal ? NUTRITION_LOGGING_INSTRUCTIONS : NO_NUTRITION_GOAL_INSTRUCTIONS}
 
 Be concise, specific, and encouraging — cite actual numbers, exercise names, and dates from the data you fetch. If asked something with no relevant tool (e.g. general fitness advice), just answer normally.`;
 
@@ -277,6 +317,60 @@ const tools: ChatCompletionTool[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "get_nutrition_diary_summary",
+      description:
+        "Get what's already logged for one date, grouped by meal (just food names and calories, not the full diary). Call this before log_food when the meal type wasn't stated, to sanity-check a time-of-day-based guess against what's already been logged (e.g. don't infer lunch again if lunch already has entries).",
+      parameters: {
+        type: "object",
+        properties: {
+          date: {
+            type: "string",
+            description: "Date to check, as YYYY-MM-DD. Defaults to today if omitted.",
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "log_food",
+      description:
+        "Log food the user describes, verbatim. This does NOT match against any food database — the text is logged exactly as given, and its macros come from a separate LLM estimate computed automatically after this call, never guessed by you. Never pass estimated calorie/macro numbers as arguments here — there's nowhere to put them; this tool only takes the food text plus date/meal.",
+      parameters: {
+        type: "object",
+        properties: {
+          items: {
+            type: "array",
+            description: "One entry per distinct food for this meal — see NUTRITION_LOGGING_INSTRUCTIONS for when to split vs. combine.",
+            items: {
+              type: "object",
+              properties: {
+                text: {
+                  type: "string",
+                  description: "The food/quantity as the user described it, e.g. \"2 scrambled eggs\" or \"a slice of whole wheat toast with butter\".",
+                },
+              },
+              required: ["text"],
+            },
+          },
+          date: {
+            type: "string",
+            description: "Date to log for, as YYYY-MM-DD. Defaults to today if omitted.",
+          },
+          mealType: {
+            type: "string",
+            enum: [...MEAL_TYPES],
+            description: "Resolved meal — see the meal-resolution rules above for how to infer this when the user didn't state it.",
+          },
+        },
+        required: ["items", "mealType"],
+      },
+    },
+  },
 ];
 
 const clampLimit = (value: unknown, fallback: number, max: number): number => {
@@ -318,6 +412,7 @@ const executeTool = async (
   args: Record<string, unknown>,
   todayStr: string,
   isPro: boolean,
+  hasNutritionGoal: boolean,
 ): Promise<unknown> => {
   switch (name) {
     case "get_recent_workouts":
@@ -464,6 +559,101 @@ const executeTool = async (
       }
     }
 
+    case "get_nutrition_diary_summary": {
+      const date =
+        typeof args.date === "string" && DATE_STR_PATTERN.test(args.date)
+          ? args.date
+          : todayStr;
+
+      const diary = await getDiaryForDate(userId, date);
+      const meals = Object.fromEntries(
+        MEAL_TYPES.map((mealType) => [
+          mealType,
+          diary.meals[mealType].map((entry) => ({
+            foodName: entry.foodName,
+            calories: entry.calories,
+          })),
+        ]),
+      );
+      return { date, meals };
+    }
+
+    case "log_food": {
+      // Real enforcement, not just prompt steering — same "told not to
+      // attempt this, but that's persuasion, not a guarantee" reasoning
+      // as log_set's Pro check above.
+      if (!hasNutritionGoal) {
+        return {
+          error:
+            "This user hasn't set up their nutrition goals yet. Tell them to set up their daily calorie/macro goal in the Nutrition tab before logging food.",
+        };
+      }
+
+      const rawItems = Array.isArray(args.items) ? args.items : [];
+      const texts = rawItems
+        .map((item) =>
+          item && typeof item === "object" && typeof (item as any).text === "string"
+            ? (item as any).text.trim()
+            : "",
+        )
+        .filter((text) => text.length > 0);
+      if (texts.length === 0) {
+        return { error: "At least one item with text is required" };
+      }
+
+      const mealType = args.mealType;
+      if (
+        typeof mealType !== "string" ||
+        !(MEAL_TYPES as readonly string[]).includes(mealType)
+      ) {
+        return { error: `mealType must be one of: ${MEAL_TYPES.join(", ")}` };
+      }
+
+      const date =
+        typeof args.date === "string" && DATE_STR_PATTERN.test(args.date)
+          ? args.date
+          : todayStr;
+
+      // Per-item, not Promise.all — a single bad estimate (rare OpenAI
+      // hiccup) shouldn't block the other items in the same message from
+      // logging, same "don't fail the whole batch over one bad part"
+      // reasoning as the news RSS fetcher.
+      const results = [];
+      for (const text of texts) {
+        try {
+          const estimate = await estimateMacros(text);
+          const entry = await logFood(userId, {
+            date,
+            mealType: mealType as MealType,
+            foodName: text,
+            brandName: null,
+            servingQty: 1,
+            servingUnit: "serving",
+            calories: estimate.calories,
+            proteinG: estimate.proteinG,
+            carbsG: estimate.carbsG,
+            fatG: estimate.fatG,
+            source: "ai_estimated",
+          });
+          results.push({
+            text,
+            calories: entry.calories,
+            proteinG: entry.proteinG,
+            carbsG: entry.carbsG,
+            fatG: entry.fatG,
+            confidence: estimate.confidence,
+          });
+        } catch (err) {
+          results.push({
+            text,
+            error: err instanceof AppError ? err.message : "Couldn't estimate or log this item",
+          });
+        }
+      }
+
+      return { date, mealType, items: results };
+    }
+
     default:
       return { error: `Unknown tool: ${name}` };
   }
@@ -584,16 +774,28 @@ export const sendChatMessage = async (
     }),
     prisma.user.findUnique({
       where: { id: userId },
-      select: { timezone: true, email: true },
+      select: { timezone: true, email: true, dailyCalorieGoal: true },
     }),
   ]);
 
   const todayStr = getUserLocalDateStr(user?.timezone ?? null);
+  const nowStr = getUserLocalTimeStr(user?.timezone ?? null);
   const effectiveIsPro =
     isPro || (!!user?.email && UNRESTRICTED_PRO_EMAILS.includes(user.email));
+  // Mirrors food-search.tsx's own hasGoal check — an entry logged with no
+  // goal to compare against isn't useful, so both write paths require one.
+  const hasNutritionGoal = user?.dailyCalorieGoal != null;
 
   const messages: ChatCompletionMessageParam[] = [
-    { role: "system", content: buildSystemPrompt(todayStr, effectiveIsPro) },
+    {
+      role: "system",
+      content: buildSystemPrompt(
+        todayStr,
+        nowStr,
+        effectiveIsPro,
+        hasNutritionGoal,
+      ),
+    },
     ...priorMessages
       .reverse()
       .map((message): ChatCompletionMessageParam => ({
@@ -642,6 +844,7 @@ export const sendChatMessage = async (
         args,
         todayStr,
         effectiveIsPro,
+        hasNutritionGoal,
       );
 
       messages.push({

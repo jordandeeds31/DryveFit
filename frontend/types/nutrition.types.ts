@@ -42,6 +42,8 @@ export const GOAL_TYPE_LABELS: Record<NutritionGoalType, string> = {
   recomp: "Lose fat & build muscle",
 };
 
+export type FoodLogSource = "manual" | "ai_estimated";
+
 export interface FoodLogEntry {
   id: string;
   date: string;
@@ -54,6 +56,15 @@ export interface FoodLogEntry {
   proteinG: number;
   carbsG: number;
   fatG: number;
+  source: FoodLogSource;
+}
+
+export interface MacroEstimate {
+  calories: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  confidence: "high" | "medium" | "low";
 }
 
 export interface NutritionTotals {

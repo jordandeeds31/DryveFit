@@ -7,6 +7,8 @@ import {
   searchFood,
   getFoodDetail,
   logFood,
+  updateFoodLogEntry,
+  estimateMacros,
   deleteFoodLogEntry,
   getDiaryForDate,
   getLoggedDateKeys,
@@ -58,6 +60,7 @@ export const logFoodHandler = catchAsync(
       proteinG,
       carbsG,
       fatG,
+      source,
     } = req.body;
 
     if (typeof date !== "string" || date.trim() === "") {
@@ -83,6 +86,9 @@ export const logFoodHandler = catchAsync(
     ) {
       throw new AppError(400, "calories/proteinG/carbsG/fatG must be numbers");
     }
+    if (source !== undefined && source !== "manual" && source !== "ai_estimated") {
+      throw new AppError(400, "Invalid source");
+    }
 
     const entry = await logFood(req.userId!, {
       date,
@@ -95,8 +101,51 @@ export const logFoodHandler = catchAsync(
       proteinG,
       carbsG,
       fatG,
+      source,
     });
     sendSuccess(res, 201, "FOOD_LOGGED", { entry });
+  },
+);
+
+export const updateFoodLogEntryHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const { entryId } = req.params;
+    const { calories, proteinG, carbsG, fatG } = req.body;
+
+    if (typeof entryId !== "string") {
+      throw new AppError(400, "entryId is required");
+    }
+    if (
+      typeof calories !== "number" ||
+      typeof proteinG !== "number" ||
+      typeof carbsG !== "number" ||
+      typeof fatG !== "number"
+    ) {
+      throw new AppError(400, "calories/proteinG/carbsG/fatG must be numbers");
+    }
+
+    const entry = await updateFoodLogEntry(req.userId!, entryId, {
+      calories,
+      proteinG,
+      carbsG,
+      fatG,
+    });
+    sendSuccess(res, 200, "FOOD_LOG_ENTRY_UPDATED", { entry });
+  },
+);
+
+export const estimateMacrosHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const { text } = req.body;
+    if (typeof text !== "string" || text.trim() === "") {
+      throw new AppError(400, "text is required");
+    }
+    if (text.length > 500) {
+      throw new AppError(400, "text must be 500 characters or fewer");
+    }
+
+    const estimate = await estimateMacros(text.trim());
+    sendSuccess(res, 200, "MACROS_ESTIMATED", { estimate });
   },
 );
 

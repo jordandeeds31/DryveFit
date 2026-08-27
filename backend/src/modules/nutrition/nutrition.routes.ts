@@ -4,6 +4,8 @@ import {
   searchFoodHandler,
   getFoodDetailHandler,
   logFoodHandler,
+  updateFoodLogEntryHandler,
+  estimateMacrosHandler,
   deleteFoodLogEntryHandler,
   getDiaryHandler,
   getLoggedDateKeysHandler,
@@ -19,7 +21,9 @@ router.use(authMiddleware);
 
 router.get("/search", searchFoodHandler);
 router.post("/food-detail", getFoodDetailHandler);
+router.post("/estimate-macros", estimateMacrosHandler);
 router.post("/log", logFoodHandler);
+router.patch("/log/:entryId", updateFoodLogEntryHandler);
 router.delete("/log/:entryId", deleteFoodLogEntryHandler);
 router.get("/diary", getDiaryHandler);
 router.get("/recap", getDailyRecapHandler);

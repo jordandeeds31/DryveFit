@@ -5,6 +5,8 @@ import {
   FoodDetail,
   FoodSearchResults,
   FoodLogEntry,
+  FoodLogSource,
+  MacroEstimate,
   NutritionProfile,
   MealType,
   ActivityLevel,
@@ -40,13 +42,41 @@ export const logFood = async (input: {
   proteinG: number;
   carbsG: number;
   fatG: number;
+  source?: FoodLogSource;
 }): Promise<FoodLogEntry> => {
   const { data } = await apiClient.post("/api/nutrition/log", input);
   return data.result.entry;
 };
 
+export const updateFoodLogEntry = async (
+  entryId: string,
+  input: {
+    calories: number;
+    proteinG: number;
+    carbsG: number;
+    fatG: number;
+  },
+): Promise<FoodLogEntry> => {
+  const { data } = await apiClient.patch(
+    `/api/nutrition/log/${entryId}`,
+    input,
+  );
+  return data.result.entry;
+};
+
 export const deleteFoodLogEntry = async (entryId: string): Promise<void> => {
   await apiClient.delete(`/api/nutrition/log/${entryId}`);
+};
+
+export const estimateMacros = async (text: string): Promise<MacroEstimate> => {
+  const { data } = await apiClient.post(
+    "/api/nutrition/estimate-macros",
+    { text },
+    // AI estimation is a real LLM round trip — same reasoning as chat's
+    // own timeout bump, not instant like the rest of this file's calls.
+    { timeout: 20000 },
+  );
+  return data.result.estimate;
 };
 
 export const getDiary = async (date: string): Promise<DiaryResponse> => {

@@ -19,6 +19,7 @@ import {
   useFoodSearch,
   useFoodDetail,
   useLogFood,
+  useEstimateMacros,
   useNutritionProfile,
 } from "@/hooks/useNutrition";
 import { FoodSearchHit, MealType, MEAL_TYPE_LABELS } from "@/types/nutrition.types";
@@ -68,6 +69,78 @@ const FoodSearchScreen = () => {
   const handleClose = () => {
     setSelectedHit(null);
     resetDetail();
+  };
+
+  // Freeform-text path (Ticket 2) — separate from the search-and-select
+  // flow above rather than unified into it: a picked search hit is
+  // scaled by a servings multiplier off a fixed base serving, while an
+  // AI estimate already covers the whole described quantity and its
+  // macro fields are directly editable instead. Different enough editing
+  // semantics that forcing them through one modal/state would be more
+  // confusing than two small ones.
+  const [pendingText, setPendingText] = useState<string | null>(null);
+  const [estimateFields, setEstimateFields] = useState<{
+    calories: string;
+    proteinG: string;
+    carbsG: string;
+    fatG: string;
+  } | null>(null);
+  const [estimateConfidence, setEstimateConfidence] = useState<
+    "high" | "medium" | "low" | null
+  >(null);
+  const { mutate: estimate, isPending: isEstimating } = useEstimateMacros();
+
+  const handleLogAsTyped = () => {
+    const text = query.trim();
+    if (!text) return;
+
+    setPendingText(text);
+    setEstimateFields(null);
+    setEstimateConfidence(null);
+
+    estimate(text, {
+      onSuccess: (result) => {
+        setEstimateFields({
+          calories: String(result.calories),
+          proteinG: String(result.proteinG),
+          carbsG: String(result.carbsG),
+          fatG: String(result.fatG),
+        });
+        setEstimateConfidence(result.confidence);
+      },
+      onError: () => {
+        // Fallback per spec — don't block logging over a failed estimate,
+        // just open the same review fields blank for manual entry.
+        setEstimateFields({ calories: "", proteinG: "", carbsG: "", fatG: "" });
+      },
+    });
+  };
+
+  const handleClosePending = () => {
+    setPendingText(null);
+    setEstimateFields(null);
+    setEstimateConfidence(null);
+  };
+
+  const handleConfirmEstimate = () => {
+    if (!pendingText || !estimateFields) return;
+
+    log(
+      {
+        date,
+        mealType,
+        foodName: pendingText,
+        brandName: null,
+        servingQty: 1,
+        servingUnit: "serving",
+        calories: Math.round(parseFloat(estimateFields.calories) || 0),
+        proteinG: parseFloat(estimateFields.proteinG) || 0,
+        carbsG: parseFloat(estimateFields.carbsG) || 0,
+        fatG: parseFloat(estimateFields.fatG) || 0,
+        source: "ai_estimated",
+      },
+      { onSuccess: () => router.back() },
+    );
   };
 
   const servingsMultiplier = parseFloat(servings) || 0;
@@ -188,6 +261,21 @@ const FoodSearchScreen = () => {
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.listContent}
           >
+            {query.trim().length > 1 && (
+              // Always available alongside the dropdown suggestions below
+              // — logging the typed text doesn't require picking (or even
+              // getting) a search match first.
+              <TouchableOpacity
+                style={styles.logAsTypedRow}
+                onPress={handleLogAsTyped}
+              >
+                <Feather name="edit-3" size={16} color={colors.primaryBlue} />
+                <Text style={styles.logAsTypedText} numberOfLines={1}>
+                  Log "{query.trim()}" as typed
+                </Text>
+              </TouchableOpacity>
+            )}
+
             {query.trim().length <= 1 ? (
               <Text style={styles.hintText}>
                 Start typing to search for a food.
@@ -281,6 +369,84 @@ const FoodSearchScreen = () => {
             </View>
           )}
         </Modal>
+
+        <Modal visible={!!pendingText} onClose={handleClosePending}>
+          {isEstimating || !estimateFields ? (
+            <View style={styles.estimatingState}>
+              <ActivityIndicator />
+              <Text style={styles.hintText}>Estimating macros...</Text>
+            </View>
+          ) : (
+            <View>
+              <Text style={styles.detailName}>{pendingText}</Text>
+              <Text style={styles.aiEstimateBadge}>
+                {estimateConfidence
+                  ? estimateConfidence === "low"
+                    ? "AI estimate — rough guess, double check these"
+                    : "AI estimate — review before logging"
+                  : "Couldn't estimate this — enter macros manually"}
+              </Text>
+
+              <View style={styles.macroFieldsGrid}>
+                <View style={styles.macroField}>
+                  <Text style={styles.macroFieldLabel}>Calories</Text>
+                  <Input
+                    keyboardType="numeric"
+                    value={estimateFields.calories}
+                    onChangeText={(value) =>
+                      setEstimateFields((prev) =>
+                        prev ? { ...prev, calories: value } : prev,
+                      )
+                    }
+                  />
+                </View>
+                <View style={styles.macroField}>
+                  <Text style={styles.macroFieldLabel}>Protein (g)</Text>
+                  <Input
+                    keyboardType="numeric"
+                    value={estimateFields.proteinG}
+                    onChangeText={(value) =>
+                      setEstimateFields((prev) =>
+                        prev ? { ...prev, proteinG: value } : prev,
+                      )
+                    }
+                  />
+                </View>
+                <View style={styles.macroField}>
+                  <Text style={styles.macroFieldLabel}>Carbs (g)</Text>
+                  <Input
+                    keyboardType="numeric"
+                    value={estimateFields.carbsG}
+                    onChangeText={(value) =>
+                      setEstimateFields((prev) =>
+                        prev ? { ...prev, carbsG: value } : prev,
+                      )
+                    }
+                  />
+                </View>
+                <View style={styles.macroField}>
+                  <Text style={styles.macroFieldLabel}>Fat (g)</Text>
+                  <Input
+                    keyboardType="numeric"
+                    value={estimateFields.fatG}
+                    onChangeText={(value) =>
+                      setEstimateFields((prev) =>
+                        prev ? { ...prev, fatG: value } : prev,
+                      )
+                    }
+                  />
+                </View>
+              </View>
+
+              <Button
+                title={isLogging ? "Adding..." : `Add to ${MEAL_TYPE_LABELS[mealType]}`}
+                onPress={handleConfirmEstimate}
+                disabled={isLogging}
+                style={styles.addButton}
+              />
+            </View>
+          )}
+        </Modal>
       </SafeAreaView>
     </KeyboardAvoidingView>
   );
@@ -325,6 +491,49 @@ const styles = StyleSheet.create({
   retryButton: {
     alignSelf: "center",
     paddingHorizontal: spacing.xl,
+  },
+  logAsTypedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    marginBottom: spacing.xs,
+    backgroundColor: colors.surfaceBlueLight,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.borderBlueLight,
+  },
+  logAsTypedText: {
+    flex: 1,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.semibold,
+    color: colors.primaryBlue,
+  },
+  estimatingState: {
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingVertical: spacing.xl,
+  },
+  aiEstimateBadge: {
+    fontSize: fontSizes.xs,
+    color: colors.textSecondary,
+    marginTop: 2,
+    marginBottom: spacing.md,
+  },
+  macroFieldsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  macroField: {
+    width: "47%",
+  },
+  macroFieldLabel: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.semibold,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
   },
   sectionLabel: {
     fontSize: fontSizes.xs,

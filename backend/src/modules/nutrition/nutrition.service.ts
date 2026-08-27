@@ -1,4 +1,5 @@
 import prisma from "../../lib/prisma";
+import openai from "../../lib/openai";
 import AppError from "../../utils/AppError";
 import {
   searchFoods,
@@ -200,6 +201,7 @@ interface LogFoodInput {
   proteinG: number;
   carbsG: number;
   fatG: number;
+  source?: "manual" | "ai_estimated";
 }
 
 export const logFood = async (userId: string, input: LogFoodInput) => {
@@ -218,8 +220,101 @@ export const logFood = async (userId: string, input: LogFoodInput) => {
       proteinG: input.proteinG,
       carbsG: input.carbsG,
       fatG: input.fatG,
+      source: input.source ?? "manual",
     },
   });
+};
+
+interface UpdateFoodLogInput {
+  calories: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+}
+
+export const updateFoodLogEntry = async (
+  userId: string,
+  entryId: string,
+  input: UpdateFoodLogInput,
+) => {
+  const entry = await prisma.foodLogEntry.findFirst({
+    where: { id: entryId, userId },
+  });
+  if (!entry) {
+    throw new AppError(404, "Food log entry not found");
+  }
+  if (
+    input.calories < 0 ||
+    input.proteinG < 0 ||
+    input.carbsG < 0 ||
+    input.fatG < 0
+  ) {
+    throw new AppError(400, "Macro values can't be negative");
+  }
+
+  return prisma.foodLogEntry.update({
+    where: { id: entryId },
+    data: {
+      calories: Math.round(input.calories),
+      proteinG: input.proteinG,
+      carbsG: input.carbsG,
+      fatG: input.fatG,
+    },
+  });
+};
+
+export interface MacroEstimate {
+  calories: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  // The model's own confidence, not derived — surfaced to the user
+  // wherever an estimate is shown, since these are LLM guesses, not
+  // database-sourced values.
+  confidence: "high" | "medium" | "low";
+}
+
+// Shared by the AI chat's log_food tool and the manual nutrition-entry
+// screen's freeform-text path — one estimation call, two callers, so
+// there's exactly one place that ever needs updating if the prompt or
+// model changes.
+export const estimateMacros = async (text: string): Promise<MacroEstimate> => {
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      {
+        role: "system",
+        content:
+          'Estimate total calories and macros (protein, carbs, fat in grams) for the food/meal description given. Use your best judgment about typical serving sizes when the description doesn\'t specify quantity (e.g. "toast" = 1 slice, "eggs" with no count = 2). If multiple foods are described together, sum their totals into one estimate. Report your confidence: "high" for common, clearly-quantified foods; "medium" for reasonable but assumption-heavy guesses; "low" for vague or unusual descriptions.',
+      },
+      { role: "user", content: text },
+    ],
+    response_format: {
+      type: "json_schema",
+      json_schema: {
+        name: "macro_estimate",
+        strict: true,
+        schema: {
+          type: "object",
+          properties: {
+            calories: { type: "integer" },
+            proteinG: { type: "number" },
+            carbsG: { type: "number" },
+            fatG: { type: "number" },
+            confidence: { type: "string", enum: ["high", "medium", "low"] },
+          },
+          required: ["calories", "proteinG", "carbsG", "fatG", "confidence"],
+          additionalProperties: false,
+        },
+      },
+    },
+  });
+
+  const raw = completion.choices[0].message.content;
+  if (!raw) {
+    throw new AppError(502, "Couldn't estimate macros for that — try again");
+  }
+  return JSON.parse(raw);
 };
 
 export const deleteFoodLogEntry = async (userId: string, entryId: string) => {

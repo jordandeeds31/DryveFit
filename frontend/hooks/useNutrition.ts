@@ -8,6 +8,8 @@ import {
   searchFood,
   getFoodDetail,
   logFood,
+  updateFoodLogEntry,
+  estimateMacros,
   deleteFoodLogEntry,
   getDiary,
   getDailyRecap,
@@ -101,6 +103,35 @@ export const useLogFood = () => {
           fatG: variables.fatG,
         }).catch(() => {});
       }
+    },
+  });
+};
+
+export const useEstimateMacros = () => {
+  return useMutation({
+    mutationFn: estimateMacros,
+  });
+};
+
+export const useUpdateFoodLogEntry = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      entryId,
+      ...input
+    }: {
+      entryId: string;
+      calories: number;
+      proteinG: number;
+      carbsG: number;
+      fatG: number;
+    }) => updateFoodLogEntry(entryId, input),
+    onSuccess: () => {
+      // Same reasoning as useDeleteFoodLogEntry — the entry's date isn't
+      // known here without threading it through, and invalidating every
+      // cached day is cheap given how few are realistically cached.
+      queryClient.invalidateQueries({ queryKey: ["diary"] });
+      queryClient.invalidateQueries({ queryKey: ["dailyRecap"] });
     },
   });
 };

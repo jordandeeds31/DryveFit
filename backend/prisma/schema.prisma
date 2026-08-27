@@ -340,6 +340,12 @@ model FoodLogEntry {
   proteinG    Float
   carbsG      Float
   fatG        Float
+  // "manual" (typed macros, or a USDA search pick — both a person
+  // confirming real numbers) | "ai_estimated" (an LLM guess from a
+  // freeform food description, no database match involved). Drives the
+  // "(estimated)" badge/copy wherever entries are shown, and lets future
+  // accuracy work target just the estimated ones.
+  source      String   @default("manual")
   createdAt   DateTime @default(now())
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 

@@ -13,6 +13,8 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useQueryClient } from "@tanstack/react-query";
 import Feather from "@expo/vector-icons/Feather";
 import Modal from "@/components/shared/Modal/Modal";
+import Input from "@/components/shared/TextInput/TextInput";
+import Button from "@/components/shared/Button/Button";
 import AnimatedProgressBar from "@/components/shared/AnimatedProgressBar/AnimatedProgressBar";
 import NutritionCalendar from "@/features/NutritionCalendar/NutritionCalendar";
 import NutritionSetup from "@/features/NutritionSetup/NutritionSetup";
@@ -22,6 +24,7 @@ import {
   useDailyRecap,
   useLoggedDateKeys,
   useDeleteFoodLogEntry,
+  useUpdateFoodLogEntry,
 } from "@/hooks/useNutrition";
 import { useCurrentUser } from "@/hooks/useUsers";
 import { useUnitSystem } from "@/hooks/useUnitSystem";
@@ -167,6 +170,40 @@ const NutritionScreen = () => {
   const loggedDateKeys = new Set<string>(loggedDates ?? []);
 
   const { mutate: removeEntry } = useDeleteFoodLogEntry();
+  const { mutate: updateEntry, isPending: isUpdatingEntry } =
+    useUpdateFoodLogEntry();
+
+  const [editingEntry, setEditingEntry] = useState<FoodLogEntry | null>(null);
+  const [editFields, setEditFields] = useState({
+    calories: "",
+    proteinG: "",
+    carbsG: "",
+    fatG: "",
+  });
+
+  const handleOpenEdit = (entry: FoodLogEntry) => {
+    setEditingEntry(entry);
+    setEditFields({
+      calories: String(entry.calories),
+      proteinG: String(entry.proteinG),
+      carbsG: String(entry.carbsG),
+      fatG: String(entry.fatG),
+    });
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingEntry) return;
+    updateEntry(
+      {
+        entryId: editingEntry.id,
+        calories: Math.round(parseFloat(editFields.calories) || 0),
+        proteinG: parseFloat(editFields.proteinG) || 0,
+        carbsG: parseFloat(editFields.carbsG) || 0,
+        fatG: parseFloat(editFields.fatG) || 0,
+      },
+      { onSuccess: () => setEditingEntry(null) },
+    );
+  };
 
   const hasGoal = !!profile?.dailyCalorieGoal;
 
@@ -294,6 +331,17 @@ const NutritionScreen = () => {
           </View>
         )}
 
+        <TouchableOpacity
+          style={styles.voiceTipBanner}
+          onPress={() => router.push("/ai-chat")}
+        >
+          <Feather name="mic" size={16} color={colors.primaryBlue} />
+          <Text style={styles.voiceTipBannerText}>
+            Tip: tell your AI coach what you ate instead of typing it — tap
+            to open the chat and use the mic.
+          </Text>
+        </TouchableOpacity>
+
         <Modal visible={isSetupOpen} onClose={() => setIsSetupOpen(false)}>
           <NutritionSetup onSaved={() => setIsSetupOpen(false)} />
         </Modal>
@@ -322,11 +370,24 @@ const NutritionScreen = () => {
                   <Text style={styles.emptyMealText}>Nothing logged yet</Text>
                 ) : (
                   entries.map((entry) => (
-                    <View key={entry.id} style={styles.entryRow}>
+                    <TouchableOpacity
+                      key={entry.id}
+                      style={styles.entryRow}
+                      onPress={() => handleOpenEdit(entry)}
+                    >
                       <View style={styles.entryTextGroup}>
-                        <Text style={styles.entryName} numberOfLines={1}>
-                          {entry.foodName}
-                        </Text>
+                        <View style={styles.entryNameRow}>
+                          <Text style={styles.entryName} numberOfLines={1}>
+                            {entry.foodName}
+                          </Text>
+                          {entry.source === "ai_estimated" && (
+                            <View style={styles.estimatedBadge}>
+                              <Text style={styles.estimatedBadgeText}>
+                                estimated
+                              </Text>
+                            </View>
+                          )}
+                        </View>
                         <Text style={styles.entryServing}>
                           {entry.brandName ? `${entry.brandName} · ` : ""}
                           {entry.servingQty} {entry.servingUnit}
@@ -341,7 +402,7 @@ const NutritionScreen = () => {
                       >
                         <Feather name="x" size={16} color={colors.textMuted} />
                       </TouchableOpacity>
-                    </View>
+                    </TouchableOpacity>
                   ))
                 )}
               </View>
@@ -349,6 +410,71 @@ const NutritionScreen = () => {
           })
         )}
       </ScrollView>
+
+      <Modal visible={!!editingEntry} onClose={() => setEditingEntry(null)}>
+        {editingEntry && (
+          <View>
+            <Text style={styles.detailName} numberOfLines={2}>
+              {editingEntry.foodName}
+            </Text>
+            {editingEntry.source === "ai_estimated" && (
+              <Text style={styles.aiEstimateBadge}>
+                AI-estimated — adjust these if they're off
+              </Text>
+            )}
+
+            <View style={styles.macroFieldsGrid}>
+              <View style={styles.macroField}>
+                <Text style={styles.macroFieldLabel}>Calories</Text>
+                <Input
+                  keyboardType="numeric"
+                  value={editFields.calories}
+                  onChangeText={(value) =>
+                    setEditFields((prev) => ({ ...prev, calories: value }))
+                  }
+                />
+              </View>
+              <View style={styles.macroField}>
+                <Text style={styles.macroFieldLabel}>Protein (g)</Text>
+                <Input
+                  keyboardType="numeric"
+                  value={editFields.proteinG}
+                  onChangeText={(value) =>
+                    setEditFields((prev) => ({ ...prev, proteinG: value }))
+                  }
+                />
+              </View>
+              <View style={styles.macroField}>
+                <Text style={styles.macroFieldLabel}>Carbs (g)</Text>
+                <Input
+                  keyboardType="numeric"
+                  value={editFields.carbsG}
+                  onChangeText={(value) =>
+                    setEditFields((prev) => ({ ...prev, carbsG: value }))
+                  }
+                />
+              </View>
+              <View style={styles.macroField}>
+                <Text style={styles.macroFieldLabel}>Fat (g)</Text>
+                <Input
+                  keyboardType="numeric"
+                  value={editFields.fatG}
+                  onChangeText={(value) =>
+                    setEditFields((prev) => ({ ...prev, fatG: value }))
+                  }
+                />
+              </View>
+            </View>
+
+            <Button
+              title={isUpdatingEntry ? "Saving..." : "Save Changes"}
+              onPress={handleSaveEdit}
+              disabled={isUpdatingEntry}
+              style={styles.addButton}
+            />
+          </View>
+        )}
+      </Modal>
 
       {recap && (
         <Modal visible={isRecapOpen} onClose={() => setIsRecapOpen(false)}>
@@ -461,6 +587,22 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 2,
   },
+  voiceTipBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.borderBlueLight,
+    backgroundColor: colors.surfaceBlueLight,
+    borderRadius: 8,
+    padding: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  voiceTipBannerText: {
+    flex: 1,
+    fontSize: fontSizes.xs,
+    color: colors.textSecondary,
+  },
   summaryCard: {
     borderWidth: 1,
     borderColor: colors.borderGray,
@@ -557,9 +699,27 @@ const styles = StyleSheet.create({
   entryTextGroup: {
     flex: 1,
   },
+  entryNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
   entryName: {
+    flexShrink: 1,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.semibold,
+  },
+  estimatedBadge: {
+    backgroundColor: colors.surfaceBlueLight,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+  },
+  estimatedBadgeText: {
+    fontSize: 10,
+    fontWeight: fontWeights.semibold,
+    color: colors.primaryBlue,
+    textTransform: "uppercase",
   },
   entryServing: {
     fontSize: fontSizes.xs,
@@ -570,6 +730,33 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     color: colors.textSecondary,
     fontWeight: fontWeights.semibold,
+  },
+  detailName: {
+    fontSize: fontSizes.lg,
+    fontWeight: fontWeights.bold,
+  },
+  aiEstimateBadge: {
+    fontSize: fontSizes.xs,
+    color: colors.textSecondary,
+    marginTop: 2,
+    marginBottom: spacing.md,
+  },
+  macroFieldsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  macroField: {
+    width: "47%",
+  },
+  macroFieldLabel: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.semibold,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+  },
+  addButton: {
+    marginTop: spacing.lg,
   },
   recapButtonRow: {
     flexDirection: "row",
