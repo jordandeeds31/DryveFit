@@ -7,6 +7,8 @@ import {
   FoodLogEntry,
   FoodLogSource,
   MacroEstimate,
+  MacroHistoryBucket,
+  MacroHistoryRange,
   NutritionProfile,
   MealType,
   ActivityLevel,
@@ -91,6 +93,15 @@ export const getDailyRecap = async (date: string): Promise<DailyRecap> => {
     params: { date },
   });
   return data.result;
+};
+
+export const getMacroHistory = async (
+  range: MacroHistoryRange,
+): Promise<MacroHistoryBucket[]> => {
+  const { data } = await apiClient.get("/api/nutrition/macro-history", {
+    params: { range },
+  });
+  return data.result.history;
 };
 
 export const getLoggedDateKeys = async (

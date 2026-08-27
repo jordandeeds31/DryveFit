@@ -13,12 +13,13 @@ import {
   deleteFoodLogEntry,
   getDiary,
   getDailyRecap,
+  getMacroHistory,
   getLoggedDateKeys,
   getNutritionProfile,
   updateNutritionProfile,
   updateNutritionGoal,
 } from "@/lib/api/nutrition.api";
-import { MEAL_TYPE_LABELS } from "@/types/nutrition.types";
+import { MacroHistoryRange, MEAL_TYPE_LABELS } from "@/types/nutrition.types";
 import {
   saveFoodToHealthKit,
   saveBodyMeasurementsToHealthKit,
@@ -78,6 +79,17 @@ const invalidateLoggedDateKeys = (queryClient: QueryClient) =>
     refetchType: "all",
   });
 
+// The profile screen's own month calendar (useUsers.ts's
+// usePublicNutritionHistory) is a completely separate cache entry from
+// the Nutrition tab's own diary/loggedDateKeys — same refetchType: "all"
+// reasoning as invalidateLoggedDateKeys above, since the profile screen
+// is very often not mounted at the moment a food entry gets logged.
+const invalidatePublicNutritionHistory = (queryClient: QueryClient) =>
+  queryClient.invalidateQueries({
+    queryKey: ["publicNutritionHistory"],
+    refetchType: "all",
+  });
+
 export const useLogFood = () => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -87,7 +99,9 @@ export const useLogFood = () => {
       queryClient.invalidateQueries({
         queryKey: ["dailyRecap", variables.date],
       });
+      queryClient.invalidateQueries({ queryKey: ["macroHistory"] });
       invalidateLoggedDateKeys(queryClient);
+      invalidatePublicNutritionHistory(queryClient);
 
       const userId = queryClient.getQueryData<{ id: string }>([
         "currentUser",
@@ -104,6 +118,13 @@ export const useLogFood = () => {
         }).catch(() => {});
       }
     },
+  });
+};
+
+export const useMacroHistory = (range: MacroHistoryRange) => {
+  return useQuery({
+    queryKey: ["macroHistory", range],
+    queryFn: () => getMacroHistory(range),
   });
 };
 
@@ -132,6 +153,8 @@ export const useUpdateFoodLogEntry = () => {
       // cached day is cheap given how few are realistically cached.
       queryClient.invalidateQueries({ queryKey: ["diary"] });
       queryClient.invalidateQueries({ queryKey: ["dailyRecap"] });
+      queryClient.invalidateQueries({ queryKey: ["macroHistory"] });
+      invalidatePublicNutritionHistory(queryClient);
     },
   });
 };
@@ -146,6 +169,8 @@ export const useDeleteFoodLogEntry = () => {
       // given how few days are realistically cached at once.
       queryClient.invalidateQueries({ queryKey: ["diary"] });
       queryClient.invalidateQueries({ queryKey: ["dailyRecap"] });
+      invalidatePublicNutritionHistory(queryClient);
+      queryClient.invalidateQueries({ queryKey: ["macroHistory"] });
       invalidateLoggedDateKeys(queryClient);
     },
   });

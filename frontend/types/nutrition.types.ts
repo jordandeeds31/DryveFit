@@ -135,6 +135,33 @@ export interface FoodDetail {
   fatG: number;
 }
 
+export const MACRO_HISTORY_RANGES = ["1w", "1m", "3m", "6m", "1y", "all"] as const;
+export type MacroHistoryRange = (typeof MACRO_HISTORY_RANGES)[number];
+
+export const MACRO_HISTORY_RANGE_LABELS: Record<MacroHistoryRange, string> = {
+  "1w": "1W",
+  "1m": "1M",
+  "3m": "3M",
+  "6m": "6M",
+  "1y": "1Y",
+  all: "All",
+};
+
+export interface MacroHistoryBucket {
+  bucketStart: string;
+  bucketEnd: string;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  calories: number;
+  proteinCal: number;
+  carbsCal: number;
+  fatCal: number;
+  proteinPercent: number;
+  carbsPercent: number;
+  fatPercent: number;
+}
+
 export interface NutritionProfile {
   gender: string | null;
   weightLbs: number | null;

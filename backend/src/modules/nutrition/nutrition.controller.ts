@@ -13,11 +13,14 @@ import {
   getDiaryForDate,
   getLoggedDateKeys,
   getDailyRecap,
+  getMacroHistory,
   updateNutritionProfile,
   updateNutritionGoalOverride,
   getNutritionProfile,
   MEAL_TYPES,
   MealType,
+  MACRO_HISTORY_RANGES,
+  MacroHistoryRange,
 } from "./nutrition.service";
 
 export const searchFoodHandler = catchAsync(
@@ -244,6 +247,27 @@ export const updateNutritionGoalHandler = catchAsync(
       fatG,
     });
     sendSuccess(res, 200, "NUTRITION_GOAL_UPDATED", { profile });
+  },
+);
+
+export const getMacroHistoryHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const { range } = req.query;
+    if (
+      typeof range !== "string" ||
+      !(MACRO_HISTORY_RANGES as readonly string[]).includes(range)
+    ) {
+      throw new AppError(
+        400,
+        `range must be one of: ${MACRO_HISTORY_RANGES.join(", ")}`,
+      );
+    }
+
+    const history = await getMacroHistory(
+      req.userId!,
+      range as MacroHistoryRange,
+    );
+    sendSuccess(res, 200, "MACRO_HISTORY_FETCHED", { history });
   },
 );
 

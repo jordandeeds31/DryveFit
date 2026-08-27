@@ -95,6 +95,7 @@ export const useLogExercisePerformance = () => {
       queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
       queryClient.invalidateQueries({ queryKey: ["workingOutCount"] });
       queryClient.invalidateQueries({ queryKey: ["previousSession"] });
+      queryClient.invalidateQueries({ queryKey: ["publicWorkoutHistory"] });
     },
   });
 };
@@ -111,6 +112,7 @@ export const useDeleteExercisePerformance = () => {
       queryClient.invalidateQueries({ queryKey: ["programDay"] });
       queryClient.invalidateQueries({ queryKey: ["workingOutCount"] });
       queryClient.invalidateQueries({ queryKey: ["previousSession"] });
+      queryClient.invalidateQueries({ queryKey: ["publicWorkoutHistory"] });
     },
   });
 };

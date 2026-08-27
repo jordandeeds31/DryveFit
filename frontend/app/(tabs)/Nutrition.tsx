@@ -251,22 +251,35 @@ const NutritionScreen = () => {
           loggedDateKeys={loggedDateKeys}
         />
 
-        {hasGoal && recap && (
+        {hasGoal && (
           <View style={styles.recapButtonRow}>
             <TouchableOpacity
               style={styles.recapButton}
-              onPress={() => setIsRecapOpen(true)}
+              onPress={() => router.push("/nutrition-history")}
             >
               <Feather
-                name="bar-chart-2"
+                name="trending-up"
                 size={14}
                 color={colors.primaryBlue}
               />
-              <Text style={styles.recapButtonText}>
-                {isSameDay(selectedDate, new Date()) ? "Today's" : "Day's"}{" "}
-                Recap
-              </Text>
+              <Text style={styles.recapButtonText}>Macro Trends</Text>
             </TouchableOpacity>
+            {recap && (
+              <TouchableOpacity
+                style={styles.recapButton}
+                onPress={() => setIsRecapOpen(true)}
+              >
+                <Feather
+                  name="bar-chart-2"
+                  size={14}
+                  color={colors.primaryBlue}
+                />
+                <Text style={styles.recapButtonText}>
+                  {isSameDay(selectedDate, new Date()) ? "Today's" : "Day's"}{" "}
+                  Recap
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
@@ -761,6 +774,7 @@ const styles = StyleSheet.create({
   recapButtonRow: {
     flexDirection: "row",
     justifyContent: "flex-end",
+    gap: spacing.xs,
     marginBottom: spacing.sm,
   },
   recapButton: {

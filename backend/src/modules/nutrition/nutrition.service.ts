@@ -721,6 +721,144 @@ export const getDailyRecap = async (userId: string, dateStr: string) => {
   };
 };
 
+export const MACRO_HISTORY_RANGES = ["1w", "1m", "3m", "6m", "1y", "all"] as const;
+export type MacroHistoryRange = (typeof MACRO_HISTORY_RANGES)[number];
+
+// Daily bars for the two shortest ranges stay readable (7 or ~30 bars);
+// beyond that a bar per day would be too dense to read on a phone screen,
+// so longer ranges bucket into weeks instead. Every bucket reports
+// PER-DAY averages regardless of its size, so bars stay comparable across
+// ranges — a week bucket isn't "7x higher" than a day bucket.
+const RANGE_CONFIG: Record<
+  MacroHistoryRange,
+  { days: number | null; bucket: "day" | "week" }
+> = {
+  "1w": { days: 7, bucket: "day" },
+  "1m": { days: 30, bucket: "day" },
+  "3m": { days: 90, bucket: "week" },
+  "6m": { days: 180, bucket: "week" },
+  "1y": { days: 365, bucket: "week" },
+  all: { days: null, bucket: "week" },
+};
+
+// Sunday-anchored week bucket key, in the server's own local time — good
+// enough for a "which week is this in" grouping (unlike date/mealType
+// elsewhere in this file, this isn't a value ever compared against a
+// specific user's local calendar day).
+const getWeekBucketKey = (date: Date): string => {
+  const weekStart = new Date(date);
+  weekStart.setDate(date.getDate() - date.getDay());
+  return toLocalDateKey(weekStart);
+};
+
+export const getMacroHistory = async (
+  userId: string,
+  range: MacroHistoryRange,
+) => {
+  const { days, bucket } = RANGE_CONFIG[range];
+  const endOfToday = new Date();
+  endOfToday.setHours(23, 59, 59, 999);
+
+  const entries = await prisma.foodLogEntry.findMany({
+    where: {
+      userId,
+      ...(days != null
+        ? {
+            date: {
+              gte: (() => {
+                const start = new Date();
+                start.setDate(start.getDate() - (days - 1));
+                start.setHours(0, 0, 0, 0);
+                return start;
+              })(),
+              lte: endOfToday,
+            },
+          }
+        : {}),
+    },
+    select: { date: true, proteinG: true, carbsG: true, fatG: true },
+  });
+
+  // Per-day totals first, regardless of target bucket size — a week
+  // bucket's "per-day average" is computed FROM these, not from raw
+  // entries directly, so multiple entries logged the same day correctly
+  // count as one day, not one point per entry.
+  const dayTotals = new Map<
+    string,
+    { proteinG: number; carbsG: number; fatG: number }
+  >();
+  for (const entry of entries) {
+    const dayKey = toLocalDateKey(entry.date);
+    const existing = dayTotals.get(dayKey) ?? {
+      proteinG: 0,
+      carbsG: 0,
+      fatG: 0,
+    };
+    existing.proteinG += entry.proteinG;
+    existing.carbsG += entry.carbsG;
+    existing.fatG += entry.fatG;
+    dayTotals.set(dayKey, existing);
+  }
+
+  const bucketDayLists = new Map<string, string[]>();
+  for (const dayKey of dayTotals.keys()) {
+    const bucketKey =
+      bucket === "day" ? dayKey : getWeekBucketKey(new Date(dayKey));
+    const list = bucketDayLists.get(bucketKey) ?? [];
+    list.push(dayKey);
+    bucketDayLists.set(bucketKey, list);
+  }
+
+  const buckets = Array.from(bucketDayLists.entries()).map(
+    ([bucketKey, dayKeys]) => {
+      const totals = dayKeys.reduce(
+        (acc, dayKey) => {
+          const day = dayTotals.get(dayKey)!;
+          return {
+            proteinG: acc.proteinG + day.proteinG,
+            carbsG: acc.carbsG + day.carbsG,
+            fatG: acc.fatG + day.fatG,
+          };
+        },
+        { proteinG: 0, carbsG: 0, fatG: 0 },
+      );
+
+      // Averaged over days that actually have a logged entry, not every
+      // calendar day in the bucket — a week with 2 logged days shouldn't
+      // look like a near-fast just because the other 5 are unlogged.
+      const loggedDayCount = dayKeys.length;
+      const proteinG = totals.proteinG / loggedDayCount;
+      const carbsG = totals.carbsG / loggedDayCount;
+      const fatG = totals.fatG / loggedDayCount;
+
+      // Calories-from-each-macro, not the raw logged calorie total — this
+      // is what actually gets stacked/plotted and is what the percentages
+      // below are fractions of, so the two always agree with each other.
+      const proteinCal = proteinG * 4;
+      const carbsCal = carbsG * 4;
+      const fatCal = fatG * 9;
+      const totalCal = proteinCal + carbsCal + fatCal;
+
+      return {
+        bucketStart: bucketKey,
+        bucketEnd: dayKeys.sort().slice(-1)[0],
+        proteinG: Math.round(proteinG * 10) / 10,
+        carbsG: Math.round(carbsG * 10) / 10,
+        fatG: Math.round(fatG * 10) / 10,
+        calories: Math.round(totalCal),
+        proteinCal: Math.round(proteinCal),
+        carbsCal: Math.round(carbsCal),
+        fatCal: Math.round(fatCal),
+        proteinPercent: totalCal > 0 ? Math.round((proteinCal / totalCal) * 100) : 0,
+        carbsPercent: totalCal > 0 ? Math.round((carbsCal / totalCal) * 100) : 0,
+        fatPercent: totalCal > 0 ? Math.round((fatCal / totalCal) * 100) : 0,
+      };
+    },
+  );
+
+  return buckets.sort((a, b) => a.bucketStart.localeCompare(b.bucketStart));
+};
+
 export const getNutritionProfile = async (userId: string) => {
   const { birthdate, ...user } = await prisma.user.findUniqueOrThrow({
     where: { id: userId },

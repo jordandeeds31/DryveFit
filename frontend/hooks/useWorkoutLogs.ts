@@ -38,6 +38,10 @@ export const useLogStandaloneWorkout = () => {
       queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
       queryClient.invalidateQueries({ queryKey: ["workingOutCount"] });
       queryClient.invalidateQueries({ queryKey: ["previousSession"] });
+      // The profile screen's own month calendar (useUsers.ts) is a
+      // separate cache entry from workoutLogs/schedule above — same gap
+      // that was missing the analogous publicNutritionHistory invalidation.
+      queryClient.invalidateQueries({ queryKey: ["publicWorkoutHistory"] });
 
       const userId = queryClient.getQueryData<{ id: string }>([
         "currentUser",
@@ -81,6 +85,10 @@ export const useDeleteWorkoutLogSet = () => {
       queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
       queryClient.invalidateQueries({ queryKey: ["workingOutCount"] });
       queryClient.invalidateQueries({ queryKey: ["previousSession"] });
+      // The profile screen's own month calendar (useUsers.ts) is a
+      // separate cache entry from workoutLogs/schedule above — same gap
+      // that was missing the analogous publicNutritionHistory invalidation.
+      queryClient.invalidateQueries({ queryKey: ["publicWorkoutHistory"] });
     },
   });
 };
@@ -97,6 +105,10 @@ export const useDeleteWorkoutLogsForDate = () => {
       queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
       queryClient.invalidateQueries({ queryKey: ["workingOutCount"] });
       queryClient.invalidateQueries({ queryKey: ["previousSession"] });
+      // The profile screen's own month calendar (useUsers.ts) is a
+      // separate cache entry from workoutLogs/schedule above — same gap
+      // that was missing the analogous publicNutritionHistory invalidation.
+      queryClient.invalidateQueries({ queryKey: ["publicWorkoutHistory"] });
     },
   });
 };

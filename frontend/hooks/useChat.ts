@@ -82,6 +82,34 @@ export const useSendChatMessage = () => {
         queryKey: ["previousSession"],
         refetchType: "all",
       });
+      // Same reasoning, for log_food (chat.service.ts) instead of log_set.
+      queryClient.invalidateQueries({
+        queryKey: ["diary"],
+        refetchType: "all",
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["dailyRecap"],
+        refetchType: "all",
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["macroHistory"],
+        refetchType: "all",
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["loggedDateKeys"],
+        refetchType: "all",
+      });
+      // The profile screen's own month calendars (useUsers.ts) are
+      // separate cache entries from the tab-level ones above — a log via
+      // chat should update both the same way a manual log already does.
+      queryClient.invalidateQueries({
+        queryKey: ["publicNutritionHistory"],
+        refetchType: "all",
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["publicWorkoutHistory"],
+        refetchType: "all",
+      });
     },
   });
 };
