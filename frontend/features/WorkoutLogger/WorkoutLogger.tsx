@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import styles from "./WorkoutLogger.styles";
 import { WorkoutLoggerProps, WorkoutLoggerHandle } from "./WorkoutLogger.types";
+import { router } from "expo-router";
 import AntDesign from "@expo/vector-icons/AntDesign";
 import Feather from "@expo/vector-icons/Feather";
 import DropdownExerciseSelect from "@/components/shared/DropdownExerciseSelect/DropdownExerciseSelect";
@@ -396,6 +397,23 @@ const WorkoutLogger = forwardRef<WorkoutLoggerHandle, WorkoutLoggerProps>(
             </TouchableOpacity>
           )}
         </View>
+
+        <TouchableOpacity
+          style={styles.voiceTipBanner}
+          onPress={() => {
+            // This screen normally lives inside index.tsx's Modal —
+            // closing it first, same as the delete-workout flow does,
+            // so it isn't left floating on top of the chat screen.
+            setClose(false);
+            router.push("/ai-chat");
+          }}
+        >
+          <Feather name="mic" size={16} color={colors.primaryBlue} />
+          <Text style={styles.voiceTipBannerText}>
+            Tip: tell your AI coach what you did instead of typing it — tap
+            to open the chat and use the mic.
+          </Text>
+        </TouchableOpacity>
 
         {exerciseEntries.map((entry) => (
           <View key={entry.id} style={styles.exerciseBlock}>

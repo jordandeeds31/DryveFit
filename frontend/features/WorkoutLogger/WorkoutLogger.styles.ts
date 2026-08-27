@@ -11,6 +11,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: spacing.sm,
   },
+  voiceTipBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.borderBlueLight,
+    backgroundColor: colors.surfaceBlueLight,
+    borderRadius: 8,
+    padding: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  voiceTipBannerText: {
+    flex: 1,
+    fontSize: fontSizes.xs,
+    color: colors.textSecondary,
+  },
   title: {
     fontSize: fontSizes.lg,
     fontWeight: fontWeights.bold,
