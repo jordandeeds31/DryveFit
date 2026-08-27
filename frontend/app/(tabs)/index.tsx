@@ -361,22 +361,6 @@ const HomeScreen = () => {
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.homeTab, homeTab === "news" && styles.homeTabActive]}
-          onPress={() => setHomeTab("news")}
-        >
-          <Text
-            style={[
-              styles.homeTabText,
-              homeTab === "news" && styles.homeTabTextActive,
-            ]}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.8}
-          >
-            News
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
           style={[
             styles.homeTab,
             homeTab === "storefront" && styles.homeTabActive,
@@ -392,7 +376,23 @@ const HomeScreen = () => {
             adjustsFontSizeToFit
             minimumFontScale={0.8}
           >
-            Storefront
+            Store
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.homeTab, homeTab === "news" && styles.homeTabActive]}
+          onPress={() => setHomeTab("news")}
+        >
+          <Text
+            style={[
+              styles.homeTabText,
+              homeTab === "news" && styles.homeTabTextActive,
+            ]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
+          >
+            News
           </Text>
         </TouchableOpacity>
       </View>

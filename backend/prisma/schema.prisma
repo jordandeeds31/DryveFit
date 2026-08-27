@@ -87,6 +87,7 @@ model User {
   followers                   Follow[]        @relation("Following")
   dmParticipants              DmParticipant[]
   dmMessages                  DmMessage[]
+  merchInterest               MerchInterest[]
 
   @@index([city])
   @@map("users")
@@ -351,6 +352,21 @@ model FoodLogEntry {
 
   @@index([userId, date])
   @@map("food_log_entries")
+}
+
+// One row per (user, product) interest signal on the Store's "coming
+// soon" items — e.g. tapping "I'd Like One" on the DRYVE Tee. The unique
+// constraint is what actually enforces one vote per user per product, not
+// just client-side disabling of the button.
+model MerchInterest {
+  id         String   @id @default(uuid())
+  userId     String
+  productKey String
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productKey])
+  @@map("merch_interest")
 }
 
 model Program {

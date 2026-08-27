@@ -6,9 +6,22 @@ import { fontSizes, fontWeights } from "@/constants/typography";
 export default StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: "center",
     paddingHorizontal: spacing.lg,
     backgroundColor: "white",
+  },
+  // flexGrow (not flex) on the content container — lets short content
+  // (the empty "coming soon" state) still center vertically, while tall
+  // content (the product card) scrolls normally instead of being forced
+  // to fit/center within the fixed space below genderTabBar, which is
+  // what let it visually overlap the tab bar above it.
+  scrollArea: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: spacing.lg,
   },
   genderTabBar: {
     flexDirection: "row",
@@ -40,9 +53,65 @@ export default StyleSheet.create({
     color: "#000",
   },
   content: {
-    flex: 1,
     alignItems: "center",
-    justifyContent: "center",
+  },
+  productContent: {
+    alignItems: "center",
+    paddingBottom: spacing.xl,
+  },
+  productCard: {
+    width: "100%",
+    maxWidth: 320,
+    aspectRatio: 0.82,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.borderGray,
+    overflow: "hidden",
+    backgroundColor: colors.surfaceGrayLight,
+  },
+  productImage: {
+    width: "100%",
+    height: "100%",
+  },
+  productBadge: {
+    position: "absolute",
+    top: spacing.sm,
+    right: spacing.sm,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    borderRadius: 6,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+  },
+  productBadgeText: {
+    color: "white",
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.semibold,
+    letterSpacing: 1,
+  },
+  productName: {
+    fontSize: fontSizes.lg,
+    fontWeight: fontWeights.extrabold,
+    marginTop: spacing.md,
+  },
+  productSubtitle: {
+    fontSize: fontSizes.sm,
+    color: colors.textMuted,
+    textAlign: "center",
+    marginTop: spacing.xs,
+    maxWidth: 260,
+  },
+  interestButton: {
+    marginTop: spacing.lg,
+    minWidth: 220,
+  },
+  interestTally: {
+    fontSize: fontSizes.xs,
+    color: colors.textMuted,
+    marginTop: spacing.sm,
+  },
+  interestTallyCount: {
+    fontWeight: fontWeights.bold,
+    color: colors.textSecondary,
   },
   iconRing: {
     width: 72,
