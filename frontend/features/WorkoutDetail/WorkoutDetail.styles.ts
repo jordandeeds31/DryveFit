@@ -200,19 +200,6 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.semibold,
   },
-  addExerciseButton: {
-    marginTop: spacing.sm,
-    paddingVertical: 10,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: colors.primaryBlue,
-    borderRadius: 8,
-    borderStyle: "dashed",
-  },
-  addExerciseText: {
-    color: colors.primaryBlue,
-    fontWeight: fontWeights.semibold,
-  },
   addExerciseFieldRow: {
     flexDirection: "row",
     alignItems: "center",

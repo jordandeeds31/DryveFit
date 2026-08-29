@@ -17,3 +17,7 @@ export interface WorkoutDetailProps {
   programId: string | null;
   onExerciseSaved?: (message: string) => void;
 }
+
+export interface WorkoutDetailHandle {
+  openAddExercise: () => void;
+}

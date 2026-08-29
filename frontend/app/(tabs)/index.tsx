@@ -12,6 +12,7 @@ import {
   KeyboardAwareScrollViewRef,
 } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { BlurView } from "expo-blur";
 import { useSelector, useDispatch } from "react-redux";
 import { router } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
@@ -35,6 +36,7 @@ import { getWeekDates, toDateKey, startOfDay } from "@/lib/utils/date.utils";
 import WeeklySchedule from "@/features/WeeklySchedule/WeeklySchedule";
 import { ScheduleEntry } from "@/types/programs.types";
 import WorkoutDetail from "@/features/WorkoutDetail/WorkoutDetail";
+import { WorkoutDetailHandle } from "@/features/WorkoutDetail/WorkoutDetail.types";
 import WorkoutLogger from "@/features/WorkoutLogger/WorkoutLogger";
 import { WorkoutLoggerHandle } from "@/features/WorkoutLogger/WorkoutLogger.types";
 import WorkoutLogSummary from "@/features/WorkoutLogger/WorkoutLogSummary";
@@ -67,6 +69,7 @@ const HomeScreen = () => {
   const [isWorkoutFormDirty, setIsWorkoutFormDirty] = useState(false);
   const [isSavingWorkout, setIsSavingWorkout] = useState(false);
   const workoutLoggerRef = useRef<WorkoutLoggerHandle>(null);
+  const workoutDetailRef = useRef<WorkoutDetailHandle>(null);
   const scrollViewRef = useRef<KeyboardAwareScrollViewRef>(null);
   const [showDeviceSetupBanner, setShowDeviceSetupBanner] = useState(false);
 
@@ -432,7 +435,11 @@ const HomeScreen = () => {
         <KeyboardAwareScrollView
           ref={scrollViewRef}
           style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            (!!dayDetail || hasLoggedStandaloneWorkout) &&
+              styles.scrollContentWithActionBar,
+          ]}
           keyboardShouldPersistTaps="handled"
           bottomOffset={60}
           // None of Home's directly-owned children have a TextInput — every
@@ -474,16 +481,14 @@ const HomeScreen = () => {
             <ActivityIndicator style={{ marginVertical: spacing.md }} />
           ) : dayDetail ? (
             <WorkoutDetail
+              ref={workoutDetailRef}
               dayDetail={dayDetail}
               isLoading={false}
               programId={selectedProgramId}
               onExerciseSaved={setToastMessage}
             />
           ) : hasLoggedStandaloneWorkout ? (
-            <WorkoutLogSummary
-              workoutLogs={workoutLogs ?? []}
-              onEdit={() => setIsWorkoutLoggerModalOpen(true)}
-            />
+            <WorkoutLogSummary workoutLogs={workoutLogs ?? []} />
           ) : (
             <View>
               {hasPrograms && (
@@ -506,6 +511,33 @@ const HomeScreen = () => {
             </View>
           )}
         </KeyboardAwareScrollView>
+      )}
+
+      {/* Pinned above the tab bar (not inside the scroll view) so it's
+          always reachable while scrolling through a long workout — the
+          blur lets logged content still show through underneath it. */}
+      {homeTab === "workouts" && dayDetail && (
+        <BlurView intensity={80} tint="light" style={styles.fixedActionBar}>
+          <Button
+            title="ADD EXERCISE"
+            onPress={() => workoutDetailRef.current?.openAddExercise()}
+            style={styles.addExerciseBarButton}
+          />
+        </BlurView>
+      )}
+
+      {/* Just the button, no bar/blur behind it — pointerEvents="box-none"
+          so the empty space around it doesn't block taps on the content
+          scrolling underneath. */}
+      {homeTab === "workouts" && !dayDetail && hasLoggedStandaloneWorkout && (
+        <View style={styles.editWorkoutFixedWrapper} pointerEvents="box-none">
+          <Button
+            title="EDIT WORKOUT"
+            onPress={() => setIsWorkoutLoggerModalOpen(true)}
+            variant="outline"
+            style={styles.editWorkoutBarButton}
+          />
+        </View>
       )}
 
       <Modal
@@ -559,6 +591,39 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: spacing.sm,
     paddingBottom: spacing.xl,
+  },
+  // Room for content to clear the fixed action bar instead of scrolling
+  // in permanently underneath it.
+  scrollContentWithActionBar: {
+    paddingBottom: 88,
+  },
+  fixedActionBar: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
+    alignItems: "center",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.borderGray,
+    overflow: "hidden",
+  },
+  addExerciseBarButton: {
+    width: "100%",
+  },
+  editWorkoutFixedWrapper: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.md,
+    alignItems: "center",
+  },
+  editWorkoutBarButton: {
+    minWidth: 180,
   },
   homeTabBar: {
     flexDirection: "row",
