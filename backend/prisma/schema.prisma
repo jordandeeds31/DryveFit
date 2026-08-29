@@ -137,8 +137,9 @@ model BlogPost {
   // that field's comment re: public visibility), just image-only here.
   coverImageUrl      String?
   coverImagePublicId String?
-  createdAt          DateTime @default(now())
-  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt          DateTime       @default(now())
+  user               User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notifications      Notification[]
 
   @@index([createdAt])
   @@map("blog_posts")
@@ -231,10 +232,15 @@ model Notification {
   // liker) — kept separate from userId (the recipient, the post's owner)
   // since they're almost always different people.
   actorId   String
-  // "post_like" | "post_comment" | "follow" — a string (not an enum) so
-  // future notification types don't need a migration.
+  // "post_like" | "post_comment" | "follow" | "new_post" | "new_blog_post"
+  // — a string (not an enum) so future notification types don't need a
+  // migration.
   type      String
   postId    String?
+  // Set for "new_blog_post" only — mirrors postId, but BlogPost is a
+  // separate model from Post (see BlogPost's own comment), so it needs its
+  // own nullable FK rather than overloading postId across two tables.
+  blogPostId String?
   // Set for "post_comment" only — which comment (or reply) triggered
   // this, so the notification can drop the recipient straight into
   // replying to that specific comment instead of just the post's thread.
@@ -244,6 +250,7 @@ model Notification {
   user      User         @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
   actor     User         @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade)
   post      Post?        @relation(fields: [postId], references: [id], onDelete: Cascade)
+  blogPost  BlogPost?    @relation(fields: [blogPostId], references: [id], onDelete: Cascade)
   comment   PostComment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
@@ -254,6 +261,11 @@ model Follow {
   id          String   @id @default(uuid())
   followerId  String
   followingId String
+  // Opt-in push notifications when this followed person posts to the Feed
+  // or publishes a blog post — capped at 5 enabled at once per follower
+  // (enforced in follows.service.ts, not here), so this can't just default
+  // to true for everyone followed.
+  notifyOnNewPost Boolean  @default(false)
   createdAt   DateTime @default(now())
   follower    User     @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
   following   User     @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)

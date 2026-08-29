@@ -52,6 +52,10 @@ const notificationText = (notification: AppNotification): string => {
       return "replied to your comment";
     case "follow":
       return "started following you";
+    case "new_post":
+      return "posted something new";
+    case "new_blog_post":
+      return "published a new post";
     default:
       return "";
   }
@@ -80,8 +84,13 @@ const NotificationsScreen = () => {
   // used everywhere else a post shows up (Feed, a profile's Social tab).
   // A comment notification also carries which comment to reply to. A
   // follow notification has no post at all, so the row's only meaningful
-  // destination is the follower's own profile.
+  // destination is the follower's own profile. A blog-post notification
+  // routes to the blog post's own detail screen instead.
   const handleRowPress = (item: AppNotification) => {
+    if (item.blogPost) {
+      router.push(`/blog/${item.blogPost.id}`);
+      return;
+    }
     if (!item.post) {
       goToActorProfile(item);
       return;
@@ -175,6 +184,17 @@ const NotificationsScreen = () => {
                 <View style={styles.postCaptionPreview}>
                   <Text style={styles.postCaptionText} numberOfLines={2}>
                     "{item.post.caption}"
+                  </Text>
+                </View>
+              ) : item.blogPost?.coverImageUrl ? (
+                <Image
+                  source={{ uri: item.blogPost.coverImageUrl }}
+                  style={styles.postThumbnail}
+                />
+              ) : item.blogPost ? (
+                <View style={styles.postCaptionPreview}>
+                  <Text style={styles.postCaptionText} numberOfLines={2}>
+                    {item.blogPost.title}
                   </Text>
                 </View>
               ) : null}

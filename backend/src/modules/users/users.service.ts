@@ -81,8 +81,13 @@ export const getPublicProfile = async (
       city: true,
       profileImageMimeType: true,
       _count: { select: { followers: true, following: true } },
-      // At most one row: whether the viewer already follows this profile.
-      followers: { where: { followerId: viewerId }, select: { id: true } },
+      // At most one row: whether the viewer already follows this profile,
+      // and (if so) whether the viewer has new-post notifications on for
+      // them.
+      followers: {
+        where: { followerId: viewerId },
+        select: { id: true, notifyOnNewPost: true },
+      },
     },
   });
 
@@ -103,6 +108,7 @@ export const getPublicProfile = async (
     followerCount: user._count.followers,
     followingCount: user._count.following,
     isFollowedByViewer: user.followers.length > 0,
+    notifyOnNewPost: user.followers[0]?.notifyOnNewPost ?? false,
   };
 };
 

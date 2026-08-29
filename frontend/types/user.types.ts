@@ -25,6 +25,10 @@ export interface PublicProfile {
   followerCount: number;
   followingCount: number;
   isFollowedByViewer: boolean;
+  // Only meaningful when isFollowedByViewer is true — whether the viewer
+  // gets push notifications when this person posts to the Feed or
+  // publishes a blog post.
+  notifyOnNewPost: boolean;
 }
 
 export interface UserSearchResult {
@@ -32,6 +36,14 @@ export interface UserSearchResult {
   username: string | null;
   profileImageUrl: string | null;
   isFollowedByViewer: boolean;
+}
+
+// One row of "people I follow" — backs the notify-toggle management screen.
+export interface FollowedUser {
+  id: string;
+  username: string | null;
+  profileImageUrl: string | null;
+  notifyOnNewPost: boolean;
 }
 
 export interface PublicWorkoutLogSet {

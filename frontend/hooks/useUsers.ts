@@ -13,8 +13,10 @@ import {
   searchUsers,
   followUser,
   unfollowUser,
+  getFollowing,
+  setNotifyOnNewPost,
 } from "@/lib/api/users.api";
-import { PublicProfile, UserSearchResult } from "@/types/user.types";
+import { PublicProfile, UserSearchResult, FollowedUser } from "@/types/user.types";
 
 export const useCurrentUser = () => {
   return useQuery({
@@ -109,6 +111,9 @@ export const useToggleFollow = () => {
                 ...old,
                 isFollowedByViewer: !isFollowing,
                 followerCount: old.followerCount + (isFollowing ? -1 : 1),
+                // Unfollowing deletes the Follow row entirely, taking its
+                // notify flag with it; a fresh follow always starts off.
+                notifyOnNewPost: false,
               }
             : old,
       );
@@ -137,6 +142,43 @@ export const useToggleFollow = () => {
       // there's no single "previous" list to restore across every cached
       // query key.
       queryClient.invalidateQueries({ queryKey: ["searchUsers"] });
+    },
+  });
+};
+
+// The "people I follow" notify-toggle management screen — separate from
+// usePublicProfile/useSearchUsers since neither of those lists everyone a
+// user follows, only one profile or search-matched profiles at a time.
+export const useFollowing = () => {
+  return useQuery({
+    queryKey: ["following"],
+    queryFn: getFollowing,
+  });
+};
+
+// No optimistic update here (unlike useToggleFollow) — whether a 6th toggle
+// is allowed depends on server-side state (the other 5 rows) that this
+// client doesn't fully mirror, so this waits for the real success/failure
+// rather than guessing and rolling back.
+export const useSetNotifyOnNewPost = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ userId, enabled }: { userId: string; enabled: boolean }) =>
+      setNotifyOnNewPost(userId, enabled),
+    onSuccess: (_data, { userId, enabled }) => {
+      queryClient.setQueryData<PublicProfile>(
+        ["publicProfile", userId],
+        (old: PublicProfile | undefined) =>
+          old ? { ...old, notifyOnNewPost: enabled } : old,
+      );
+      queryClient.setQueryData<FollowedUser[]>(
+        ["following"],
+        (old: FollowedUser[] | undefined) =>
+          old?.map((user) =>
+            user.id === userId ? { ...user, notifyOnNewPost: enabled } : user,
+          ),
+      );
     },
   });
 };

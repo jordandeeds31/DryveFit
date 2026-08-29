@@ -72,11 +72,19 @@ export const registerForPushNotifications = async (): Promise<void> => {
 };
 
 interface PushNotificationData {
-  // Only set on a social push (post_like/post_comment/comment_reply/follow)
-  // or a DM (dm_message) — a workout reminder's payload never carries
-  // this, which is what tells the two apart below.
-  type?: "post_like" | "post_comment" | "comment_reply" | "follow" | "dm_message";
+  // Only set on a social push (post_like/post_comment/comment_reply/follow/
+  // new_post/new_blog_post) or a DM (dm_message) — a workout reminder's
+  // payload never carries this, which is what tells the two apart below.
+  type?:
+    | "post_like"
+    | "post_comment"
+    | "comment_reply"
+    | "follow"
+    | "new_post"
+    | "new_blog_post"
+    | "dm_message";
   postId?: string;
+  blogPostId?: string;
   commentId?: string;
   actorId?: string;
   programId?: string;
@@ -102,7 +110,8 @@ const getRouteForNotification = (
   if (
     data?.type === "post_like" ||
     data?.type === "post_comment" ||
-    data?.type === "comment_reply"
+    data?.type === "comment_reply" ||
+    data?.type === "new_post"
   ) {
     if (!data.postId) return null;
     // Same "reply to the specific comment" deep link the in-app
@@ -113,6 +122,11 @@ const getRouteForNotification = (
         ? `?replyTo=${data.commentId}`
         : "";
     return `/post/${data.postId}${replyParam}` as Href;
+  }
+
+  if (data?.type === "new_blog_post") {
+    if (!data.blogPostId) return null;
+    return `/blog/${data.blogPostId}` as Href;
   }
 
   // A follow has no post to open — the only meaningful destination is

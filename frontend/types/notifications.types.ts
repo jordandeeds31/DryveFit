@@ -2,7 +2,9 @@ export type NotificationType =
   | "post_like"
   | "post_comment"
   | "comment_reply"
-  | "follow";
+  | "follow"
+  | "new_post"
+  | "new_blog_post";
 
 export interface NotificationActor {
   id: string;
@@ -19,6 +21,12 @@ export interface NotificationPostPreview {
   mediaType: "image" | "video" | null;
 }
 
+export interface NotificationBlogPostPreview {
+  id: string;
+  title: string;
+  coverImageUrl: string | null;
+}
+
 export interface AppNotification {
   id: string;
   type: NotificationType;
@@ -29,6 +37,7 @@ export interface AppNotification {
   createdAt: string;
   actor: NotificationActor;
   post: NotificationPostPreview | null;
+  blogPost: NotificationBlogPostPreview | null;
 }
 
 export interface NotificationsPage {

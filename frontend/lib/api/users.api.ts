@@ -5,6 +5,7 @@ import {
   PublicWorkoutLog,
   PublicNutritionDay,
   UserSearchResult,
+  FollowedUser,
 } from "@/types/user.types";
 import { ProgramWithWeeks } from "@/types/programs.types";
 import { Post } from "@/types/posts.types";
@@ -70,6 +71,18 @@ export const followUser = async (userId: string): Promise<void> => {
 
 export const unfollowUser = async (userId: string): Promise<void> => {
   await apiClient.delete(`/api/users/${userId}/follow`);
+};
+
+export const getFollowing = async (): Promise<FollowedUser[]> => {
+  const { data } = await apiClient.get("/api/users/me/following");
+  return data.result.following;
+};
+
+export const setNotifyOnNewPost = async (
+  userId: string,
+  enabled: boolean,
+): Promise<void> => {
+  await apiClient.patch(`/api/users/${userId}/follow/notify`, { enabled });
 };
 
 export const updateProfile = async (

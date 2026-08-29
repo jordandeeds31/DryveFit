@@ -25,6 +25,7 @@ import {
   usePublicNutritionHistory,
   usePublicPosts,
   useToggleFollow,
+  useSetNotifyOnNewPost,
   useCurrentUser,
   useUpdateProfile,
 } from "@/hooks/useUsers";
@@ -162,6 +163,8 @@ const UserProfileScreen = () => {
   );
   const { mutate: toggleFollow, isPending: isTogglingFollow } =
     useToggleFollow();
+  const { mutate: setNotifyOnNewPost, isPending: isTogglingNotify } =
+    useSetNotifyOnNewPost();
   const { mutate: createDmConversation, isPending: isStartingConversation } =
     useCreateDmConversation();
   const { mutate: inheritWorkoutDay, isPending: isInheriting } =
@@ -397,12 +400,23 @@ const UserProfileScreen = () => {
                 </Text>{" "}
                 {profile.followerCount === 1 ? "follower" : "followers"}
               </Text>
-              <Text style={styles.followStat}>
-                <Text style={styles.followStatCount}>
-                  {profile.followingCount}
-                </Text>{" "}
-                following
-              </Text>
+              {isOwnProfile ? (
+                <TouchableOpacity onPress={() => router.push("/following")}>
+                  <Text style={styles.followStat}>
+                    <Text style={styles.followStatCount}>
+                      {profile.followingCount}
+                    </Text>{" "}
+                    following
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <Text style={styles.followStat}>
+                  <Text style={styles.followStatCount}>
+                    {profile.followingCount}
+                  </Text>{" "}
+                  following
+                </Text>
+              )}
             </View>
 
             {isOwnProfile && !isShownOnLeaderboard && (
@@ -460,6 +474,49 @@ const UserProfileScreen = () => {
                     {profile.isFollowedByViewer ? "Following" : "Follow"}
                   </Text>
                 </TouchableOpacity>
+                {profile.isFollowedByViewer && (
+                  <TouchableOpacity
+                    style={[
+                      styles.notifyButton,
+                      profile.notifyOnNewPost && styles.notifyButtonActive,
+                    ]}
+                    hitSlop={8}
+                    disabled={isTogglingNotify}
+                    onPress={() =>
+                      setNotifyOnNewPost(
+                        {
+                          userId: profile.id,
+                          enabled: !profile.notifyOnNewPost,
+                        },
+                        {
+                          onError: (error: unknown) => {
+                            const message =
+                              (error as { message?: string })?.message ??
+                              "Please try again.";
+                            Alert.alert(
+                              "Couldn't update notifications",
+                              message,
+                            );
+                          },
+                        },
+                      )
+                    }
+                  >
+                    <Ionicons
+                      name={
+                        profile.notifyOnNewPost
+                          ? "notifications"
+                          : "notifications-outline"
+                      }
+                      size={18}
+                      color={
+                        profile.notifyOnNewPost
+                          ? colors.primaryBlue
+                          : colors.textSecondary
+                      }
+                    />
+                  </TouchableOpacity>
+                )}
                 <TouchableOpacity
                   style={styles.messageButton}
                   onPress={() =>
@@ -992,6 +1049,20 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceGrayLight,
     borderWidth: 1,
     borderColor: colors.borderGray,
+  },
+  notifyButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surfaceGrayLight,
+    borderWidth: 1,
+    borderColor: colors.borderGray,
+  },
+  notifyButtonActive: {
+    backgroundColor: colors.surfaceBlueLight,
+    borderColor: colors.borderBlueLight,
   },
   followButtonText: {
     fontSize: fontSizes.sm,

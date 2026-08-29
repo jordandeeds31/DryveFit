@@ -18,6 +18,8 @@ import {
   searchUsersHandler,
   followUserHandler,
   unfollowUserHandler,
+  setNotifyOnNewPostHandler,
+  getFollowingHandler,
 } from "./users.controller";
 
 const upload = multer({
@@ -41,6 +43,7 @@ router.post(
 );
 router.delete("/me/profile-image", deleteProfileImageHandler);
 router.get("/search", searchUsersHandler);
+router.get("/me/following", getFollowingHandler);
 router.get("/:userId/profile-image", getProfileImageHandler);
 router.get("/:userId/public-profile", getPublicProfileHandler);
 router.get("/:userId/workouts", getPublicWorkoutHistoryHandler);
@@ -49,5 +52,6 @@ router.get("/:userId/nutrition", getPublicNutritionHistoryHandler);
 router.get("/:userId/posts", getPublicPostsHandler);
 router.post("/:userId/follow", followUserHandler);
 router.delete("/:userId/follow", unfollowUserHandler);
+router.patch("/:userId/follow/notify", setNotifyOnNewPostHandler);
 
 export default router;

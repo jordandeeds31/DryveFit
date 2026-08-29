@@ -19,7 +19,12 @@ import { getPublicWorkoutHistory } from "../workoutLogs/workoutLogs.service";
 import { getPublicActiveProgram } from "../programs/programs.service";
 import { getPublicNutritionHistory } from "../nutrition/nutrition.service";
 import { getPublicPostsByUser } from "../posts/posts.service";
-import { followUser, unfollowUser } from "../follows/follows.service";
+import {
+  followUser,
+  unfollowUser,
+  setNotifyOnNewPost,
+  getFollowing,
+} from "../follows/follows.service";
 
 export const getMeHandler = catchAsync(
   async (req: AuthRequest, res: Response) => {
@@ -211,6 +216,30 @@ export const unfollowUserHandler = catchAsync(
 
     await unfollowUser(req.userId!, userId);
     sendSuccess(res, 200, "USER_UNFOLLOWED", { message: "Unfollowed" });
+  },
+);
+
+export const setNotifyOnNewPostHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const { userId } = req.params;
+    const { enabled } = req.body;
+
+    if (typeof userId !== "string") {
+      throw new AppError(400, "userId is required");
+    }
+    if (typeof enabled !== "boolean") {
+      throw new AppError(400, "enabled must be a boolean");
+    }
+
+    await setNotifyOnNewPost(req.userId!, userId, enabled);
+    sendSuccess(res, 200, "FOLLOW_NOTIFY_UPDATED", { message: "Updated" });
+  },
+);
+
+export const getFollowingHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const following = await getFollowing(req.userId!);
+    sendSuccess(res, 200, "FOLLOWING_LIST", { following });
   },
 );
 

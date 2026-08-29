@@ -8,13 +8,17 @@ export type NotificationType =
   | "post_like"
   | "post_comment"
   | "comment_reply"
-  | "follow";
+  | "follow"
+  | "new_post"
+  | "new_blog_post";
 
 const PUSH_TITLES: Record<NotificationType, (actorName: string) => string> = {
   post_like: (actorName) => `${actorName} liked your post`,
   post_comment: (actorName) => `${actorName} commented on your post`,
   comment_reply: (actorName) => `${actorName} replied to your comment`,
   follow: (actorName) => `${actorName} started following you`,
+  new_post: (actorName) => `${actorName} posted something new`,
+  new_blog_post: (actorName) => `${actorName} published a new post`,
 };
 
 interface CreateNotificationInput {
@@ -22,6 +26,7 @@ interface CreateNotificationInput {
   actorId: string;
   type: NotificationType;
   postId?: string;
+  blogPostId?: string;
   commentId?: string;
   // Shown as the push notification's body — the liked post's caption, or
   // the comment's own text. Left out (title-only push) when there's
@@ -34,6 +39,7 @@ export const createNotification = async ({
   actorId,
   type,
   postId,
+  blogPostId,
   commentId,
   previewText,
 }: CreateNotificationInput) => {
@@ -42,7 +48,7 @@ export const createNotification = async ({
 
   const [, recipient, actor] = await Promise.all([
     prisma.notification.create({
-      data: { userId, actorId, type, postId, commentId },
+      data: { userId, actorId, type, postId, blogPostId, commentId },
     }),
     prisma.user.findUnique({
       where: { id: userId },
@@ -70,12 +76,66 @@ export const createNotification = async ({
         sound: "default",
         title: PUSH_TITLES[type](actorName),
         body: previewText ?? undefined,
-        data: { type, postId, commentId, actorId },
+        data: { type, postId, blogPostId, commentId, actorId },
       },
     ]);
   } catch (err) {
     console.warn(`Failed to send ${type} push notification:`, err);
   }
+};
+
+// Fans a new Feed post out to only the followers who've opted into it via
+// the per-follow notifyOnNewPost toggle (see follows.service.ts) — most
+// followers never get pushed for this, by design, so this is never a
+// broadcast to everyone who follows the poster.
+export const notifyFollowersOfNewPost = async (
+  posterId: string,
+  postId: string,
+  previewText: string | null,
+) => {
+  const followers = await prisma.follow.findMany({
+    where: { followingId: posterId, notifyOnNewPost: true },
+    select: { followerId: true },
+  });
+
+  await Promise.all(
+    followers.map((follower) =>
+      createNotification({
+        userId: follower.followerId,
+        actorId: posterId,
+        type: "new_post",
+        postId,
+        previewText,
+      }).catch((err) => {
+        console.warn("Failed to notify follower of new post:", err);
+      }),
+    ),
+  );
+};
+
+export const notifyFollowersOfNewBlogPost = async (
+  posterId: string,
+  blogPostId: string,
+  previewText: string | null,
+) => {
+  const followers = await prisma.follow.findMany({
+    where: { followingId: posterId, notifyOnNewPost: true },
+    select: { followerId: true },
+  });
+
+  await Promise.all(
+    followers.map((follower) =>
+      createNotification({
+        userId: follower.followerId,
+        actorId: posterId,
+        type: "new_blog_post",
+        blogPostId,
+        previewText,
+      }).catch((err) => {
+        console.warn("Failed to notify follower of new blog post:", err);
+      }),
+    ),
+  );
 };
 
 const actorSelect = {
@@ -106,6 +166,18 @@ type PostPreview = {
   mediaType: string | null;
 };
 
+const blogPostPreviewSelect = {
+  id: true,
+  title: true,
+  coverImageUrl: true,
+} as const;
+
+type BlogPostPreview = {
+  id: string;
+  title: string;
+  coverImageUrl: string | null;
+};
+
 const toNotificationResponse = (notification: {
   id: string;
   type: string;
@@ -115,6 +187,7 @@ const toNotificationResponse = (notification: {
   createdAt: Date;
   actor: Actor;
   post: PostPreview | null;
+  blogPost: BlogPostPreview | null;
 }) => ({
   id: notification.id,
   type: notification.type,
@@ -136,6 +209,7 @@ const toNotificationResponse = (notification: {
   // type that never had a post to begin with — not today, but the field
   // stays nullable for that future case.
   post: notification.post,
+  blogPost: notification.blogPost,
 });
 
 export const getNotifications = async (userId: string, cursor?: string) => {
@@ -153,6 +227,7 @@ export const getNotifications = async (userId: string, cursor?: string) => {
       createdAt: true,
       actor: { select: actorSelect },
       post: { select: postPreviewSelect },
+      blogPost: { select: blogPostPreviewSelect },
     },
   });
 

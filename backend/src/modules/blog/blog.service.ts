@@ -3,6 +3,7 @@ import { UploadApiErrorResponse, UploadApiResponse } from "cloudinary";
 import prisma from "../../lib/prisma";
 import cloudinary from "../../lib/cloudinary";
 import AppError from "../../utils/AppError";
+import { notifyFollowersOfNewBlogPost } from "../notifications/notifications.service";
 
 const BLOG_SELECT = {
   id: true,
@@ -127,6 +128,8 @@ export const createBlogPost = async ({
     },
     select: BLOG_SELECT,
   });
+
+  await notifyFollowersOfNewBlogPost(userId, post.id, trimmedTitle);
 
   return toBlogPostResponse(post, userId);
 };

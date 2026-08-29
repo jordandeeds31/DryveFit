@@ -3,7 +3,7 @@ import { UploadApiErrorResponse, UploadApiResponse } from "cloudinary";
 import prisma from "../../lib/prisma";
 import cloudinary from "../../lib/cloudinary";
 import AppError from "../../utils/AppError";
-import { createNotification } from "../notifications/notifications.service";
+import { createNotification, notifyFollowersOfNewPost } from "../notifications/notifications.service";
 
 const FEED_PAGE_SIZE = 20;
 
@@ -152,6 +152,8 @@ export const createPost = async ({
     },
     select: getPostSelect(userId),
   });
+
+  await notifyFollowersOfNewPost(userId, post.id, trimmedCaption);
 
   return toPostResponse(post, userId);
 };
