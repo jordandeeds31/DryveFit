@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
 import styles from "./WorkoutDetail.styles";
 import {
   View,
@@ -7,12 +7,13 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  Share,
 } from "react-native";
 import { Image } from "expo-image";
 import Feather from "@expo/vector-icons/Feather";
 import { router } from "expo-router";
 import { useSelector } from "react-redux";
-import { WorkoutDetailProps } from "./WorkoutDetail.types";
+import { WorkoutDetailProps, WorkoutDetailHandle } from "./WorkoutDetail.types";
 import type { RootState } from "@/store";
 import Button from "@/components/shared/Button/Button";
 import Modal from "@/components/shared/Modal/Modal";
@@ -162,12 +163,12 @@ const buildInitialSetsByExercise = (
   return result;
 };
 
-const WorkoutDetail = ({
+const WorkoutDetail = forwardRef<WorkoutDetailHandle, WorkoutDetailProps>(({
   dayDetail,
   isLoading,
   programId,
   onExerciseSaved,
-}: WorkoutDetailProps) => {
+}, ref) => {
   const authImageHeaders = useAuthImageHeaders();
   const unitSystem = useUnitSystem();
   const [logModalVisible, setLogModalVisible] = useState(false);
@@ -193,6 +194,15 @@ const WorkoutDetail = ({
   );
   const [isAddExerciseModalVisible, setIsAddExerciseModalVisible] =
     useState(false);
+  // Add Exercise now lives in index.tsx's fixed bottom bar (glassy,
+  // pinned above the tab bar) instead of scrolling away with the
+  // exercise list — this is how it opens the modal that still lives
+  // here, without lifting all of this component's other state up too.
+  useImperativeHandle(ref, () => ({
+    openAddExercise: () => {
+      if (dayDetail) setIsAddExerciseModalVisible(true);
+    },
+  }));
   const [newExercise, setNewExercise] = useState<Exercise | null>(null);
   const [newExerciseSets, setNewExerciseSets] = useState("3");
   const [newExerciseReps, setNewExerciseReps] = useState("10");
@@ -343,6 +353,35 @@ const WorkoutDetail = ({
     (exercise) => exercise.originalExerciseName != null,
   );
 
+  const hasLoggedAnySets = !!dayDetail?.exercises.some(
+    (exercise) => exercise.exerciseLogs.length > 0,
+  );
+
+  // Plain text through the OS share sheet, same as the standalone-workout
+  // summary's share button (WorkoutLogSummary) — only what's actually been
+  // logged so far, not the full prescribed day.
+  const handleShareWorkout = async () => {
+    if (!dayDetail) return;
+    const lines = [`My workout — ${formatSessionDate(dayDetail.date)}`, ""];
+    for (const exercise of dayDetail.exercises) {
+      const log = exercise.exerciseLogs[0];
+      if (!log) continue;
+      lines.push(exercise.exerciseName);
+      for (const set of log.sets) {
+        const weightPart =
+          set.weight != null
+            ? `${displayWeight(set.weight, unitSystem)} ${weightUnitLabel(unitSystem)} x `
+            : "";
+        lines.push(`  Set ${set.setNumber}: ${weightPart}${set.reps ?? "-"} reps`);
+      }
+    }
+    try {
+      await Share.share({ message: lines.join("\n") });
+    } catch {
+      // User backed out of the share sheet — nothing to react to.
+    }
+  };
+
   const handleRevertSwaps = () => {
     if (!dayDetail) return;
     Alert.alert(
@@ -459,6 +498,15 @@ const WorkoutDetail = ({
               </Text>
             </TouchableOpacity>
           )}
+          {hasLoggedAnySets && (
+            <TouchableOpacity
+              style={styles.revertButton}
+              onPress={handleShareWorkout}
+            >
+              <Feather name="share" size={12} color={colors.textSecondary} />
+              <Text style={styles.revertButtonText}>SHARE</Text>
+            </TouchableOpacity>
+          )}
           {canStartCinematicMode && (
             <TouchableOpacity
               style={styles.startButton}
@@ -564,14 +612,6 @@ const WorkoutDetail = ({
           </View>
         );
       })}
-      {dayDetail && (
-        <TouchableOpacity
-          style={styles.addExerciseButton}
-          onPress={() => setIsAddExerciseModalVisible(true)}
-        >
-          <Text style={styles.addExerciseText}>+ ADD EXERCISE</Text>
-        </TouchableOpacity>
-      )}
       {selectedExercise && (
         <LogExerciseModal
           visible={logModalVisible}
@@ -740,6 +780,6 @@ const WorkoutDetail = ({
       </Modal>
     </View>
   );
-};
+});
 
 export default WorkoutDetail;

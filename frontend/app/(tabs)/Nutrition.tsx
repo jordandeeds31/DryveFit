@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Share,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
@@ -237,6 +238,40 @@ const NutritionScreen = () => {
     ? Math.max(0, goal.calories - totals.calories)
     : 0;
 
+  // Plain text through the OS share sheet (Messages, WhatsApp, etc.) rather
+  // than an in-app share — this is for sending a day's numbers to someone
+  // outside the app, not posting to the Feed.
+  const handleShareNutrition = async () => {
+    const dateLabel = selectedDate.toLocaleDateString(undefined, {
+      weekday: "long",
+      month: "short",
+      day: "numeric",
+    });
+
+    const lines = [
+      `My nutrition — ${dateLabel}`,
+      "",
+      `${totals.calories}${goal ? ` / ${goal.calories}` : ""} cal`,
+      `Protein: ${totals.proteinG}g   Carbs: ${totals.carbsG}g   Fat: ${totals.fatG}g`,
+    ];
+
+    for (const mealType of MEAL_TYPES) {
+      const entries = diary?.meals[mealType] ?? [];
+      if (entries.length === 0) continue;
+      lines.push("", `${MEAL_TYPE_LABELS[mealType]}:`);
+      for (const entry of entries) {
+        lines.push(`• ${entry.foodName} (${entry.calories} cal)`);
+      }
+    }
+
+    try {
+      await Share.share({ message: lines.join("\n") });
+    } catch {
+      // User backed out of the share sheet or the OS share call failed —
+      // nothing in the app's own state needs to react either way.
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -306,12 +341,21 @@ const NutritionScreen = () => {
             <View style={styles.calorieRow}>
               <Text style={styles.calorieConsumed}>{totals.calories}</Text>
               <Text style={styles.calorieGoal}> / {goal?.calories} cal</Text>
-              <TouchableOpacity
-                style={styles.editGoalButton}
-                onPress={() => setIsSetupOpen(true)}
-              >
-                <Feather name="edit-2" size={14} color={colors.textMuted} />
-              </TouchableOpacity>
+              <View style={styles.calorieRowActions}>
+                <TouchableOpacity
+                  style={styles.shareButton}
+                  onPress={handleShareNutrition}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Feather name="share" size={14} color={colors.textMuted} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.editGoalButton}
+                  onPress={() => setIsSetupOpen(true)}
+                >
+                  <Feather name="edit-2" size={14} color={colors.textMuted} />
+                </TouchableOpacity>
+              </View>
             </View>
             <AnimatedProgressBar
               percent={caloriePercent}
@@ -637,8 +681,16 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontWeight: fontWeights.semibold,
   },
-  editGoalButton: {
+  calorieRowActions: {
     marginLeft: "auto",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  shareButton: {
+    padding: spacing.xs,
+  },
+  editGoalButton: {
     padding: spacing.xs,
   },
   remainingText: {

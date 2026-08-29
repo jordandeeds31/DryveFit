@@ -5,6 +5,14 @@ import { fontSizes, fontWeights } from "@/constants/typography";
 
 const styles = StyleSheet.create({
   container: {},
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginBottom: spacing.xs,
+  },
+  shareButton: {
+    padding: spacing.xs,
+  },
   exerciseBlock: {
     paddingBottom: spacing.md,
     borderBottomWidth: 1,
@@ -36,9 +44,6 @@ const styles = StyleSheet.create({
   setValue: {
     fontSize: 14,
     fontWeight: fontWeights.semibold,
-  },
-  editButton: {
-    marginTop: spacing.md,
   },
 });
 
