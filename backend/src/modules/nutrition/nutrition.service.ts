@@ -776,7 +776,7 @@ export const getMacroHistory = async (
           }
         : {}),
     },
-    select: { date: true, proteinG: true, carbsG: true, fatG: true },
+    select: { date: true, calories: true, proteinG: true, carbsG: true, fatG: true },
   });
 
   // Per-day totals first, regardless of target bucket size — a week
@@ -785,15 +785,17 @@ export const getMacroHistory = async (
   // count as one day, not one point per entry.
   const dayTotals = new Map<
     string,
-    { proteinG: number; carbsG: number; fatG: number }
+    { calories: number; proteinG: number; carbsG: number; fatG: number }
   >();
   for (const entry of entries) {
     const dayKey = toLocalDateKey(entry.date);
     const existing = dayTotals.get(dayKey) ?? {
+      calories: 0,
       proteinG: 0,
       carbsG: 0,
       fatG: 0,
     };
+    existing.calories += entry.calories;
     existing.proteinG += entry.proteinG;
     existing.carbsG += entry.carbsG;
     existing.fatG += entry.fatG;
@@ -815,12 +817,13 @@ export const getMacroHistory = async (
         (acc, dayKey) => {
           const day = dayTotals.get(dayKey)!;
           return {
+            calories: acc.calories + day.calories,
             proteinG: acc.proteinG + day.proteinG,
             carbsG: acc.carbsG + day.carbsG,
             fatG: acc.fatG + day.fatG,
           };
         },
-        { proteinG: 0, carbsG: 0, fatG: 0 },
+        { calories: 0, proteinG: 0, carbsG: 0, fatG: 0 },
       );
 
       // Averaged over days that actually have a logged entry, not every
@@ -831,13 +834,19 @@ export const getMacroHistory = async (
       const carbsG = totals.carbsG / loggedDayCount;
       const fatG = totals.fatG / loggedDayCount;
 
-      // Calories-from-each-macro, not the raw logged calorie total — this
-      // is what actually gets stacked/plotted and is what the percentages
-      // below are fractions of, so the two always agree with each other.
+      // Calories-from-each-macro (not the real logged calorie total) purely
+      // to drive the stacked chart's proportions — proteinCal/carbsCal/
+      // fatCal need to sum to something visually consistent with each
+      // other. The *displayed* calories figure below uses the real stored
+      // FoodLogEntry.calories total instead, so it agrees with the
+      // Nutrition tab's diary total (which sums that same field) — those
+      // two only diverge from a strict 4/4/9 formula on real foods anyway
+      // (fiber, alcohol, USDA label rounding, AI-estimated entries).
       const proteinCal = proteinG * 4;
       const carbsCal = carbsG * 4;
       const fatCal = fatG * 9;
-      const totalCal = proteinCal + carbsCal + fatCal;
+      const macroCalSum = proteinCal + carbsCal + fatCal;
+      const avgCalories = totals.calories / loggedDayCount;
 
       return {
         bucketStart: bucketKey,
@@ -845,13 +854,13 @@ export const getMacroHistory = async (
         proteinG: Math.round(proteinG * 10) / 10,
         carbsG: Math.round(carbsG * 10) / 10,
         fatG: Math.round(fatG * 10) / 10,
-        calories: Math.round(totalCal),
+        calories: Math.round(avgCalories),
         proteinCal: Math.round(proteinCal),
         carbsCal: Math.round(carbsCal),
         fatCal: Math.round(fatCal),
-        proteinPercent: totalCal > 0 ? Math.round((proteinCal / totalCal) * 100) : 0,
-        carbsPercent: totalCal > 0 ? Math.round((carbsCal / totalCal) * 100) : 0,
-        fatPercent: totalCal > 0 ? Math.round((fatCal / totalCal) * 100) : 0,
+        proteinPercent: macroCalSum > 0 ? Math.round((proteinCal / macroCalSum) * 100) : 0,
+        carbsPercent: macroCalSum > 0 ? Math.round((carbsCal / macroCalSum) * 100) : 0,
+        fatPercent: macroCalSum > 0 ? Math.round((fatCal / macroCalSum) * 100) : 0,
       };
     },
   );
