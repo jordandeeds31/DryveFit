@@ -46,6 +46,7 @@ import { UNRESTRICTED_TEST_EMAIL } from "../../utils/futureLogGuard";
 const UNRESTRICTED_PRO_EMAILS = [
   UNRESTRICTED_TEST_EMAIL,
   "pineapplecrafty@gmail.com",
+  "andrew@getbettrhealth.com",
 ];
 
 const MODEL = "gpt-4o-mini";
@@ -781,7 +782,11 @@ export const sendChatMessage = async (
   const todayStr = getUserLocalDateStr(user?.timezone ?? null);
   const nowStr = getUserLocalTimeStr(user?.timezone ?? null);
   const effectiveIsPro =
-    isPro || (!!user?.email && UNRESTRICTED_PRO_EMAILS.includes(user.email));
+    isPro ||
+    (!!user?.email &&
+      UNRESTRICTED_PRO_EMAILS.some(
+        (email) => email.toLowerCase() === user.email.toLowerCase(),
+      ));
   // Mirrors food-search.tsx's own hasGoal check — an entry logged with no
   // goal to compare against isn't useful, so both write paths require one.
   const hasNutritionGoal = user?.dailyCalorieGoal != null;

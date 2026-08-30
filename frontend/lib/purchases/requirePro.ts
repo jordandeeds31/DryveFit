@@ -10,6 +10,7 @@ import { getCurrentUser } from "@/lib/api/users.api";
 const UNRESTRICTED_EMAILS = [
   "jordandeeds31@gmail.com",
   "pineapplecrafty@gmail.com",
+  "andrew@getbettrhealth.com",
 ];
 
 // Shows the RevenueCat paywall only if the user doesn't already have the
@@ -26,9 +27,13 @@ export const ensureProAccess = async (): Promise<boolean> => {
       queryKey: ["currentUser"],
       queryFn: getCurrentUser,
     });
+    // Case-insensitive — emails aren't guaranteed to be stored in
+    // whatever exact casing someone happens to type/compare here.
     if (
       currentUser?.email &&
-      UNRESTRICTED_EMAILS.includes(currentUser.email)
+      UNRESTRICTED_EMAILS.some(
+        (email) => email.toLowerCase() === currentUser.email.toLowerCase(),
+      )
     )
       return true;
   } catch {
