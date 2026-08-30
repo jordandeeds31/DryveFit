@@ -11,6 +11,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: spacing.sm,
   },
+  headerRowEnd: {
+    justifyContent: "flex-end",
+  },
   voiceTipBanner: {
     flexDirection: "row",
     alignItems: "center",
@@ -37,13 +40,29 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.borderGray,
   },
+  // The rule's whole point is separating one exercise from the next — the
+  // last one has nothing below it to separate from.
+  exerciseBlockLast: {
+    borderBottomWidth: 0,
+    paddingBottom: 0,
+  },
   exerciseBlockHeader: {
     flexDirection: "row",
-    alignItems: "center",
+    // Was "center" — fine when DropdownExerciseSelect was just a single
+    // input row, but it now always shows its body-part chips underneath
+    // too, so centering against that taller block dropped the remove (X)
+    // button down to the chips' height instead of the input's.
+    alignItems: "flex-start",
     gap: spacing.sm,
   },
   dropdownWrapper: {
     flex: 1,
+  },
+  removeExerciseButton: {
+    // Centers the icon within the 44px-tall input row specifically,
+    // now that the header row is top-aligned rather than centered
+    // against the whole (input + chips) block.
+    marginTop: (44 - 20) / 2,
   },
   setsContainer: {
     marginTop: spacing.md,
@@ -82,25 +101,6 @@ const styles = StyleSheet.create({
   addSetText: {
     color: colors.primaryBlue,
     fontWeight: fontWeights.semibold,
-  },
-  addExerciseButton: {
-    marginTop: spacing.md,
-    paddingVertical: 10,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: colors.primaryBlue,
-    borderRadius: 8,
-    borderStyle: "dashed",
-    flex: 1,
-  },
-  addExerciseText: {
-    color: colors.primaryBlue,
-    fontWeight: fontWeights.semibold,
-  },
-  addExerciseSaveRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
   },
   saveReminder: {
     fontSize: fontSizes.xs,

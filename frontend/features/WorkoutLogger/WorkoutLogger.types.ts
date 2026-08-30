@@ -1,3 +1,5 @@
+import { RefObject } from "react";
+import { View } from "react-native";
 import { Exercise } from "@/types/exercise.types";
 
 interface ExerciseSetLog {
@@ -38,8 +40,17 @@ export interface WorkoutLoggerProps {
   prefillExercises?: PrefillExercise[];
   onDirtyChange?: (isDirty: boolean) => void;
   onSavingChange?: (isSaving: boolean) => void;
+  // Fired when an exercise entry's search dropdown opens — this component
+  // has no access to the Modal it renders inside (see index.tsx), so
+  // scrolling the entry into view has to be delegated up to whoever does.
+  onRequestScrollIntoView?: (nodeRef: RefObject<View | null>) => void;
 }
 
 export interface WorkoutLoggerHandle {
   save: () => void;
+  // Lets index.tsx's Modal `footer` (a static "+ ADD EXERCISE" button,
+  // pinned below the scrollable content) trigger this component's
+  // internal add-a-blank-exercise-entry logic — same reasoning as `save`
+  // already being lifted out for the header's SAVE button.
+  addExercise: () => void;
 }

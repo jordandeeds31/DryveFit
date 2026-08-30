@@ -25,6 +25,41 @@ const styles = StyleSheet.create({
   exerciseBlockSpaced: {
     marginTop: spacing.md,
   },
+  exerciseBlockRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+  exerciseTextGroup: {
+    flex: 1,
+  },
+  exerciseImageWrapper: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: colors.lightGraySoft,
+  },
+  exerciseImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+  },
+  exerciseImageLoading: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  exerciseImagePlaceholder: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: colors.lightGraySoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   exerciseName: {
     fontSize: fontSizes.md,
     fontWeight: fontWeights.semibold,

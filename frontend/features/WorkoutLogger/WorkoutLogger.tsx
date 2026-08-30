@@ -1,4 +1,10 @@
-import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 import {
   View,
   Text,
@@ -146,10 +152,15 @@ const WorkoutLogger = forwardRef<WorkoutLoggerHandle, WorkoutLoggerProps>(
       prefillExercises,
       onDirtyChange,
       onSavingChange,
+      onRequestScrollIntoView,
     },
     ref,
   ) => {
     const unitSystem = useUnitSystem();
+    // One entry per exercise block, keyed by its id — a plain ref (not
+    // state) since it's only ever read imperatively, right when a
+    // dropdown opens, never rendered from.
+    const blockRefs = useRef<Map<string, View | null>>(new Map());
     const [exerciseEntries, setExerciseEntries] = useState<ExerciseEntry[]>(
       () => buildInitialEntries(initialWorkoutLogs, prefillExercises, unitSystem),
     );
@@ -363,7 +374,10 @@ const WorkoutLogger = forwardRef<WorkoutLoggerHandle, WorkoutLoggerProps>(
       );
     };
 
-    useImperativeHandle(ref, () => ({ save: handleSave }));
+    useImperativeHandle(ref, () => ({
+      save: handleSave,
+      addExercise: handleAddExercise,
+    }));
 
     const handleDeleteWorkout = () => {
       Alert.alert(
@@ -386,17 +400,16 @@ const WorkoutLogger = forwardRef<WorkoutLoggerHandle, WorkoutLoggerProps>(
 
     return (
       <View style={styles.container}>
-        <View style={styles.headerRow}>
-          <Text style={styles.title}>Workout Log</Text>
-          {initialWorkoutLogs.length > 0 && (
+        {initialWorkoutLogs.length > 0 && (
+          <View style={[styles.headerRow, styles.headerRowEnd]}>
             <TouchableOpacity
               onPress={handleDeleteWorkout}
               disabled={isDeletingWorkout}
             >
               <Feather name="trash-2" size={18} color={colors.dangerRed} />
             </TouchableOpacity>
-          )}
-        </View>
+          </View>
+        )}
 
         <TouchableOpacity
           style={styles.voiceTipBanner}
@@ -415,8 +428,18 @@ const WorkoutLogger = forwardRef<WorkoutLoggerHandle, WorkoutLoggerProps>(
           </Text>
         </TouchableOpacity>
 
-        {exerciseEntries.map((entry) => (
-          <View key={entry.id} style={styles.exerciseBlock}>
+        {exerciseEntries.map((entry, index) => (
+          <View
+            key={entry.id}
+            style={[
+              styles.exerciseBlock,
+              index === exerciseEntries.length - 1 &&
+                styles.exerciseBlockLast,
+            ]}
+            ref={(node) => {
+              blockRefs.current.set(entry.id, node);
+            }}
+          >
             <View style={styles.exerciseBlockHeader}>
               <View style={styles.dropdownWrapper}>
                 <DropdownExerciseSelect
@@ -424,11 +447,17 @@ const WorkoutLogger = forwardRef<WorkoutLoggerHandle, WorkoutLoggerProps>(
                   setSelectedExercise={(exercise) =>
                     handleSelectExercise(entry.id, exercise)
                   }
+                  onOpen={() =>
+                    onRequestScrollIntoView?.({
+                      current: blockRefs.current.get(entry.id) ?? null,
+                    })
+                  }
                 />
               </View>
 
               {exerciseEntries.length > 1 && (
                 <TouchableOpacity
+                  style={styles.removeExerciseButton}
                   onPress={() => handleRemoveExercise(entry.id)}
                 >
                   <AntDesign name="closecircleo" size={20} color="gray" />
@@ -487,14 +516,6 @@ const WorkoutLogger = forwardRef<WorkoutLoggerHandle, WorkoutLoggerProps>(
             )}
           </View>
         ))}
-        <View style={styles.addExerciseSaveRow}>
-          <TouchableOpacity
-            style={styles.addExerciseButton}
-            onPress={handleAddExercise}
-          >
-            <Text style={styles.addExerciseText}>+ ADD EXERCISE</Text>
-          </TouchableOpacity>
-        </View>
         {isDirty && (
           <Text style={styles.saveReminder}>
             Don't forget to tap Save — your sets aren't recorded until you do.
@@ -504,8 +525,9 @@ const WorkoutLogger = forwardRef<WorkoutLoggerHandle, WorkoutLoggerProps>(
         <Modal
           visible={!!previousModalEntryId}
           onClose={() => setPreviousModalEntryId(null)}
+          title={previousModalEntry?.exercise?.name}
+          titleStyle={styles.title}
         >
-          <Text style={styles.title}>{previousModalEntry?.exercise?.name}</Text>
           {isPreviousLoading ? (
             <ActivityIndicator style={{ marginTop: 12 }} />
           ) : !previousSession ? (
