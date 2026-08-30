@@ -99,6 +99,16 @@
         {
           "microphonePermission": "Allow DryveFit to access your microphone so you can speak a message to your AI coach."
         }
+      ],
+      [
+        "expo-share-intent",
+        {
+          "iosActivationRules": {
+            "NSExtensionActivationSupportsWebURLWithMaxCount": 1,
+            "NSExtensionActivationSupportsWebPageWithMaxCount": 1
+          },
+          "androidIntentFilters": ["text/*"]
+        }
       ]
     ],
     "experiments": {

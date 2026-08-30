@@ -21,6 +21,8 @@ import newsRoutes from "./modules/news/news.routes";
 import blogRoutes from "./modules/blog/blog.routes";
 import bodyScansRoutes from "./modules/bodyScans/bodyScans.routes";
 import storefrontRoutes from "./modules/storefront/storefront.routes";
+import recipesRoutes from "./modules/recipes/recipes.routes";
+import recipeImportRoutes from "./modules/recipeImport/recipeImport.routes";
 import PRIVACY_POLICY_HTML from "./privacyPolicy";
 import SUPPORT_PAGE_HTML from "./supportPage";
 
@@ -57,6 +59,8 @@ app.use("/api/news", newsRoutes);
 app.use("/api/blog", blogRoutes);
 app.use("/api/body-scans", bodyScansRoutes);
 app.use("/api/storefront", storefrontRoutes);
+app.use("/api/recipes", recipesRoutes);
+app.use("/api/saved-recipes", recipeImportRoutes);
 
 app.use(errorHandler);
 

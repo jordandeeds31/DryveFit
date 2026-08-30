@@ -88,6 +88,7 @@ model User {
   dmParticipants              DmParticipant[]
   dmMessages                  DmMessage[]
   merchInterest               MerchInterest[]
+  savedRecipes                SavedRecipe[]
 
   @@index([city])
   @@map("users")
@@ -610,4 +611,31 @@ model WaitlistSignup {
   createdAt DateTime @default(now())
 
   @@map("waitlist_signups")
+}
+
+model SavedRecipe {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title  String
+  // { name: string; quantity: number | null; unit: string | null }[] — see
+  // RecipeExtractionIngredient in recipeImport.service.ts. Json rather
+  // than a relational table since nothing needs to query by individual
+  // ingredient yet.
+  ingredients Json
+  // string[], in order.
+  steps Json
+  // "caption_import" for now — a future manual-entry flow would add
+  // "manual" alongside it, reusing this same table rather than a
+  // parallel one.
+  source String
+  // Set only when source is an import — "tiktok" for now, more values as
+  // more platforms/extraction methods are added.
+  sourcePlatform String?
+  sourceUrl      String?
+  thumbnailUrl   String?
+  createdAt      DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@map("saved_recipes")
 }

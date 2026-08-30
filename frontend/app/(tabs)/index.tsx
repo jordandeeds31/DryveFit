@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   TouchableOpacity,
+  ScrollView,
   Platform,
 } from "react-native";
 import {
@@ -14,7 +15,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
 import { useSelector, useDispatch } from "react-redux";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { RootState, AppDispatch } from "@/store";
@@ -24,6 +25,7 @@ import {
 } from "@/store/slices/pendingWorkoutSlice";
 import Button from "@/components/shared/Button/Button";
 import Modal from "@/components/shared/Modal/Modal";
+import { ModalHandle } from "@/components/shared/Modal/Modal.types";
 import { spacing } from "@/constants/spacing";
 import { colors } from "@/constants/colors";
 import { fontSizes, fontWeights } from "@/constants/typography";
@@ -47,6 +49,7 @@ import Feed from "@/features/Feed/Feed";
 import News from "@/features/News/News";
 import BodyScan from "@/features/BodyScan/BodyScan";
 import Storefront from "@/features/Storefront/Storefront";
+import Recipes from "@/features/Recipes/Recipes";
 import {
   isHealthKitAvailable,
   hasCompletedHealthKitConnect,
@@ -61,14 +64,25 @@ const HomeScreen = () => {
     useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [homeTab, setHomeTab] = useState<
-    "workouts" | "feed" | "news" | "bodyScan" | "storefront"
+    "workouts" | "feed" | "news" | "bodyScan" | "storefront" | "recipes"
   >("workouts");
+  // A link shared into the app via another app's share sheet lands here
+  // as a param (see app/_layout.tsx's share-intent handling) — switch to
+  // Recipes and hand it to that screen to import, once, then clear it so
+  // navigating back to this tab later doesn't re-trigger the import.
+  const { sharedRecipeUrl } = useLocalSearchParams<{ sharedRecipeUrl?: string }>();
+  useEffect(() => {
+    if (sharedRecipeUrl) {
+      setHomeTab("recipes");
+    }
+  }, [sharedRecipeUrl]);
   const [prefillExercises, setPrefillExercises] = useState<
     PendingWorkoutExercise[] | undefined
   >(undefined);
   const [isWorkoutFormDirty, setIsWorkoutFormDirty] = useState(false);
   const [isSavingWorkout, setIsSavingWorkout] = useState(false);
   const workoutLoggerRef = useRef<WorkoutLoggerHandle>(null);
+  const workoutLoggerModalRef = useRef<ModalHandle>(null);
   const workoutDetailRef = useRef<WorkoutDetailHandle>(null);
   const scrollViewRef = useRef<KeyboardAwareScrollViewRef>(null);
   const [showDeviceSetupBanner, setShowDeviceSetupBanner] = useState(false);
@@ -293,9 +307,22 @@ const HomeScreen = () => {
     if (granted) setIsWorkoutLoggerModalOpen(true);
   };
 
+  const handleAddExerciseAndScroll = () => {
+    workoutLoggerRef.current?.addExercise();
+    // The new blank entry renders on the next tick, off the bottom of a
+    // long list — deferred so this fires after that layout pass instead
+    // of scrolling to the end of the list as it looked before the add.
+    setTimeout(() => workoutLoggerModalRef.current?.scrollToEnd(), 100);
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
-      <View style={styles.homeTabBar}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.homeTabBarScroll}
+        contentContainerStyle={styles.homeTabBar}
+      >
         <TouchableOpacity
           style={[
             styles.homeTab,
@@ -309,8 +336,6 @@ const HomeScreen = () => {
               homeTab === "workouts" && styles.homeTabTextActive,
             ]}
             numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.8}
           >
             Workouts
           </Text>
@@ -328,8 +353,6 @@ const HomeScreen = () => {
               homeTab === "feed" && styles.homeTabTextActive,
             ]}
             numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.8}
           >
             Feed
           </Text>
@@ -347,6 +370,23 @@ const HomeScreen = () => {
         <TouchableOpacity
           style={[
             styles.homeTab,
+            homeTab === "recipes" && styles.homeTabActive,
+          ]}
+          onPress={() => setHomeTab("recipes")}
+        >
+          <Text
+            style={[
+              styles.homeTabText,
+              homeTab === "recipes" && styles.homeTabTextActive,
+            ]}
+            numberOfLines={1}
+          >
+            Recipes
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.homeTab,
             homeTab === "bodyScan" && styles.homeTabActive,
           ]}
           onPress={() => setHomeTab("bodyScan")}
@@ -357,8 +397,6 @@ const HomeScreen = () => {
               homeTab === "bodyScan" && styles.homeTabTextActive,
             ]}
             numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.8}
           >
             Body Scan
           </Text>
@@ -376,8 +414,6 @@ const HomeScreen = () => {
               homeTab === "storefront" && styles.homeTabTextActive,
             ]}
             numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.8}
           >
             Store
           </Text>
@@ -392,13 +428,11 @@ const HomeScreen = () => {
               homeTab === "news" && styles.homeTabTextActive,
             ]}
             numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.8}
           >
             News
           </Text>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
 
       {showDeviceSetupBanner && (
         <TouchableOpacity
@@ -431,6 +465,13 @@ const HomeScreen = () => {
         <BodyScan />
       ) : homeTab === "storefront" ? (
         <Storefront />
+      ) : homeTab === "recipes" ? (
+        <Recipes
+          sharedUrl={sharedRecipeUrl}
+          onConsumedSharedUrl={() =>
+            router.setParams({ sharedRecipeUrl: undefined })
+          }
+        />
       ) : (
         <KeyboardAwareScrollView
           ref={scrollViewRef}
@@ -541,10 +582,18 @@ const HomeScreen = () => {
       )}
 
       <Modal
+        ref={workoutLoggerModalRef}
         visible={isWorkoutLoggerModalOpen}
         onClose={() => handleCloseWorkoutLogger(false)}
         closable={!isSavingWorkout}
+        title="Workout Log"
         size="large"
+        // Each exercise's dropdown (category chips + results list) opens
+        // right below its input the instant that input is focused — the
+        // default 60px reserve only fits the input itself, so the keyboard
+        // covers almost all of the dropdown the moment it appears, leaving
+        // nothing visible to scroll within.
+        bottomOffset={300}
         headerAction={
           isWorkoutFormDirty ? (
             <Button
@@ -556,6 +605,15 @@ const HomeScreen = () => {
             />
           ) : undefined
         }
+        footer={
+          <Button
+            title="+ ADD EXERCISE"
+            onPress={handleAddExerciseAndScroll}
+            variant="outline"
+            style={styles.addExerciseFooterButton}
+            textStyle={styles.addExerciseFooterButtonText}
+          />
+        }
       >
         <WorkoutLogger
           ref={workoutLoggerRef}
@@ -566,6 +624,9 @@ const HomeScreen = () => {
           prefillExercises={prefillExercises}
           onDirtyChange={setIsWorkoutFormDirty}
           onSavingChange={setIsSavingWorkout}
+          onRequestScrollIntoView={(nodeRef) =>
+            workoutLoggerModalRef.current?.scrollToView(nodeRef, 80)
+          }
         />
       </Modal>
 
@@ -625,19 +686,23 @@ const styles = StyleSheet.create({
   editWorkoutBarButton: {
     minWidth: 180,
   },
-  homeTabBar: {
-    flexDirection: "row",
-    backgroundColor: colors.surfaceGrayLight,
-    borderRadius: 10,
-    padding: 3,
+  homeTabBarScroll: {
+    flexGrow: 0,
     marginHorizontal: spacing.sm,
     marginTop: spacing.sm,
     marginBottom: spacing.xs,
   },
+  homeTabBar: {
+    flexDirection: "row",
+    gap: spacing.xs,
+    backgroundColor: colors.surfaceGrayLight,
+    borderRadius: 10,
+    padding: 3,
+  },
   homeTab: {
-    flex: 1,
     alignItems: "center",
     paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
     borderRadius: 8,
     position: "relative",
   },
@@ -739,5 +804,13 @@ const styles = StyleSheet.create({
   },
   modalSaveButtonText: {
     fontSize: fontSizes.sm,
+  },
+  addExerciseFooterButton: {
+    alignSelf: "center",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  addExerciseFooterButtonText: {
+    fontSize: fontSizes.xs,
   },
 });

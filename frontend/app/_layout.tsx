@@ -3,7 +3,8 @@ import { AppState } from "react-native";
 // Side-effect import only — patches Text/TextInput to default to Poppins
 // app-wide. Imported first, before anything renders.
 import "@/lib/globalFont";
-import { Stack } from "expo-router";
+import { Stack, router } from "expo-router";
+import { ShareIntentProvider, useShareIntentContext } from "expo-share-intent";
 import { Provider, useDispatch } from "react-redux";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -70,6 +71,21 @@ const RootNavigator = () => {
     useEffect(() => {
         return setupCardioFinishDeepLinkHandling();
     }, []);
+
+    // A link shared into the app from another app's share sheet (e.g.
+    // Instagram/TikTok's "Share to...") — routed to the Recipes tab with
+    // the URL as a param rather than handled inline here, same reasoning
+    // as the cardio-finish deep link: only the root layout can reliably
+    // intercept this on a cold launch.
+    const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntentContext();
+    useEffect(() => {
+        if (!hasShareIntent) return;
+        const sharedUrl = shareIntent.webUrl ?? shareIntent.text;
+        if (sharedUrl) {
+            router.push({ pathname: "/(tabs)", params: { sharedRecipeUrl: sharedUrl } });
+        }
+        resetShareIntent();
+    }, [hasShareIntent, shareIntent, resetShareIntent]);
 
     // Subscribes to the socket's own events (message:new, typing, read
     // receipts) and patches React Query's cache / dispatches into
@@ -142,14 +158,16 @@ const RootNavigator = () => {
 
 export default function RootLayout() {
     return (
-        <SafeAreaProvider>
-            <KeyboardProvider>
-                <Provider store={store}>
-                    <QueryClientProvider client={queryClient}>
-                        <RootNavigator />
-                    </QueryClientProvider>
-                </Provider>
-            </KeyboardProvider>
-        </SafeAreaProvider>
+        <ShareIntentProvider>
+            <SafeAreaProvider>
+                <KeyboardProvider>
+                    <Provider store={store}>
+                        <QueryClientProvider client={queryClient}>
+                            <RootNavigator />
+                        </QueryClientProvider>
+                    </Provider>
+                </KeyboardProvider>
+            </SafeAreaProvider>
+        </ShareIntentProvider>
     );
 }
