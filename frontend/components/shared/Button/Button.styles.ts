@@ -4,6 +4,11 @@ import { spacing } from "@/constants/spacing";
 import { fontWeights } from "@/constants/typography";
 
 const styles = StyleSheet.create({
+  content: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
   button: {
     backgroundColor: colors.primaryBlue,
     paddingVertical: 12,

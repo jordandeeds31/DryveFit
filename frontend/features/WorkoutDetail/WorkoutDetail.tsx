@@ -1,4 +1,10 @@
-import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useState,
+  ComponentProps,
+} from "react";
 import styles from "./WorkoutDetail.styles";
 import {
   View,
@@ -46,18 +52,26 @@ const formatSessionDate = (dateStr: string) =>
 
 const getLogButtonState = (
   exercise: ProgramExercise,
-): { title: string; backgroundColor: string } => {
+): {
+  title: string;
+  backgroundColor: string;
+  icon: ComponentProps<typeof Feather>["name"];
+} => {
   const hasLoggedSets = exercise.exerciseLogs.length > 0;
 
   if (!hasLoggedSets) {
-    return { title: "LOG", backgroundColor: colors.primaryBlue };
+    return { title: "LOG", backgroundColor: colors.primaryBlue, icon: "edit-3" };
   }
 
   if (!exercise.isCompleted) {
-    return { title: "IN PROGRESS", backgroundColor: colors.pendingAmber };
+    return {
+      title: "IN PROGRESS",
+      backgroundColor: colors.pendingAmber,
+      icon: "clock",
+    };
   }
 
-  return { title: "LOGGED", backgroundColor: colors.completedGreen };
+  return { title: "LOGGED", backgroundColor: colors.completedGreen, icon: "check" };
 };
 
 const CheckPreviousWorkoutButton = ({
@@ -571,6 +585,8 @@ const WorkoutDetail = forwardRef<WorkoutDetailHandle, WorkoutDetailProps>(({
                 <Button
                   title={logButtonState.title}
                   backgroundColor={logButtonState.backgroundColor}
+                  icon={logButtonState.icon}
+                  iconSize={12}
                   style={{
                     alignSelf: "flex-start",
                     height: 30,
@@ -625,10 +641,9 @@ const WorkoutDetail = forwardRef<WorkoutDetailHandle, WorkoutDetailProps>(({
       <Modal
         visible={!!previousExerciseId}
         onClose={() => setPreviousExerciseId(null)}
+        title={previousExercise?.exerciseName}
+        titleStyle={styles.descriptionModalTitle}
       >
-        <Text style={styles.descriptionModalTitle}>
-          {previousExercise?.exerciseName}
-        </Text>
         {isPreviousLoading ? (
           <ActivityIndicator style={{ marginTop: 12 }} />
         ) : !previousSession ? (
@@ -660,8 +675,9 @@ const WorkoutDetail = forwardRef<WorkoutDetailHandle, WorkoutDetailProps>(({
         visible={!!swapExerciseId}
         onClose={handleCloseSwapModal}
         keyboardAware={false}
+        title="Swap Exercise"
+        titleStyle={styles.descriptionModalTitle}
       >
-        <Text style={styles.descriptionModalTitle}>Swap Exercise</Text>
         <DropdownExerciseSelect
           selectedExercise={swapTargetExercise}
           setSelectedExercise={setSwapTargetExercise}
@@ -684,8 +700,9 @@ const WorkoutDetail = forwardRef<WorkoutDetailHandle, WorkoutDetailProps>(({
         visible={isAddExerciseModalVisible}
         onClose={handleCloseAddExerciseModal}
         keyboardAware={false}
+        title="Add Exercise"
+        titleStyle={styles.descriptionModalTitle}
       >
-        <Text style={styles.descriptionModalTitle}>Add Exercise</Text>
         <DropdownExerciseSelect
           selectedExercise={newExercise}
           setSelectedExercise={setNewExercise}
@@ -734,8 +751,9 @@ const WorkoutDetail = forwardRef<WorkoutDetailHandle, WorkoutDetailProps>(({
       <Modal
         visible={!!enlargedImage}
         onClose={() => setEnlargedImage(null)}
+        title={enlargedImage?.name}
+        titleStyle={styles.descriptionModalTitle}
       >
-        <Text style={styles.descriptionModalTitle}>{enlargedImage?.name}</Text>
         {enlargedImage && descriptionByName[enlargedImage.name] && (
           <Text style={styles.enlargedImageDescription}>
             {descriptionByName[enlargedImage.name]}

@@ -1,4 +1,6 @@
-import { Pressable, Text, ActivityIndicator } from "react-native";
+import { Pressable, Text, View, ActivityIndicator } from "react-native";
+import Feather from "@expo/vector-icons/Feather";
+import { colors } from "@/constants/colors";
 import styles from "./Button.styles";
 import { ButtonTypes } from "./Button.types";
 
@@ -8,6 +10,8 @@ const Button = ({
   variant = "primary",
   backgroundColor,
   disabled,
+  icon,
+  iconSize = 14,
   style,
   textStyle,
 }: ButtonTypes) => {
@@ -25,9 +29,18 @@ const Button = ({
       onPress={onPress}
       disabled={disabled}
     >
-      <Text style={[styles.text, isOutline && styles.textOutline, textStyle]}>
-        {title}
-      </Text>
+      <View style={styles.content}>
+        {icon && (
+          <Feather
+            name={icon}
+            size={iconSize}
+            color={isOutline ? colors.primaryBlue : "white"}
+          />
+        )}
+        <Text style={[styles.text, isOutline && styles.textOutline, textStyle]}>
+          {title}
+        </Text>
+      </View>
     </Pressable>
   );
 };
