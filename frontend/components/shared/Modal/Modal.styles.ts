@@ -1,6 +1,7 @@
 import { StyleSheet } from "react-native";
 import { spacing } from "@/constants/spacing";
 import { colors } from "@/constants/colors";
+import { fontSizes, fontWeights } from "@/constants/typography";
 
 const styles = StyleSheet.create({
   overlay: {
@@ -64,9 +65,26 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: spacing.sm,
   },
+  closeRowRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  title: {
+    flex: 1,
+    fontSize: fontSizes.lg,
+    fontWeight: fontWeights.bold,
+  },
   scrollArea: {
     flexGrow: 0,
     flexShrink: 1,
+  },
+  footer: {
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderGray,
+    alignItems: "center",
   },
 });
 

@@ -4,12 +4,6 @@ import { fontSizes, fontWeights } from "@/constants/typography";
 import { spacing } from "@/constants/spacing";
 
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: spacing.sm,
-  },
   modalTitle: {
     fontSize: fontSizes.lg,
     fontWeight: fontWeights.bold,

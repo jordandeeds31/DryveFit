@@ -106,9 +106,12 @@ const CreatePostModal = ({
   const canPost = (caption.trim().length > 0 || !!mediaUri) && !isPending;
 
   return (
-    <Modal visible={visible} onClose={handleClose}>
-      <View style={styles.createPostHeaderRow}>
-        <Text style={styles.modalTitle}>New Post</Text>
+    <Modal
+      visible={visible}
+      onClose={handleClose}
+      title="New Post"
+      titleStyle={styles.modalTitle}
+      headerAction={
         <TouchableOpacity
           style={[
             styles.postSubmitButton,
@@ -121,7 +124,8 @@ const CreatePostModal = ({
             {isPending ? "POSTING..." : "POST"}
           </Text>
         </TouchableOpacity>
-      </View>
+      }
+    >
       <TextInput
         style={styles.captionInput}
         placeholder="Share something with everyone..."

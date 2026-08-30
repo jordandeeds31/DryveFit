@@ -82,9 +82,12 @@ const BlogComposer = ({ visible, onClose, onPosted }: BlogComposerProps) => {
   const canPost = title.trim().length > 0 && body.trim().length > 0 && !isPending;
 
   return (
-    <Modal visible={visible} onClose={handleClose}>
-      <View style={styles.headerRow}>
-        <Text style={styles.modalTitle}>Write a Post</Text>
+    <Modal
+      visible={visible}
+      onClose={handleClose}
+      title="Write a Post"
+      titleStyle={styles.modalTitle}
+      headerAction={
         <TouchableOpacity
           style={[styles.submitButton, !canPost && styles.submitButtonDisabled]}
           onPress={handlePost}
@@ -94,8 +97,8 @@ const BlogComposer = ({ visible, onClose, onPosted }: BlogComposerProps) => {
             {isPending ? "PUBLISHING..." : "PUBLISH"}
           </Text>
         </TouchableOpacity>
-      </View>
-
+      }
+    >
       <Input
         placeholder="Title"
         value={title}

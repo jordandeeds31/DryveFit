@@ -1,31 +1,68 @@
+import { forwardRef, useImperativeHandle, useRef } from "react";
 import {
   Modal as RNModal,
   View,
+  Text,
   StyleSheet,
   TouchableOpacity,
   TouchableWithoutFeedback,
+  findNodeHandle,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import {
+  KeyboardAwareScrollView,
+  KeyboardAwareScrollViewRef,
+} from "react-native-keyboard-controller";
 import Feather from "@expo/vector-icons/Feather";
 import { colors } from "@/constants/colors";
 import { spacing } from "@/constants/spacing";
 import styles from "./Modal.styles";
-import { ModalProps } from "./Modal.types";
+import { ModalProps, ModalHandle } from "./Modal.types";
 
-const Modal = ({
+const Modal = forwardRef<ModalHandle, ModalProps>(({
   visible,
   onClose,
   children,
   closable = true,
+  title,
+  titleStyle,
   headerAction,
+  footer,
   size = "default",
   keyboardAware = true,
+  bottomOffset = 60,
   wide = false,
   bottom = false,
-}: ModalProps) => {
+}, ref) => {
   const insets = useSafeAreaInsets();
   const isLarge = size === "large";
+  const scrollViewRef = useRef<KeyboardAwareScrollViewRef>(null);
+
+  useImperativeHandle(ref, () => ({
+    scrollToEnd: () => scrollViewRef.current?.scrollToEnd({ animated: true }),
+    scrollToView: (nodeRef, extraOffset = 80) => {
+      const node = nodeRef.current;
+      const scrollHandle = findNodeHandle(scrollViewRef.current);
+      if (!node || scrollHandle == null) return;
+      // The classic RN "scroll a specific child into view" primitive —
+      // measures node's position relative to the scroll view's own
+      // native node, not the screen, so this stays correct regardless of
+      // how far the scroll view itself has already scrolled.
+      node.measureLayout(
+        scrollHandle,
+        (_x: number, y: number) => {
+          scrollViewRef.current?.scrollTo({
+            y: Math.max(y - extraOffset, 0),
+            animated: true,
+          });
+        },
+        () => {
+          // Measurement can fail transiently (e.g. mid-layout) — nothing
+          // to recover to, so just skip this scroll rather than throw.
+        },
+      );
+    },
+  }));
 
   const handleClose = () => {
     if (closable) {
@@ -68,37 +105,48 @@ const Modal = ({
           ]}
         >
           {bottom && <View style={styles.dragHandle} />}
-          {(closable || headerAction) && (
+          {(closable || headerAction || title) && (
             <View
               style={[
                 styles.closeRow,
-                !!headerAction && styles.closeRowWithAction,
+                !!(headerAction || title) && styles.closeRowWithAction,
               ]}
             >
-              {headerAction}
-              {closable && (
-                <TouchableOpacity
-                  onPress={onClose}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Feather name="x" size={22} color={colors.textSecondary} />
-                </TouchableOpacity>
+              {title ? (
+                <Text style={[styles.title, titleStyle]} numberOfLines={1}>
+                  {title}
+                </Text>
+              ) : (
+                headerAction
               )}
+              <View style={styles.closeRowRight}>
+                {title ? headerAction : null}
+                {closable && (
+                  <TouchableOpacity
+                    onPress={onClose}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Feather name="x" size={22} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
           )}
           <KeyboardAwareScrollView
+            ref={scrollViewRef}
             style={styles.scrollArea}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
-            bottomOffset={60}
+            bottomOffset={bottomOffset}
             enabled={keyboardAware}
           >
             {children}
           </KeyboardAwareScrollView>
+          {footer && <View style={styles.footer}>{footer}</View>}
         </View>
       </View>
     </RNModal>
   );
-};
+});
 
 export default Modal;

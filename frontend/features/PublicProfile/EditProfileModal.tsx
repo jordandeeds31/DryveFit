@@ -112,9 +112,13 @@ const EditProfileModal = ({ visible, onClose, onSaved }: EditProfileModalProps) 
   };
 
   return (
-    <Modal visible={visible} onClose={onClose} closable={!isSaving}>
-      <Text style={styles.title}>Edit Profile</Text>
-
+    <Modal
+      visible={visible}
+      onClose={onClose}
+      closable={!isSaving}
+      title="Edit Profile"
+      titleStyle={styles.title}
+    >
       <View style={styles.avatarSection}>
         {currentUser?.profileImageUrl && authImageHeaders ? (
           <Image

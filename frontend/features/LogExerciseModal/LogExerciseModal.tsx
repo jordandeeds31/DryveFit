@@ -105,6 +105,12 @@ const LogExerciseModal = ({
         visible={visible}
         onClose={onClose}
         closable={!isPending}
+        title={
+          exercise
+            ? `${exercise.exerciseName} (${exercise.sets} sets x ${exercise.reps} reps)`
+            : undefined
+        }
+        titleStyle={styles.title}
         headerAction={
           <Button
             title={isPending ? "SAVING..." : "SAVE"}
@@ -115,10 +121,6 @@ const LogExerciseModal = ({
           />
         }
       >
-        <Text style={styles.title}>
-          {exercise?.exerciseName} ({exercise?.sets} sets x {exercise?.reps}{" "}
-          reps)
-        </Text>
         {exercise?.recommendedWeight != null && (
           <Text style={styles.recommendedWeight}>
             Weight: {displayWeight(exercise.recommendedWeight, unitSystem)}{" "}

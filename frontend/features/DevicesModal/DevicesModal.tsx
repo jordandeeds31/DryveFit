@@ -43,8 +43,12 @@ const DevicesModal = ({
   };
 
   return (
-    <Modal visible={visible} onClose={onClose}>
-      <Text style={styles.title}>Devices</Text>
+    <Modal
+      visible={visible}
+      onClose={onClose}
+      title="Devices"
+      titleStyle={styles.title}
+    >
       <Text style={styles.subtitle}>
         Connect a health device to sync heart rate, calories, and activity into
         DryveFit.

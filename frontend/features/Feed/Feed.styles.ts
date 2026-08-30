@@ -203,12 +203,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     gap: spacing.xs,
   },
-  createPostHeaderRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: spacing.sm,
-  },
   modalTitle: {
     fontSize: fontSizes.lg,
     fontWeight: fontWeights.bold,

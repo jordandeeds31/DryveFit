@@ -1,5 +1,4 @@
 import { useCallback, useMemo, useState } from "react";
-import { Text } from "react-native";
 import { Tabs } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { colors } from "@/constants/colors";
@@ -78,11 +77,8 @@ export default function TabsLayout() {
         visible={isOpen}
         onClose={close}
         closable={!isGeneratingProgram}
-        headerAction={
-          isGenerationView ? undefined : (
-            <Text style={programBuilderStyles.title}>Build Your Program</Text>
-          )
-        }
+        title={isGenerationView ? undefined : "Build Your Program"}
+        titleStyle={programBuilderStyles.title}
         size={isGenerationView ? undefined : "large"}
         wide
         bottom={!isGenerationView}

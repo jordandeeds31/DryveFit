@@ -56,10 +56,9 @@ const TrainingSplit = ({ trainingSplit, setTrainingSplit }: TrainingSplitProps) 
       <Modal
         visible={!!descriptionOption}
         onClose={() => setDescriptionOption(null)}
+        title={descriptionOption?.toUpperCase()}
+        titleStyle={styles.descriptionModalTitle}
       >
-        <Text style={styles.descriptionModalTitle}>
-          {descriptionOption?.toUpperCase()}
-        </Text>
         <Text style={styles.descriptionModalBody}>
           {descriptionOption ? SPLIT_DESCRIPTIONS[descriptionOption] : null}
         </Text>
