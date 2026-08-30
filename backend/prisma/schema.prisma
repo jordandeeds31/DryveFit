@@ -47,6 +47,10 @@ model User {
   // incomplete), so it needs its own once-per-day claim rather than
   // sharing lastWorkoutReminderSentAt's cooldown.
   lastStreakNotificationSentAt DateTime?
+  // Same once-per-day-per-user claim pattern as the three fields above,
+  // for the 9pm-local daily progress analysis push — see
+  // jobs/dailyProgressNotifications.ts.
+  lastDailyAnalysisNotifiedAt DateTime?
   // Drives the Feed tab's "new posts" badge — posts created after this
   // timestamp count as unseen. Defaults to now() so the migration itself
   // doesn't retroactively count every existing post as "new" for
@@ -89,6 +93,7 @@ model User {
   dmMessages                  DmMessage[]
   merchInterest               MerchInterest[]
   savedRecipes                SavedRecipe[]
+  dailyAnalyses                DailyAnalysis[]
 
   @@index([city])
   @@map("users")
@@ -634,8 +639,52 @@ model SavedRecipe {
   sourcePlatform String?
   sourceUrl      String?
   thumbnailUrl   String?
-  createdAt      DateTime @default(now())
+  // Estimated once at save time (see logSavedRecipeToMeal in
+  // recipeImport.service.ts) and reused for every "add to meal" —
+  // nullable because estimation is best-effort and shouldn't block a
+  // save if it fails, and because rows saved before this field existed
+  // have none yet (computed lazily, then backfilled, on first use).
+  calories  Int?
+  proteinG  Float?
+  carbsG    Float?
+  fatG      Float?
+  createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
   @@map("saved_recipes")
+}
+
+// One row per (user, local calendar day) — the deterministic verdict
+// (nutritionStatus/proteinStatus/workoutStatus/netContribution) is
+// computed in dailyAnalysis.service.ts before any LLM call, so it never
+// varies between reads; only headline/explanation/adjustments come from
+// the LLM, and only to explain a verdict it can't itself change (its
+// response schema has no field for the verdict). See MEMORY/proposal
+// discussion — this is the manually-triggerable v1 (no cron/push yet).
+model DailyAnalysis {
+  id              String    @id @default(uuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Local calendar day this analysis covers, same "local midnight" storage
+  // convention as FoodLogEntry.date/ProgramDay.date elsewhere in this schema.
+  date            DateTime
+  dayType         String
+  nutritionStatus String?
+  proteinStatus   String?
+  workoutStatus   String?
+  netContribution String?
+  headline        String
+  explanation     String
+  // string[] — 2-3 concrete adjustments, only populated when
+  // netContribution is "negative".
+  adjustments     Json?
+  // The structured result actually fed to the LLM — kept for
+  // auditability, so a "why did it say that" question can be answered
+  // without guessing.
+  rawInputs       Json
+  viewedAt        DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@unique([userId, date])
+  @@map("daily_analyses")
 }

@@ -41,6 +41,10 @@ export type TikTokCaptionErrorReason =
 export interface TikTokCaptionSuccess {
   ok: true;
   videoId: string;
+  // The reconstructed https://www.tiktok.com/@/video/<id> URL — stable
+  // across however the share arrived (short link, tracking params, etc.),
+  // so callers can use it as a dedup key instead of the raw share URL.
+  canonicalUrl: string;
   caption: string;
   authorHandle: string;
   authorName: string;
@@ -128,6 +132,7 @@ export const fetchTikTokCaption = async (
   return {
     ok: true,
     videoId,
+    canonicalUrl,
     caption: typeof data.title === "string" ? data.title : "",
     authorHandle: typeof data.author_unique_id === "string" ? data.author_unique_id : "",
     authorName: typeof data.author_name === "string" ? data.author_name : "",

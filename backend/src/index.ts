@@ -2,6 +2,7 @@ import cron from "node-cron";
 import app from "./app";
 import { env } from "./config/env";
 import { sendDueWorkoutReminders } from "./jobs/workoutReminders";
+import { sendDailyProgressNotifications } from "./jobs/dailyProgressNotifications";
 import { attachWebSocketServer } from "./ws/server";
 
 const server = app.listen(env.PORT, () => {
@@ -16,5 +17,13 @@ attachWebSocketServer(server);
 cron.schedule("*/15 * * * *", () => {
   sendDueWorkoutReminders().catch((err) => {
     console.error("sendDueWorkoutReminders failed:", err);
+  });
+});
+
+// Same 15-minute tick, same per-user-timezone windowing — see
+// dailyProgressNotifications.ts for the 9:00-9:14pm local window.
+cron.schedule("*/15 * * * *", () => {
+  sendDailyProgressNotifications().catch((err) => {
+    console.error("sendDailyProgressNotifications failed:", err);
   });
 });

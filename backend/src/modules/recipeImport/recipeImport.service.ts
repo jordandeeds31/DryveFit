@@ -1,9 +1,27 @@
 import prisma from "../../lib/prisma";
+import { SavedRecipe } from "../../generated/prisma/client";
 import openai from "../../lib/openai";
+import AppError from "../../utils/AppError";
 import { fetchTikTokCaption, TikTokCaptionErrorReason } from "../../lib/tiktok";
 import { fetchYouTubeCaption, YouTubeCaptionErrorReason } from "../../lib/youtube";
+import { estimateRecipeMacros, logFood, MealType } from "../nutrition/nutrition.service";
 
 export type RecipeImportPlatform = "tiktok" | "youtube";
+
+const URL_IN_TEXT_PATTERN = /https?:\/\/\S+/;
+const TRAILING_PUNCTUATION_PATTERN = /[.,;:!?)\]}'"]+$/;
+
+// The OS share sheet doesn't always hand back a clean URL — sharing
+// directly from inside the TikTok/YouTube app (rather than from Safari)
+// commonly bundles the link into a caption-style blob ("Check out this
+// recipe! https://vt.tiktok.com/xyz via @user"), which a strict
+// `new URL(rawUrl)` would otherwise reject outright even though a real
+// link is right there in the text.
+export const extractUrl = (rawInput: string): string => {
+  const match = rawInput.match(URL_IN_TEXT_PATTERN);
+  if (!match) return rawInput;
+  return match[0].replace(TRAILING_PUNCTUATION_PATTERN, "");
+};
 
 export const detectPlatform = (rawUrl: string): RecipeImportPlatform | null => {
   let hostname: string;
@@ -32,6 +50,7 @@ export type CaptionErrorReason =
 
 interface CaptionFetchSuccess {
   ok: true;
+  canonicalUrl: string;
   caption: string;
   thumbnailUrl: string | null;
 }
@@ -55,14 +74,24 @@ const fetchCaption = async (
     if (!result.ok) {
       return { ok: false, reason: result.reason, message: result.message };
     }
-    return { ok: true, caption: result.caption, thumbnailUrl: result.thumbnailUrl };
+    return {
+      ok: true,
+      canonicalUrl: result.canonicalUrl,
+      caption: result.caption,
+      thumbnailUrl: result.thumbnailUrl,
+    };
   }
   if (platform === "youtube") {
     const result = await fetchYouTubeCaption(url);
     if (!result.ok) {
       return { ok: false, reason: result.reason, message: result.message };
     }
-    return { ok: true, caption: result.caption, thumbnailUrl: result.thumbnailUrl };
+    return {
+      ok: true,
+      canonicalUrl: result.canonicalUrl,
+      caption: result.caption,
+      thumbnailUrl: result.thumbnailUrl,
+    };
   }
   return {
     ok: false,
@@ -176,12 +205,41 @@ export interface SavedRecipeDto {
   sourcePlatform: string | null;
   sourceUrl: string | null;
   thumbnailUrl: string | null;
-  importedByUsername: string | null;
+  calories: number | null;
+  proteinG: number | null;
+  carbsG: number | null;
+  fatG: number | null;
   createdAt: Date;
 }
 
-export type ImportRecipeOutcome =
-  | { status: "saved"; recipe: SavedRecipeDto }
+const toSavedRecipeDto = (recipe: SavedRecipe): SavedRecipeDto => ({
+  id: recipe.id,
+  title: recipe.title,
+  ingredients: recipe.ingredients as unknown as RecipeExtractionIngredient[],
+  steps: recipe.steps as unknown as string[],
+  source: recipe.source,
+  sourcePlatform: recipe.sourcePlatform,
+  sourceUrl: recipe.sourceUrl,
+  thumbnailUrl: recipe.thumbnailUrl,
+  calories: recipe.calories,
+  proteinG: recipe.proteinG,
+  carbsG: recipe.carbsG,
+  fatG: recipe.fatG,
+  createdAt: recipe.createdAt,
+});
+
+export interface ExtractedRecipe {
+  title: string;
+  ingredients: RecipeExtractionIngredient[];
+  steps: string[];
+  sourcePlatform: RecipeImportPlatform;
+  sourceUrl: string;
+  thumbnailUrl: string | null;
+}
+
+export type ExtractRecipeOutcome =
+  | { status: "ready_to_review"; recipe: ExtractedRecipe }
+  | { status: "already_saved"; recipe: SavedRecipeDto }
   | { status: "no_recipe_detected"; captionPreview: string }
   | {
       status: "error";
@@ -189,16 +247,17 @@ export type ImportRecipeOutcome =
       message: string;
     };
 
-// The single on-demand entry point for this feature: one caller-supplied
-// URL in, one fetch + one extraction + at most one DB write, then done.
-// There is no loop, queue, or scheduled invocation of this function
-// anywhere — every call here is synchronous with a user submitting a
-// link, which is the constraint this feature's "single URL, on demand"
-// framing depends on. Do not wrap this in a batch/cron job.
-export const importRecipeFromLink = async (
+// On-demand only: one caller-supplied URL in, one caption fetch, one LLM
+// extraction, no DB write — the result is handed back for the user to
+// review/edit before anything is persisted (see saveRecipe below). There
+// is no loop, queue, or scheduled invocation of this function anywhere,
+// which is the constraint this feature's "single URL, on demand" framing
+// depends on. Do not wrap this in a batch/cron job.
+export const extractRecipeFromLink = async (
+  rawInput: string,
   userId: string,
-  url: string,
-): Promise<ImportRecipeOutcome> => {
+): Promise<ExtractRecipeOutcome> => {
+  const url = extractUrl(rawInput);
   const platform = detectPlatform(url);
   if (!platform) {
     return {
@@ -217,6 +276,21 @@ export const importRecipeFromLink = async (
     };
   }
 
+  // Checked by the platform's own canonical video URL (not the raw share
+  // URL, which carries random per-share tracking params like TikTok/
+  // YouTube's `?si=...`) so re-sharing the same video — the common case,
+  // since a share sheet link always looks "new" — doesn't create a
+  // duplicate or spend an LLM call re-extracting it. Scoped to this user
+  // only: saved recipes are a private per-user collection (like a
+  // bookmark list), not a shared feed, so a different user importing the
+  // same video is a completely separate save, not a duplicate.
+  const existing = await prisma.savedRecipe.findFirst({
+    where: { sourceUrl: captionResult.canonicalUrl, userId },
+  });
+  if (existing) {
+    return { status: "already_saved", recipe: toSavedRecipeDto(existing) };
+  }
+
   const extraction = await extractRecipeFromText(captionResult.caption);
 
   // This is the fallback trigger point: a real future implementation would
@@ -231,57 +305,155 @@ export const importRecipeFromLink = async (
     };
   }
 
-  const saved = await prisma.savedRecipe.create({
-    data: {
-      userId,
-      title: extraction.title ?? "Untitled Recipe",
-      ingredients: extraction.ingredients as object,
-      steps: extraction.steps as object,
-      source: "caption_import",
-      sourcePlatform: platform,
-      sourceUrl: url,
-      thumbnailUrl: captionResult.thumbnailUrl,
-    },
-    include: { user: { select: { username: true } } },
-  });
-
   return {
-    status: "saved",
+    status: "ready_to_review",
     recipe: {
-      id: saved.id,
-      title: saved.title,
-      ingredients: saved.ingredients as unknown as RecipeExtractionIngredient[],
-      steps: saved.steps as unknown as string[],
-      source: saved.source,
-      sourcePlatform: saved.sourcePlatform,
-      sourceUrl: saved.sourceUrl,
-      thumbnailUrl: saved.thumbnailUrl,
-      importedByUsername: saved.user.username,
-      createdAt: saved.createdAt,
+      title: extraction.title ?? "Untitled Recipe",
+      ingredients: extraction.ingredients,
+      steps: extraction.steps,
+      sourcePlatform: platform,
+      sourceUrl: captionResult.canonicalUrl,
+      thumbnailUrl: captionResult.thumbnailUrl,
     },
   };
 };
 
-// Deliberately not scoped to a single userId — an imported recipe is
-// shared with every user of the app, the same way a Post or BlogPost is,
-// not kept private to whoever imported it.
-export const getSavedRecipes = async (): Promise<SavedRecipeDto[]> => {
-  const recipes = await prisma.savedRecipe.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 100,
-    include: { user: { select: { username: true } } },
+const formatIngredientForEstimate = (ingredient: RecipeExtractionIngredient): string =>
+  [ingredient.quantity, ingredient.unit, ingredient.name]
+    .filter((part) => part !== null && part !== "")
+    .join(" ");
+
+interface CachedMacros {
+  calories: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+}
+
+// Estimates once and writes the result onto the recipe row so every
+// future read (a repeat "add to meal", a future retry) sees the exact
+// same numbers — estimateRecipeMacros runs at temperature: 0 precisely
+// so that, if this ever does need to run again for the same recipe (see
+// the null-backfill path in logSavedRecipeToMeal below), it reproduces
+// the same result rather than drifting. Best-effort: a transient LLM
+// failure here shouldn't block saving the recipe itself, so this
+// swallows errors and returns null rather than throwing.
+const estimateAndCacheMacros = async (
+  recipeId: string,
+  title: string,
+  ingredients: RecipeExtractionIngredient[],
+): Promise<CachedMacros | null> => {
+  try {
+    const ingredientsText = ingredients.map(formatIngredientForEstimate).join(", ");
+    const estimate = await estimateRecipeMacros(title, ingredientsText);
+    const macros: CachedMacros = {
+      calories: estimate.calories,
+      proteinG: estimate.proteinG,
+      carbsG: estimate.carbsG,
+      fatG: estimate.fatG,
+    };
+    await prisma.savedRecipe.update({ where: { id: recipeId }, data: macros });
+    return macros;
+  } catch {
+    return null;
+  }
+};
+
+// The explicit, separate "commit" step — only ever called once a user has
+// reviewed (and possibly edited) the extracted fields and tapped Save.
+// Nothing from extractRecipeFromLink is persisted before this runs.
+export const saveRecipe = async (
+  userId: string,
+  input: ExtractedRecipe,
+): Promise<SavedRecipeDto> => {
+  const saved = await prisma.savedRecipe.create({
+    data: {
+      userId,
+      title: input.title,
+      ingredients: input.ingredients as object,
+      steps: input.steps as object,
+      source: "caption_import",
+      sourcePlatform: input.sourcePlatform,
+      sourceUrl: input.sourceUrl,
+      thumbnailUrl: input.thumbnailUrl,
+    },
   });
 
-  return recipes.map((recipe) => ({
-    id: recipe.id,
-    title: recipe.title,
-    ingredients: recipe.ingredients as unknown as RecipeExtractionIngredient[],
-    steps: recipe.steps as unknown as string[],
-    source: recipe.source,
-    sourcePlatform: recipe.sourcePlatform,
-    sourceUrl: recipe.sourceUrl,
-    thumbnailUrl: recipe.thumbnailUrl,
-    importedByUsername: recipe.user.username,
-    createdAt: recipe.createdAt,
-  }));
+  const macros = await estimateAndCacheMacros(saved.id, saved.title, input.ingredients);
+
+  return toSavedRecipeDto(macros ? { ...saved, ...macros } : saved);
+};
+
+// Private per-user, like a bookmark list — not a shared feed. Two
+// different users importing the same video each get their own row (see
+// the userId-scoped dedup check in extractRecipeFromLink above).
+export const getSavedRecipes = async (userId: string): Promise<SavedRecipeDto[]> => {
+  const recipes = await prisma.savedRecipe.findMany({
+    where: { userId },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+  });
+
+  return recipes.map(toSavedRecipeDto);
+};
+
+// No nutrition database (USDA, etc.) is consulted here — a recipe's
+// ingredients are a caption-derived guess already (see
+// extractRecipeFromText above), and matching each one to a database
+// entry plus unit-converting its serving size would compound that
+// uncertainty further. Reads the macros cached on the recipe by
+// saveRecipe (via estimateAndCacheMacros above) rather than re-estimating
+// on every call — besides the wasted LLM cost, calling estimateRecipeMacros
+// fresh each time previously meant the same recipe could log a different
+// calorie count from one add to the next.
+export const logSavedRecipeToMeal = async (
+  userId: string,
+  recipeId: string,
+  mealType: MealType,
+  date: string,
+) => {
+  const recipe = await prisma.savedRecipe.findFirst({
+    where: { id: recipeId, userId },
+  });
+  if (!recipe) {
+    throw new AppError(404, "Saved recipe not found");
+  }
+
+  let macros: CachedMacros | null =
+    recipe.calories !== null &&
+    recipe.proteinG !== null &&
+    recipe.carbsG !== null &&
+    recipe.fatG !== null
+      ? {
+          calories: recipe.calories,
+          proteinG: recipe.proteinG,
+          carbsG: recipe.carbsG,
+          fatG: recipe.fatG,
+        }
+      : null;
+
+  // Only reached for a recipe saved before this caching existed, or one
+  // whose save-time estimate failed — backfills the cache so every
+  // subsequent add reuses this same result too.
+  if (!macros) {
+    const ingredients = recipe.ingredients as unknown as RecipeExtractionIngredient[];
+    macros = await estimateAndCacheMacros(recipe.id, recipe.title, ingredients);
+  }
+  if (!macros) {
+    throw new AppError(502, "Couldn't estimate macros for this recipe — try again");
+  }
+
+  return logFood(userId, {
+    date,
+    mealType,
+    foodName: recipe.title,
+    brandName: null,
+    servingQty: 1,
+    servingUnit: "serving",
+    calories: macros.calories,
+    proteinG: macros.proteinG,
+    carbsG: macros.carbsG,
+    fatG: macros.fatG,
+    source: "ai_estimated",
+  });
 };

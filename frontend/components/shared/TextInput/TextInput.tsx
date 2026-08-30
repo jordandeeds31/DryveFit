@@ -10,7 +10,7 @@ const Input = ({ label, error, isPassword, ...rest }: TextInputTypes) => {
     return (
         <View>
             {label && <Text style={styles.label}>{label}</Text>}
-            <View style={styles.container}>
+            <View style={[styles.container, isPassword && styles.containerWithPasswordToggle]}>
                 <TextInput style={styles.input} {...rest} secureTextEntry={isPassword && !showPassword} />
                 {isPassword && (
                     <TouchableOpacity onPress={() => setShowPassword((prev) => !prev)}>

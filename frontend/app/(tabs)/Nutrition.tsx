@@ -22,26 +22,22 @@ import NutritionSetup from "@/features/NutritionSetup/NutritionSetup";
 import {
   useNutritionProfile,
   useDiary,
-  useDailyRecap,
   useLoggedDateKeys,
   useDeleteFoodLogEntry,
   useUpdateFoodLogEntry,
 } from "@/hooks/useNutrition";
-import { useCurrentUser } from "@/hooks/useUsers";
-import { useUnitSystem } from "@/hooks/useUnitSystem";
-import { displayWeight, weightUnitLabel } from "@/lib/utils/units";
 import {
-  getWeekDates,
-  toDateKey,
-  isSameDay,
-  startOfDay,
-} from "@/lib/utils/date.utils";
+  useDailyAnalysis,
+  useRunDailyAnalysis,
+  useMarkDailyAnalysisViewed,
+} from "@/hooks/useDailyAnalysis";
+import { useCurrentUser } from "@/hooks/useUsers";
+import { getWeekDates, toDateKey, startOfDay } from "@/lib/utils/date.utils";
 import {
   MEAL_TYPES,
   MEAL_TYPE_LABELS,
   MealType,
   FoodLogEntry,
-  DailyRecap,
 } from "@/types/nutrition.types";
 import { colors } from "@/constants/colors";
 import { spacing } from "@/constants/spacing";
@@ -79,46 +75,25 @@ const MacroBar = ({
   );
 };
 
-const CALORIE_STATUS_LABELS: Record<DailyRecap["calories"]["status"], string> =
-  {
-    under: "under target",
-    on_target: "on target",
-    over: "over target",
-    unknown: "no goal set",
-  };
-
-// Mirrors exactly what the backend's `supportsMuscleGain` boolean checks,
-// in the same order, so whichever condition this returns first is
-// guaranteed to be the actual reason it's false — never a text that
-// contradicts the badge above it.
-const buildRecapVerdict = (recap: DailyRecap): string => {
-  if (!recap.training.trained) {
-    return "No workout logged today — training is what creates the stimulus for muscle growth in the first place.";
-  }
-  const meetsProteinGoal =
-    recap.protein.percentOfGoal != null && recap.protein.percentOfGoal >= 90;
-  if (!meetsProteinGoal && !recap.protein.meetsFloor) {
-    return `Protein came in low${
-      recap.protein.floorG != null
-        ? ` — under the ~${recap.protein.floorG}g floor for your bodyweight`
-        : ""
-    }. That limits how much of today's training can translate into muscle.`;
-  }
-  if (recap.calories.status === "under") {
-    return "Calories were well under target — a significant deficit blunts muscle building even with good protein and training.";
-  }
-  return "Training, protein, and calories all lined up today — good conditions for muscle growth.";
-};
-
 const NutritionScreen = () => {
-  const { openSetup } = useLocalSearchParams<{ openSetup?: string }>();
+  const { openSetup, dailyAnalysisDate } = useLocalSearchParams<{
+    openSetup?: string;
+    dailyAnalysisDate?: string;
+  }>();
 
   const queryClient = useQueryClient();
 
   const [referenceDate, setReferenceDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isSetupOpen, setIsSetupOpen] = useState(false);
-  const [isRecapOpen, setIsRecapOpen] = useState(false);
+  const [isDailyAnalysisOpen, setIsDailyAnalysisOpen] = useState(false);
+  // Set only when arriving via the 9pm push's deep link — that analysis
+  // was already computed and persisted by the job that sent it (see
+  // dailyProgressNotifications.ts), so this just fetches the existing
+  // record instead of the manual button's re-run mutation below.
+  const [dailyAnalysisDateToFetch, setDailyAnalysisDateToFetch] = useState<
+    string | null
+  >(null);
 
   // food-search redirects here with ?openSetup=1 when someone tries to log
   // food before setting up a goal — this is what actually opens the modal
@@ -130,14 +105,21 @@ const NutritionScreen = () => {
     }
   }, [openSetup]);
 
+  useEffect(() => {
+    if (dailyAnalysisDate) {
+      setDailyAnalysisDateToFetch(dailyAnalysisDate);
+      setIsDailyAnalysisOpen(true);
+      router.setParams({ dailyAnalysisDate: undefined });
+    }
+  }, [dailyAnalysisDate]);
+
   // Workouts get logged from completely different screens (Home,
   // Cinematic Mode) that have no reason to know this tab's cache keys
   // exist, and tabs stay mounted across switches rather than remounting —
-  // so without this, the recap/diary silently keep showing whatever was
-  // true the last time this tab was actually focused.
+  // so without this, the diary silently keeps showing whatever was true
+  // the last time this tab was actually focused.
   useFocusEffect(
     useCallback(() => {
-      queryClient.invalidateQueries({ queryKey: ["dailyRecap"] });
       queryClient.invalidateQueries({ queryKey: ["diary"] });
       queryClient.invalidateQueries({ queryKey: ["loggedDateKeys"] });
     }, [queryClient]),
@@ -148,10 +130,32 @@ const NutritionScreen = () => {
 
   const { data: profile, isLoading: isProfileLoading } = useNutritionProfile();
   const { data: diary, isLoading: isDiaryLoading } = useDiary(selectedDateKey);
-  const { data: recapData } = useDailyRecap(selectedDateKey);
-  const recap: DailyRecap | undefined = recapData;
+  const {
+    mutate: runDailyAnalysis,
+    data: freshDailyAnalysis,
+    isPending: isRunningDailyAnalysis,
+    reset: resetDailyAnalysis,
+  } = useRunDailyAnalysis();
+  const {
+    data: fetchedDailyAnalysis,
+    isLoading: isFetchingDailyAnalysis,
+  } = useDailyAnalysis(dailyAnalysisDateToFetch);
+  const { mutate: markDailyAnalysisViewed } = useMarkDailyAnalysisViewed();
+  const dailyAnalysis = dailyAnalysisDateToFetch
+    ? fetchedDailyAnalysis
+    : freshDailyAnalysis;
+
+  // Only the deep-link path needs this — arriving via the 9pm push is the
+  // one way to see an analysis without having just triggered it yourself
+  // with the button, so it's the one case where "viewed" isn't already
+  // implied.
+  useEffect(() => {
+    if (fetchedDailyAnalysis && !fetchedDailyAnalysis.viewedAt) {
+      markDailyAnalysisViewed(fetchedDailyAnalysis.id);
+    }
+  }, [fetchedDailyAnalysis, markDailyAnalysisViewed]);
+
   const { data: currentUser } = useCurrentUser();
-  const unitSystem = useUnitSystem();
 
   // Nothing to log before the account existed — same "can't page past the
   // earliest real thing" pattern as the Home screen's program calendar.
@@ -310,22 +314,18 @@ const NutritionScreen = () => {
               />
               <Text style={styles.recapButtonText}>Weight Trend</Text>
             </TouchableOpacity>
-            {recap && (
-              <TouchableOpacity
-                style={styles.recapButton}
-                onPress={() => setIsRecapOpen(true)}
-              >
-                <Feather
-                  name="bar-chart-2"
-                  size={14}
-                  color={colors.primaryBlue}
-                />
-                <Text style={styles.recapButtonText}>
-                  {isSameDay(selectedDate, new Date()) ? "Today's" : "Day's"}{" "}
-                  Recap
-                </Text>
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity
+              style={styles.recapButton}
+              onPress={() => {
+                setDailyAnalysisDateToFetch(null);
+                resetDailyAnalysis();
+                setIsDailyAnalysisOpen(true);
+                runDailyAnalysis(selectedDateKey);
+              }}
+            >
+              <Feather name="zap" size={14} color={colors.primaryBlue} />
+              <Text style={styles.recapButtonText}>Progress Check</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -546,73 +546,66 @@ const NutritionScreen = () => {
         )}
       </Modal>
 
-      {recap && (
-        <Modal
-          visible={isRecapOpen}
-          onClose={() => setIsRecapOpen(false)}
-          title={`${isSameDay(selectedDate, new Date()) ? "Today's" : "Day's"} Recap`}
-          titleStyle={styles.recapTitle}
-        >
-          <View style={styles.recapRow}>
-            <Feather name="activity" size={16} color={colors.textSecondary} />
-            <Text style={styles.recapRowText}>
-              {recap.training.trained
-                ? `${recap.training.exerciseCount} exercise${recap.training.exerciseCount === 1 ? "" : "s"} · ${recap.training.totalSets} sets · ${Math.round(displayWeight(recap.training.totalVolume, unitSystem)).toLocaleString()} ${weightUnitLabel(unitSystem)} volume`
-                : "No workout logged"}
+      <Modal
+        visible={isDailyAnalysisOpen}
+        onClose={() => setIsDailyAnalysisOpen(false)}
+        title="Progress Check"
+        titleStyle={styles.recapTitle}
+      >
+        {isRunningDailyAnalysis || (!!dailyAnalysisDateToFetch && isFetchingDailyAnalysis) ? (
+          <ActivityIndicator style={{ marginVertical: spacing.lg }} />
+        ) : dailyAnalysis ? (
+          <View>
+            <View
+              style={[
+                styles.verdictBanner,
+                dailyAnalysis.netContribution === "positive"
+                  ? styles.verdictGood
+                  : dailyAnalysis.netContribution === "negative"
+                    ? styles.verdictBad
+                    : styles.verdictNeutral,
+              ]}
+            >
+              <Feather
+                name={
+                  dailyAnalysis.netContribution === "positive"
+                    ? "check-circle"
+                    : dailyAnalysis.netContribution === "negative"
+                      ? "alert-circle"
+                      : "info"
+                }
+                size={18}
+                color={
+                  dailyAnalysis.netContribution === "positive"
+                    ? colors.completedGreen
+                    : dailyAnalysis.netContribution === "negative"
+                      ? colors.dangerRed
+                      : colors.pendingAmber
+                }
+              />
+              <Text style={styles.verdictText}>{dailyAnalysis.headline}</Text>
+            </View>
+
+            <Text style={styles.dailyAnalysisExplanation}>
+              {dailyAnalysis.explanation}
             </Text>
-          </View>
 
-          <View style={styles.recapRow}>
-            <Feather
-              name="trending-up"
-              size={16}
-              color={colors.textSecondary}
-            />
-            <Text style={styles.recapRowText}>
-              {Math.round(recap.protein.actualG)}g protein
-              {recap.protein.goalG != null
-                ? ` (${recap.protein.percentOfGoal}% of ${recap.protein.goalG}g goal)`
-                : ""}
-            </Text>
+            {dailyAnalysis.adjustments.length > 0 && (
+              <>
+                <Text style={styles.recapTitle}>Adjust for tomorrow</Text>
+                {dailyAnalysis.adjustments.map((adjustment, index) => (
+                  <View key={index} style={styles.adjustmentRow}>
+                    <View style={styles.adjustmentBullet} />
+                    <Text style={styles.adjustmentText}>{adjustment}</Text>
+                  </View>
+                ))}
+              </>
+            )}
           </View>
-
-          <View style={styles.recapRow}>
-            <Feather name="pie-chart" size={16} color={colors.textSecondary} />
-            <Text style={styles.recapRowText}>
-              {recap.calories.actual} cal
-              {recap.calories.goal != null
-                ? ` / ${recap.calories.goal} — ${CALORIE_STATUS_LABELS[recap.calories.status]}`
-                : ""}
-            </Text>
-          </View>
-
-          <View
-            style={[
-              styles.verdictBanner,
-              recap.supportsMuscleGain
-                ? styles.verdictGood
-                : styles.verdictNeutral,
-            ]}
-          >
-            <Feather
-              name={recap.supportsMuscleGain ? "check-circle" : "info"}
-              size={18}
-              color={
-                recap.supportsMuscleGain
-                  ? colors.completedGreen
-                  : colors.pendingAmber
-              }
-            />
-            <Text style={styles.verdictText}>{buildRecapVerdict(recap)}</Text>
-          </View>
-
-          <Text style={styles.recapDisclaimer}>
-            A same-day check on whether training and nutrition lined up — not
-            proof muscle was gained. That only shows up over weeks of consistent
-            training and eating, and only via real body measurement.
-          </Text>
-        </Modal>
-      )}
+        ) : (
+          <Text style={styles.recapDisclaimer}>Couldn't run today's check — try again.</Text>
+        )}
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -869,17 +862,6 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.bold,
     marginBottom: spacing.sm,
   },
-  recapRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    marginBottom: spacing.xs,
-  },
-  recapRowText: {
-    flex: 1,
-    fontSize: fontSizes.sm,
-    color: colors.textSecondary,
-  },
   verdictBanner: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -894,10 +876,38 @@ const styles = StyleSheet.create({
   verdictNeutral: {
     backgroundColor: "#FEF3E2",
   },
+  verdictBad: {
+    backgroundColor: "#FEF2F2",
+  },
   verdictText: {
     flex: 1,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.semibold,
+  },
+  dailyAnalysisExplanation: {
+    fontSize: fontSizes.sm,
+    color: colors.textSecondary,
+    lineHeight: 20,
+    marginTop: spacing.md,
+  },
+  adjustmentRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  adjustmentBullet: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: colors.primaryBlue,
+    marginTop: 7,
+  },
+  adjustmentText: {
+    flex: 1,
+    fontSize: fontSizes.sm,
+    color: colors.textSecondary,
+    lineHeight: 20,
   },
   recapDisclaimer: {
     fontSize: fontSizes.xs,

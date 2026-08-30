@@ -774,6 +774,7 @@ const styles = StyleSheet.create({
   noWorkoutText: {
     color: colors.textSecondary,
     textAlign: "center",
+    maxWidth: 300,
   },
   logWorkoutButton: {
     alignSelf: "center",

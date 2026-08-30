@@ -13,23 +13,57 @@ export default StyleSheet.create({
     paddingTop: spacing.sm,
     marginBottom: spacing.xs,
   },
-  importSection: {
+  tabBar: {
+    flexDirection: "row",
     paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    gap: spacing.sm,
+  },
+  tabButton: {
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+    borderRadius: 16,
+  },
+  tabButtonActive: {
+    backgroundColor: colors.surfaceBlueLight,
+  },
+  tabButtonText: {
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.semibold,
+    color: colors.textMuted,
+  },
+  tabButtonTextActive: {
+    color: colors.primaryBlue,
+  },
+  importSection: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "center",
+    gap: spacing.xs,
+    marginTop: spacing.sm,
     marginBottom: spacing.md,
+    marginHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: 12,
+  },
+  importSectionInfo: {
+    backgroundColor: colors.surfaceBlueLight,
+  },
+  importSectionError: {
+    backgroundColor: "#FEF2F2",
   },
   importStatusText: {
-    fontSize: fontSizes.xs,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.semibold,
+    textAlign: "center",
   },
   importStatusError: {
     color: colors.dangerRed,
   },
   importStatusInfo: {
     color: colors.textSecondary,
-  },
-  cardAttribution: {
-    fontSize: fontSizes.xs,
-    color: colors.textMuted,
-    marginTop: 2,
   },
   cardThumbnailPlaceholder: {
     alignItems: "center",
@@ -50,14 +84,6 @@ export default StyleSheet.create({
     alignItems: "center",
     gap: spacing.sm,
     marginTop: spacing.xl,
-  },
-  sectionLabel: {
-    fontSize: fontSizes.xs,
-    fontWeight: fontWeights.bold,
-    color: colors.textSecondary,
-    marginBottom: spacing.sm,
-    textTransform: "uppercase",
-    letterSpacing: 1,
   },
   grid: {
     flexDirection: "row",
@@ -101,7 +127,7 @@ export default StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: spacing.xs,
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
   },
   metaPill: {
     flexDirection: "row",
@@ -128,6 +154,38 @@ export default StyleSheet.create({
     fontWeight: fontWeights.extrabold,
     marginTop: spacing.lg,
     marginBottom: spacing.sm,
+  },
+  sectionHeadingTight: {
+    marginTop: 0,
+  },
+  mealButtonRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs,
+  },
+  mealButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    minWidth: 72,
+    minHeight: 28,
+    backgroundColor: "white",
+    borderWidth: 1,
+    borderColor: colors.borderGray,
+    borderRadius: 999,
+    paddingVertical: 5,
+    paddingHorizontal: spacing.sm,
+  },
+  mealButtonText: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.semibold,
+    color: colors.textSecondary,
+  },
+  mealAddedText: {
+    fontSize: fontSizes.xs,
+    color: colors.textSecondary,
+    marginTop: spacing.sm,
   },
   ingredientRow: {
     flexDirection: "row",
@@ -237,9 +295,103 @@ export default StyleSheet.create({
     fontSize: fontSizes.sm,
     lineHeight: 20,
   },
-  attributionText: {
+  // Review/edit modal
+  reviewSaveButton: {
+    paddingVertical: 6,
+    paddingHorizontal: spacing.md,
+  },
+  reviewSaveButtonText: {
+    fontSize: fontSizes.sm,
+  },
+  fieldLabel: {
     fontSize: fontSizes.xs,
-    color: colors.textMuted,
+    fontWeight: fontWeights.semibold,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+  },
+  editableIngredientRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  editableIngredientFields: {
+    flex: 1,
+    flexDirection: "row",
+    gap: spacing.xs,
+  },
+  editableQtyWrapper: {
+    width: 56,
+  },
+  editableUnitWrapper: {
+    width: 72,
+  },
+  editableNameWrapper: {
+    flex: 1,
+  },
+  editableStepRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
     marginBottom: spacing.sm,
+  },
+  // Deliberately not the shared bordered Input component here — these
+  // steps read as flowing instruction text (like RecipeDetailModal's
+  // read-only stepText above), just happening to be editable during
+  // review, not a form field the eye should land on as a distinct box.
+  editableStepInput: {
+    flex: 1,
+    fontSize: fontSizes.sm,
+    lineHeight: 21,
+    paddingTop: 2,
+  },
+  editableStepRemoveButton: {
+    marginTop: spacing.xs,
+  },
+  addRowButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingVertical: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  addRowText: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.semibold,
+    color: colors.primaryBlue,
+  },
+  // Success modal
+  successContainer: {
+    alignItems: "center",
+    paddingVertical: spacing.lg,
+    gap: spacing.sm,
+  },
+  successIconRing: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.surfaceBlueLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.xs,
+  },
+  successTitle: {
+    fontSize: fontSizes.lg,
+    fontWeight: fontWeights.extrabold,
+  },
+  successSubtitle: {
+    fontSize: fontSizes.sm,
+    color: colors.textSecondary,
+    textAlign: "center",
+    maxWidth: 260,
+  },
+  successButtonRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginTop: spacing.md,
+    alignSelf: "stretch",
+  },
+  successButton: {
+    flex: 1,
   },
 });

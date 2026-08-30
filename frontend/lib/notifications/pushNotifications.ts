@@ -82,7 +82,8 @@ interface PushNotificationData {
     | "follow"
     | "new_post"
     | "new_blog_post"
-    | "dm_message";
+    | "dm_message"
+    | "daily_analysis";
   postId?: string;
   blogPostId?: string;
   commentId?: string;
@@ -139,6 +140,18 @@ const getRouteForNotification = (
   if (data?.type === "dm_message") {
     if (!data.conversationId) return null;
     return `/messages/${data.conversationId}` as Href;
+  }
+
+  // The analysis for this date was already computed and persisted by the
+  // job that sent this push (see dailyProgressNotifications.ts) — the
+  // Nutrition tab just needs the date to fetch and auto-open it, not
+  // re-run anything.
+  if (data?.type === "daily_analysis") {
+    if (!data.date) return null;
+    return {
+      pathname: "/(tabs)/Nutrition",
+      params: { dailyAnalysisDate: data.date },
+    } as Href;
   }
 
   if (data?.programId && data?.date) {

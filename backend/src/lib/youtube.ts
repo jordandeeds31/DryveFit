@@ -39,6 +39,11 @@ export type YouTubeCaptionErrorReason =
 export interface YouTubeCaptionSuccess {
   ok: true;
   videoId: string;
+  // The canonical https://www.youtube.com/watch?v=<id> URL — stable
+  // regardless of whether the share arrived as a Short, a youtu.be short
+  // link, or a watch link with tracking params (?si=...), so callers can
+  // use it as a dedup key instead of the raw share URL.
+  canonicalUrl: string;
   caption: string;
   authorHandle: string;
   authorName: string;
@@ -139,6 +144,7 @@ export const fetchYouTubeCaption = async (
   return {
     ok: true,
     videoId,
+    canonicalUrl: `https://www.youtube.com/watch?v=${videoId}`,
     caption: typeof snippet.description === "string" ? snippet.description : "",
     authorHandle: "",
     authorName: typeof snippet.channelTitle === "string" ? snippet.channelTitle : "",

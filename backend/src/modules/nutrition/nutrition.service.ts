@@ -327,6 +327,41 @@ export const estimateMacros = async (text: string): Promise<MacroEstimate> => {
   return parseMacroEstimateResponse(completion.choices[0].message.content);
 };
 
+// Deliberately a separate prompt from estimateMacros above, not the same
+// call reused: that one's input is already a single-serving description
+// ("3 scrambled eggs"), so summing straight through is correct. A
+// recipe's ingredient list is the whole dish's batch — often 4-6+
+// servings — so summing it the same way would log an entire pot as if it
+// were one plate. This one explicitly reasons about typical yield and
+// divides down to one serving before returning.
+//
+// temperature: 0 — this result gets cached once per recipe (see
+// logSavedRecipeToMeal in recipeImport.service.ts) specifically so a
+// recipe's macros stay the same every time it's logged; the default
+// temperature would make even that single estimation call non-
+// reproducible if it were ever recomputed, undermining the whole point
+// of caching it.
+export const estimateRecipeMacros = async (
+  title: string,
+  ingredientsText: string,
+): Promise<MacroEstimate> => {
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    temperature: 0,
+    messages: [
+      {
+        role: "system",
+        content:
+          "You estimate nutrition for a home-cooked dish given its full recipe (title and the WHOLE batch's ingredient list, not a single plate). First judge how many servings this dish would typically yield based on the ingredients and dish type (e.g. a pasta dish with 340g dry pasta and a full can of tomatoes usually serves 4). Then report calories and macros (protein, carbs, fat in grams) for ONE typical serving — the total batch divided by that serving count — never the whole batch's totals. Report confidence: \"high\" when the ingredients clearly imply a standard yield; \"medium\" when yield is a reasonable guess; \"low\" when the ingredient list is too sparse to judge servings at all.",
+      },
+      { role: "user", content: `${title}\n\nIngredients (whole recipe): ${ingredientsText}` },
+    ],
+    response_format: MACRO_ESTIMATE_RESPONSE_FORMAT,
+  });
+
+  return parseMacroEstimateResponse(completion.choices[0].message.content);
+};
+
 // Same output shape/confidence convention as estimateMacros above, just
 // fed a photo instead of a description — the food-search screen's "Take a
 // Photo" button. gpt-4o-mini is already vision-capable, so this reuses the
