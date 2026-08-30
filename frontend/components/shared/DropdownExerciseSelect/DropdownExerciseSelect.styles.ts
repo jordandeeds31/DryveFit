@@ -29,14 +29,33 @@ const styles = StyleSheet.create({
     borderColor: colors.borderGray,
     borderRadius: 8,
     maxHeight: 320,
+    backgroundColor: "white",
+  },
+  // Floats the results above whatever's below it (e.g. a graph grid)
+  // instead of the default inline behavior, which pushes that content
+  // down as the list grows. zIndex for iOS/JS layout, elevation for
+  // Android's separate compositing order.
+  dropdownOverlay: {
+    position: "absolute",
+    // Percentage, not a fixed pixel value — categoryRow (now always
+    // visible above this, not nested inside it) wraps to a variable
+    // number of lines, so this needs to land right below however tall
+    // inputRow + categoryRow actually rendered, not a guessed constant.
+    top: "100%",
+    left: 0,
+    right: 0,
+    zIndex: 100,
+    elevation: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
   },
   categoryRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: spacing.xs,
     padding: spacing.xs,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderGray,
   },
   categoryChip: {
     borderWidth: 1,
@@ -64,8 +83,18 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
   },
   item: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.sm,
+  },
+  itemSelected: {
+    backgroundColor: colors.surfaceBlueLight,
+  },
+  itemTextGroup: {
+    flex: 1,
   },
   itemName: {
     fontWeight: fontWeights.semibold,
@@ -75,6 +104,31 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     color: colors.textSecondary,
     textTransform: "capitalize",
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: colors.borderGray,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkboxChecked: {
+    backgroundColor: colors.primaryBlue,
+    borderColor: colors.primaryBlue,
+  },
+  doneButton: {
+    paddingVertical: spacing.sm,
+    alignItems: "center",
+    borderTopWidth: 1,
+    borderTopColor: colors.borderGray,
+    backgroundColor: colors.surfaceGrayLight,
+  },
+  doneButtonText: {
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
+    color: colors.primaryBlue,
   },
   loadingText: {
     padding: spacing.sm,

@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { View, Text, Dimensions, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, Dimensions, StyleSheet } from "react-native";
 import { LineChart } from "react-native-chart-kit";
+import Feather from "@expo/vector-icons/Feather";
 import { spacing } from "@/constants/spacing";
 import { colors } from "@/constants/colors";
 import { fontSizes, fontWeights } from "@/constants/typography";
@@ -19,11 +20,15 @@ const CHART_HEIGHT = 320;
 
 const screenWidth = Dimensions.get("window").width;
 const CARD_HORIZONTAL_PADDING = spacing.sm;
+// Matches cardCompact's own paddingHorizontal below — kept as its own
+// constant since chartWidth's math needs to subtract whichever of the two
+// actually applies, not always CARD_HORIZONTAL_PADDING.
+const COMPACT_CARD_HORIZONTAL_PADDING = spacing.xs;
 const SCREEN_HORIZONTAL_PADDING = spacing.sm;
-const chartWidth =
-  screenWidth -
-  SCREEN_HORIZONTAL_PADDING * 2 -
-  CARD_HORIZONTAL_PADDING * 2;
+// `width` (prop or this default) always means the outer card's width —
+// the actual chart's pixel width still needs the card's own horizontal
+// padding subtracted from it either way, done once below.
+const DEFAULT_CARD_WIDTH = screenWidth - SCREEN_HORIZONTAL_PADDING * 2;
 
 interface SelectedPoint {
   value: number;
@@ -32,8 +37,24 @@ interface SelectedPoint {
   y: number;
 }
 
-const Graph = ({ history }: GraphProps) => {
+const Graph = ({
+  history,
+  title,
+  width,
+  compact = false,
+  onRemove,
+  onPress,
+}: GraphProps) => {
   const unitSystem = useUnitSystem();
+  const horizontalPadding = compact
+    ? COMPACT_CARD_HORIZONTAL_PADDING
+    : CARD_HORIZONTAL_PADDING;
+  const chartWidth = (width ?? DEFAULT_CARD_WIDTH) - horizontalPadding * 2;
+  // Roughly square in compact/grid mode — chart-kit needs some headroom
+  // below the card's own width for its axis labels, so this isn't the
+  // card's literal height, just close enough to read as "square" rather
+  // than the tall, wide-screen proportions the standalone graph uses.
+  const chartHeight = compact ? Math.max(chartWidth * 0.85, 120) : CHART_HEIGHT;
   const [selectedPoint, setSelectedPoint] = useState<SelectedPoint | null>(
     null,
   );
@@ -60,16 +81,44 @@ const Graph = ({ history }: GraphProps) => {
     ],
   };
 
+  const Wrapper = onPress ? TouchableOpacity : View;
+
   return (
-    <View style={styles.card}>
-      <Text style={styles.title}>ESTIMATED 1-REP MAX</Text>
+    <Wrapper
+      style={[
+        styles.card,
+        compact && styles.cardCompact,
+        width != null && { width },
+      ]}
+      onPress={onPress}
+      // Data-point taps on the chart below already have their own
+      // handling (onDataPointClick) — this only fires for the rest of
+      // the card, so the two don't fight over the same tap.
+      activeOpacity={onPress ? 0.7 : 1}
+    >
+      {onRemove && (
+        <TouchableOpacity
+          style={styles.removeButton}
+          onPress={onRemove}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Feather name="x" size={14} color={colors.textSecondary} />
+        </TouchableOpacity>
+      )}
+      <Text
+        style={[styles.exerciseTitle, compact && styles.exerciseTitleCompact]}
+        numberOfLines={1}
+      >
+        {title}
+      </Text>
+      {!compact && <Text style={styles.title}>ESTIMATED 1-REP MAX</Text>}
       <LineChart
         data={chartData}
         width={chartWidth}
-        height={CHART_HEIGHT}
+        height={chartHeight}
         yAxisSuffix={` ${weightUnitLabel(unitSystem)}`}
         fromZero
-        segments={5}
+        segments={compact ? 3 : 5}
         chartConfig={{
           backgroundColor: GRAPH_BG,
           backgroundGradientFrom: GRAPH_BG,
@@ -77,13 +126,13 @@ const Graph = ({ history }: GraphProps) => {
           decimalPlaces: 0,
           color: (opacity = 1) => `rgba(2, 44, 250, ${opacity})`,
           labelColor: (opacity = 1) => `rgba(71, 85, 105, ${opacity})`,
-          strokeWidth: 3,
+          strokeWidth: compact ? 2 : 3,
           propsForBackgroundLines: {
             stroke: GRID_LINE,
             strokeDasharray: "4",
           },
           propsForDots: {
-            r: "5",
+            r: compact ? "3" : "5",
             strokeWidth: "2",
             stroke: "white",
             fill: colors.primaryBlue,
@@ -119,7 +168,7 @@ const Graph = ({ history }: GraphProps) => {
           </Text>
         </View>
       )}
-    </View>
+    </Wrapper>
   );
 };
 
@@ -127,7 +176,7 @@ export default Graph;
 
 const styles = StyleSheet.create({
   card: {
-    marginTop: spacing.md,
+    marginTop: spacing.xs,
     backgroundColor: GRAPH_BG,
     borderRadius: 16,
     borderWidth: 1,
@@ -139,6 +188,44 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 6,
     elevation: 2,
+  },
+  cardCompact: {
+    marginTop: 0,
+    borderRadius: 12,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xs,
+  },
+  removeButton: {
+    position: "absolute",
+    // Sits right at the corner, half over the card's own border — not
+    // inset from it — per feedback that an inset X read as floating
+    // inside the card instead of a "remove this card" control on it.
+    top: -8,
+    right: -8,
+    zIndex: 1,
+    backgroundColor: "white",
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    elevation: 3,
+  },
+  exerciseTitle: {
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.extrabold,
+    color: "#000",
+    textAlign: "center",
+  },
+  exerciseTitleCompact: {
+    fontSize: fontSizes.sm,
+    marginBottom: spacing.xs,
   },
   title: {
     fontSize: fontSizes.sm,

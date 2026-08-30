@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { getExercise1RMHistory, getPreviousSession } from "@/lib/api/exercises.api";
 import { EXERCISES } from "@/constants/exercises";
 import { Exercise } from "@/types/exercise.types";
@@ -25,6 +25,20 @@ export const use1RMHistory = (exerciseName: string | null) => {
     queryKey: ["1rmHistory", exerciseName],
     queryFn: () => getExercise1RMHistory(exerciseName!),
     enabled: !!exerciseName,
+  });
+};
+
+// The PR Progress grid's multi-exercise mode — useQuery can't be called a
+// variable number of times per render (rules of hooks), so a growing/
+// shrinking selection needs useQueries instead of N separate use1RMHistory
+// calls. Same cache entries as use1RMHistory (identical queryKey shape),
+// so picking an exercise there and here never double-fetches.
+export const use1RMHistories = (exerciseNames: string[]) => {
+  return useQueries({
+    queries: exerciseNames.map((exerciseName) => ({
+      queryKey: ["1rmHistory", exerciseName],
+      queryFn: () => getExercise1RMHistory(exerciseName),
+    })),
   });
 };
 
