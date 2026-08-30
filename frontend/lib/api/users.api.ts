@@ -7,7 +7,7 @@ import {
   UserSearchResult,
   FollowedUser,
 } from "@/types/user.types";
-import { ProgramWithWeeks } from "@/types/programs.types";
+import { ProgramWithWeeks, ScheduleEntry } from "@/types/programs.types";
 import { Post } from "@/types/posts.types";
 
 export const getCurrentUser = async (): Promise<UserProfile> => {
@@ -38,6 +38,13 @@ export const getPublicActiveProgram = async (
 ): Promise<ProgramWithWeeks | null> => {
   const { data } = await apiClient.get(`/api/users/${userId}/active-program`);
   return data.result.program;
+};
+
+export const getPublicSchedule = async (
+  userId: string,
+): Promise<ScheduleEntry[]> => {
+  const { data } = await apiClient.get(`/api/users/${userId}/schedule`);
+  return data.result.schedule;
 };
 
 export const getPublicNutritionHistory = async (

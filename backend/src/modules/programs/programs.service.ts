@@ -997,6 +997,33 @@ export const getScheduleForUser = async (userId: string) => {
     .sort((a, b) => a.date.localeCompare(b.date));
 };
 
+// Same shape as getScheduleForUser (reused as-is), just gated the same way
+// getPublicActiveProgram/getPublicProfile are — appearing on the
+// leaderboard is what makes another user's schedule visible at all. Backs
+// the public profile screen's weekly-calendar view of someone else's
+// program, replacing what used to be a separate flat card grid there.
+export const getPublicScheduleForUser = async (
+  viewerId: string,
+  targetUserId: string,
+) => {
+  if (viewerId !== targetUserId) {
+    const user = await prisma.user.findFirst({
+      where: {
+        id: targetUserId,
+        isLeaderboardVisible: true,
+        username: { not: null },
+      },
+      select: { id: true },
+    });
+
+    if (!user) {
+      throw new AppError(404, "Profile not found");
+    }
+  }
+
+  return getScheduleForUser(targetUserId);
+};
+
 export const getProgramDayByDate = async (
   userId: string,
   programId: string,

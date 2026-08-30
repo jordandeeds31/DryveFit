@@ -8,6 +8,7 @@ import {
   getPublicProfile,
   getPublicWorkoutHistory,
   getPublicActiveProgram,
+  getPublicSchedule,
   getPublicNutritionHistory,
   getPublicPosts,
   searchUsers,
@@ -48,6 +49,14 @@ export const usePublicActiveProgram = (userId: string | null) => {
   return useQuery({
     queryKey: ["publicActiveProgram", userId],
     queryFn: () => getPublicActiveProgram(userId!),
+    enabled: !!userId,
+  });
+};
+
+export const usePublicSchedule = (userId: string | null) => {
+  return useQuery({
+    queryKey: ["publicSchedule", userId],
+    queryFn: () => getPublicSchedule(userId!),
     enabled: !!userId,
   });
 };

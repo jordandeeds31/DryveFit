@@ -16,7 +16,10 @@ import {
   deleteUserAccount,
 } from "./users.service";
 import { getPublicWorkoutHistory } from "../workoutLogs/workoutLogs.service";
-import { getPublicActiveProgram } from "../programs/programs.service";
+import {
+  getPublicActiveProgram,
+  getPublicScheduleForUser,
+} from "../programs/programs.service";
 import { getPublicNutritionHistory } from "../nutrition/nutrition.service";
 import { getPublicPostsByUser } from "../posts/posts.service";
 import {
@@ -146,6 +149,19 @@ export const getPublicActiveProgramHandler = catchAsync(
 
     const program = await getPublicActiveProgram(req.userId!, userId);
     sendSuccess(res, 200, "PUBLIC_ACTIVE_PROGRAM_FETCHED", { program });
+  },
+);
+
+export const getPublicScheduleHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const { userId } = req.params;
+
+    if (typeof userId !== "string") {
+      throw new AppError(400, "userId is required");
+    }
+
+    const schedule = await getPublicScheduleForUser(req.userId!, userId);
+    sendSuccess(res, 200, "PUBLIC_SCHEDULE_FETCHED", { schedule });
   },
 );
 

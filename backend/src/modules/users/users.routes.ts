@@ -13,6 +13,7 @@ import {
   getPublicProfileHandler,
   getPublicWorkoutHistoryHandler,
   getPublicActiveProgramHandler,
+  getPublicScheduleHandler,
   getPublicNutritionHistoryHandler,
   getPublicPostsHandler,
   searchUsersHandler,
@@ -48,6 +49,7 @@ router.get("/:userId/profile-image", getProfileImageHandler);
 router.get("/:userId/public-profile", getPublicProfileHandler);
 router.get("/:userId/workouts", getPublicWorkoutHistoryHandler);
 router.get("/:userId/active-program", getPublicActiveProgramHandler);
+router.get("/:userId/schedule", getPublicScheduleHandler);
 router.get("/:userId/nutrition", getPublicNutritionHistoryHandler);
 router.get("/:userId/posts", getPublicPostsHandler);
 router.post("/:userId/follow", followUserHandler);

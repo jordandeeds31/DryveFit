@@ -22,6 +22,7 @@ import {
   usePublicProfile,
   usePublicWorkoutHistory,
   usePublicActiveProgram,
+  usePublicSchedule,
   usePublicNutritionHistory,
   usePublicPosts,
   useToggleFollow,
@@ -49,7 +50,6 @@ import {
 } from "@/types/user.types";
 import {
   Program,
-  ProgramWeek,
   ProgramDay,
   ProgramExercise,
 } from "@/types/programs.types";
@@ -145,6 +145,11 @@ const UserProfileScreen = () => {
   );
   const { data: activeProgram, isLoading: isProgramLoading } =
     usePublicActiveProgram(userId ?? null);
+  // Covers this user's whole history (not just the visible month, unlike
+  // workoutLogs above) — used only to mark which dates the single
+  // MonthCalendar below shows as logged, for both program days and
+  // standalone-logged ones alike.
+  const { data: publicSchedule } = usePublicSchedule(userId ?? null);
   // undefined = current month (the hook/API default) — set once the viewer
   // navigates the calendar to a different month.
   const [nutritionMonthKey, setNutritionMonthKey] = useState<string | undefined>(
@@ -197,6 +202,21 @@ const UserProfileScreen = () => {
   const hasOwnActiveProgram = !!ownPrograms?.some(
     (program: Program) => program.isActive,
   );
+
+  // Every date with either a scheduled program day or a standalone log —
+  // the single MonthCalendar below (same component/look Nutrition uses)
+  // renders all of these as logged, regardless of which kind they are.
+  const workoutLoggedDates = new Set(
+    (publicSchedule ?? []).map((entry) => entry.date),
+  );
+
+  // day.date is a UTC-midnight ISO datetime — slicing its date portion
+  // directly (not re-parsing through a local Date) avoids the same
+  // timezone-rollback risk selectedWorkoutLog above already guards
+  // against, matching it against the tapped date's own "YYYY-MM-DD" key.
+  const selectedProgramDay = activeProgram?.weeks
+    .flatMap((week) => week.days)
+    .find((day) => day.date.slice(0, 10) === selectedWorkoutDate);
 
   const performInherit = (
     day: ProgramDay,
@@ -711,115 +731,117 @@ const UserProfileScreen = () => {
             <>
               <Text style={styles.sectionLabel}>Current Program</Text>
               <Text style={styles.programName}>{activeProgram.name}</Text>
-              {activeProgram.weeks.map((week: ProgramWeek) => (
-                <View key={week.id} style={styles.weekBlock}>
-                  <Text style={styles.weekLabel}>Week {week.weekNumber}</Text>
-                  <View style={styles.grid}>
-                    {week.days.map((day: ProgramDay) => (
-                      <View key={day.id} style={styles.gridCard}>
-                        <View style={styles.cardHeaderRow}>
-                          <Text style={styles.cardTitle}>{day.dayName}</Text>
-                          <View
-                            style={[
-                              styles.badge,
-                              day.isRestDay
-                                ? styles.badgeMuted
-                                : styles.badgeActive,
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.badgeText,
-                                day.isRestDay
-                                  ? styles.badgeTextMuted
-                                  : styles.badgeTextActive,
-                              ]}
-                            >
-                              {day.isRestDay ? "Rest" : day.focus}
-                            </Text>
-                          </View>
-                        </View>
-                        {!day.isRestDay &&
-                          day.exercises.map((exercise: ProgramExercise) => (
-                            <View key={exercise.id} style={styles.exerciseLine}>
-                              <Text
-                                style={styles.exerciseName}
-                                numberOfLines={1}
-                              >
-                                {exercise.exerciseName}
-                              </Text>
-                              <Text style={styles.setText}>
-                                {exercise.sets}x{exercise.reps}
-                              </Text>
-                            </View>
-                          ))}
-                        {/* Inheriting only makes sense from someone ELSE's
-                            program — copying your own workout into your
-                            own schedule is meaningless (and creates real
-                            edge cases: the source and target day/program
-                            can end up being the exact same one). */}
-                        {!isOwnProfile && !day.isRestDay && hasOwnActiveProgram && (
-                          <TouchableOpacity
-                            style={styles.inheritButton}
-                            onPress={() => handleInherit(day)}
-                            disabled={isInheriting}
-                          >
-                            <Feather
-                              name="download"
-                              size={12}
-                              color={colors.primaryBlue}
-                            />
-                            <Text style={styles.inheritButtonText}>
-                              Copy to my schedule
-                            </Text>
-                          </TouchableOpacity>
-                        )}
-                        {!isOwnProfile && !day.isRestDay && !hasOwnActiveProgram && (
-                          <TouchableOpacity
-                            style={styles.inheritButton}
-                            onPress={() => handleInheritAsNewProgram(day)}
-                          >
-                            <Feather
-                              name="download"
-                              size={12}
-                              color={colors.primaryBlue}
-                            />
-                            <Text style={styles.inheritButtonText}>
-                              Inherit Workout
-                            </Text>
-                          </TouchableOpacity>
-                        )}
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              ))}
             </>
           )}
 
+          {/* One calendar, same component/look as the Nutrition tab's —
+              dates come from workoutLoggedDates, which covers both
+              scheduled program days and standalone-logged workouts, so
+              there's no second, differently-styled calendar competing
+              with this one. */}
           {tab === "workouts" && (
             <MonthCalendar
-              loggedDates={
-                new Set(
-                  (workoutLogs ?? []).map((log: PublicWorkoutLog) =>
-                    log.loggedAt.slice(0, 10),
-                  ),
-                )
-              }
+              loggedDates={workoutLoggedDates}
               selectedDate={selectedWorkoutDate}
               onSelectDate={setSelectedWorkoutDate}
               onMonthChange={(monthKey) => {
                 setWorkoutMonthKey(monthKey);
-                // Same reasoning as the nutrition calendar — the
-                // previously-selected date almost certainly doesn't
+                // The previously-selected date almost certainly doesn't
                 // exist in the newly-fetched month's data.
                 setSelectedWorkoutDate(null);
               }}
             />
           )}
 
+          {tab === "workouts" && selectedProgramDay && (
+            <View style={styles.selectedDayCard}>
+              <View style={styles.cardHeaderRow}>
+                <Text style={styles.cardTitle}>
+                  {selectedProgramDay.dayName}
+                </Text>
+                <View
+                  style={[
+                    styles.badge,
+                    selectedProgramDay.isRestDay
+                      ? styles.badgeMuted
+                      : styles.badgeActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.badgeText,
+                      selectedProgramDay.isRestDay
+                        ? styles.badgeTextMuted
+                        : styles.badgeTextActive,
+                    ]}
+                  >
+                    {selectedProgramDay.isRestDay
+                      ? "Rest"
+                      : selectedProgramDay.focus}
+                  </Text>
+                </View>
+              </View>
+              {!selectedProgramDay.isRestDay &&
+                selectedProgramDay.exercises.map(
+                  (exercise: ProgramExercise) => (
+                    <View key={exercise.id} style={styles.exerciseLine}>
+                      <Text style={styles.exerciseName} numberOfLines={1}>
+                        {exercise.exerciseName}
+                      </Text>
+                      <Text style={styles.setText}>
+                        {exercise.sets}x{exercise.reps}
+                      </Text>
+                    </View>
+                  ),
+                )}
+              {/* Inheriting only makes sense from someone ELSE's program —
+                  copying your own workout into your own schedule is
+                  meaningless (and creates real edge cases: the source and
+                  target day/program can end up being the exact same
+                  one). */}
+              {!isOwnProfile &&
+                !selectedProgramDay.isRestDay &&
+                hasOwnActiveProgram && (
+                  <TouchableOpacity
+                    style={styles.inheritButton}
+                    onPress={() => handleInherit(selectedProgramDay)}
+                    disabled={isInheriting}
+                  >
+                    <Feather
+                      name="download"
+                      size={12}
+                      color={colors.primaryBlue}
+                    />
+                    <Text style={styles.inheritButtonText}>
+                      Copy to my schedule
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              {!isOwnProfile &&
+                !selectedProgramDay.isRestDay &&
+                !hasOwnActiveProgram && (
+                  <TouchableOpacity
+                    style={styles.inheritButton}
+                    onPress={() =>
+                      handleInheritAsNewProgram(selectedProgramDay)
+                    }
+                  >
+                    <Feather
+                      name="download"
+                      size={12}
+                      color={colors.primaryBlue}
+                    />
+                    <Text style={styles.inheritButtonText}>
+                      Inherit Workout
+                    </Text>
+                  </TouchableOpacity>
+                )}
+            </View>
+          )}
+
           {tab === "workouts" &&
             !isHistoryLoading &&
+            !activeProgram &&
             (!workoutLogs || workoutLogs.length === 0) && (
               <Text style={styles.emptyText}>
                 No workouts logged that month.
@@ -858,17 +880,24 @@ const UserProfileScreen = () => {
       <Modal
         visible={!!selectedNutritionDate}
         onClose={() => setSelectedNutritionDate(null)}
+        title={
+          selectedNutritionDay
+            ? formatLoggedAt(selectedNutritionDay.date)
+            : undefined
+        }
+        titleStyle={styles.cardTitle}
       >
         {selectedNutritionDay && (
           <View>
-            <View style={styles.cardHeaderRow}>
-              <Text style={styles.cardTitle}>
-                {formatLoggedAt(selectedNutritionDay.date)}
-              </Text>
-              <Text style={styles.nutritionCalories}>
-                {Math.round(selectedNutritionDay.totals.calories)} cal
-              </Text>
-            </View>
+            <Text
+              style={[
+                styles.nutritionCalories,
+                styles.selfEnd,
+                { marginBottom: spacing.xs },
+              ]}
+            >
+              {Math.round(selectedNutritionDay.totals.calories)} cal
+            </Text>
             <Text style={styles.nutritionMacros}>
               {Math.round(selectedNutritionDay.totals.proteinG)}g protein ·{" "}
               {Math.round(selectedNutritionDay.totals.carbsG)}g carbs ·{" "}
@@ -902,21 +931,29 @@ const UserProfileScreen = () => {
       <Modal
         visible={!!selectedWorkoutDate}
         onClose={() => setSelectedWorkoutDate(null)}
+        title={
+          selectedWorkoutLog
+            ? formatLoggedAt(selectedWorkoutLog.loggedAt)
+            : undefined
+        }
+        titleStyle={styles.cardTitle}
       >
         {selectedWorkoutLog && (
           <View>
-            <View style={styles.cardHeaderRow}>
-              <Text style={styles.cardTitle}>
-                {formatLoggedAt(selectedWorkoutLog.loggedAt)}
+            <View
+              style={[
+                styles.badge,
+                styles.badgeActive,
+                styles.selfEnd,
+                { marginBottom: spacing.xs },
+              ]}
+            >
+              <Text style={[styles.badgeText, styles.badgeTextActive]}>
+                {selectedWorkoutLog.exercises.length}{" "}
+                {selectedWorkoutLog.exercises.length === 1
+                  ? "exercise"
+                  : "exercises"}
               </Text>
-              <View style={[styles.badge, styles.badgeActive]}>
-                <Text style={[styles.badgeText, styles.badgeTextActive]}>
-                  {selectedWorkoutLog.exercises.length}{" "}
-                  {selectedWorkoutLog.exercises.length === 1
-                    ? "exercise"
-                    : "exercises"}
-                </Text>
-              </View>
             </View>
             {selectedWorkoutLog.exercises.map((exercise) => (
               <View key={exercise.id} style={styles.exerciseBlock}>
@@ -1265,33 +1302,20 @@ const styles = StyleSheet.create({
     marginTop: 2,
     marginBottom: spacing.md,
   },
-  weekBlock: {
-    marginBottom: spacing.lg,
-  },
-  weekLabel: {
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.bold,
-    color: colors.primaryBlue,
-    marginBottom: spacing.sm,
-  },
   emptyText: {
     fontSize: fontSizes.sm,
     color: colors.textSecondary,
     marginTop: spacing.md,
     textAlign: "center",
   },
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-  },
-  gridCard: {
-    width: "48%",
+  selectedDayCard: {
+    width: "100%",
     backgroundColor: "white",
     borderWidth: 1,
     borderColor: colors.borderGray,
     borderRadius: 12,
     padding: spacing.sm,
+    marginTop: spacing.sm,
     marginBottom: spacing.sm,
     gap: 6,
     shadowColor: "#000",
@@ -1310,6 +1334,9 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.bold,
     flexShrink: 1,
+  },
+  selfEnd: {
+    alignSelf: "flex-end",
   },
   badge: {
     borderRadius: 8,
