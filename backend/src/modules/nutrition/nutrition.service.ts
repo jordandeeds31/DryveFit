@@ -7,6 +7,7 @@ import {
   UsdaSearchNutrient,
   UsdaDetailNutrient,
 } from "../../lib/usdaFoodData";
+import { getBodyScanHistory } from "../bodyScans/bodyScans.service";
 
 // USDA "nutrient number" codes — stable identifiers across dataTypes and
 // across the search vs. detail response shapes, unlike nutrientId.
@@ -274,6 +275,37 @@ export interface MacroEstimate {
   confidence: "high" | "medium" | "low";
 }
 
+// Shared by both estimateMacros (text) and estimateMacrosFromPhoto (image)
+// below, plus the AI chat's log_food tool via estimateMacros — one schema,
+// so a future field/prompt change never has to be kept in sync by hand
+// across multiple copies.
+const MACRO_ESTIMATE_RESPONSE_FORMAT = {
+  type: "json_schema" as const,
+  json_schema: {
+    name: "macro_estimate",
+    strict: true,
+    schema: {
+      type: "object",
+      properties: {
+        calories: { type: "integer" },
+        proteinG: { type: "number" },
+        carbsG: { type: "number" },
+        fatG: { type: "number" },
+        confidence: { type: "string", enum: ["high", "medium", "low"] },
+      },
+      required: ["calories", "proteinG", "carbsG", "fatG", "confidence"],
+      additionalProperties: false,
+    },
+  },
+};
+
+const parseMacroEstimateResponse = (raw: string | null): MacroEstimate => {
+  if (!raw) {
+    throw new AppError(502, "Couldn't estimate macros for that — try again");
+  }
+  return JSON.parse(raw);
+};
+
 // Shared by the AI chat's log_food tool and the manual nutrition-entry
 // screen's freeform-text path — one estimation call, two callers, so
 // there's exactly one place that ever needs updating if the prompt or
@@ -289,32 +321,47 @@ export const estimateMacros = async (text: string): Promise<MacroEstimate> => {
       },
       { role: "user", content: text },
     ],
-    response_format: {
-      type: "json_schema",
-      json_schema: {
-        name: "macro_estimate",
-        strict: true,
-        schema: {
-          type: "object",
-          properties: {
-            calories: { type: "integer" },
-            proteinG: { type: "number" },
-            carbsG: { type: "number" },
-            fatG: { type: "number" },
-            confidence: { type: "string", enum: ["high", "medium", "low"] },
-          },
-          required: ["calories", "proteinG", "carbsG", "fatG", "confidence"],
-          additionalProperties: false,
-        },
-      },
-    },
+    response_format: MACRO_ESTIMATE_RESPONSE_FORMAT,
   });
 
-  const raw = completion.choices[0].message.content;
-  if (!raw) {
-    throw new AppError(502, "Couldn't estimate macros for that — try again");
-  }
-  return JSON.parse(raw);
+  return parseMacroEstimateResponse(completion.choices[0].message.content);
+};
+
+// Same output shape/confidence convention as estimateMacros above, just
+// fed a photo instead of a description — the food-search screen's "Take a
+// Photo" button. gpt-4o-mini is already vision-capable, so this reuses the
+// exact same model as the text path rather than a separate, pricier one.
+export const estimateMacrosFromPhoto = async (
+  photoBuffer: Buffer,
+): Promise<MacroEstimate> => {
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      {
+        role: "system",
+        content:
+          'Estimate total calories and macros (protein, carbs, fat in grams) for the food shown in the photo. Use your best judgment about portion size from what\'s visible (plate size, utensils, packaging, etc. as scale references). If multiple foods are visible, sum their totals into one estimate. Report your confidence: "high" for a clear, unobstructed view of common, easy-to-size food; "medium" for a reasonable but assumption-heavy guess (partial view, unfamiliar dish, unclear portion); "low" for a poor/blurry photo or food that\'s genuinely hard to identify or size.',
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: "Estimate calories and macros for the food in this photo.",
+          },
+          {
+            type: "image_url",
+            image_url: {
+              url: `data:image/jpeg;base64,${photoBuffer.toString("base64")}`,
+            },
+          },
+        ],
+      },
+    ],
+    response_format: MACRO_ESTIMATE_RESPONSE_FORMAT,
+  });
+
+  return parseMacroEstimateResponse(completion.choices[0].message.content);
 };
 
 export const deleteFoodLogEntry = async (userId: string, entryId: string) => {
@@ -883,4 +930,147 @@ export const getNutritionProfile = async (userId: string) => {
   });
 
   return { ...user, age: birthdate ? calculateAge(birthdate) : null };
+};
+
+// The standard "3500 kcal ≈ 1 lb of body weight" rule of thumb — the same
+// approximation most consumer nutrition apps use for a calorie-balance-
+// driven weight projection. Not exact (water weight, metabolic adaptation,
+// body composition changes aren't calories-in/out alone), which is exactly
+// why this is framed to the user as a rough trend line, not a precise
+// forecast.
+const LBS_PER_CALORIE = 1 / 3500;
+// How far back to average actual intake, and how far forward to project —
+// both arbitrary but reasonable: long enough to smooth out day-to-day
+// noise/weekends, short enough that a recent diet change shows up in the
+// projection within a few weeks rather than being diluted by months of
+// stale history.
+const WEIGHT_TREND_LOOKBACK_DAYS = 30;
+const WEIGHT_TREND_PROJECTION_WEEKS = 12;
+// Below this many actual logged days in the lookback window, the average
+// is too noisy/unrepresentative to project from at all (e.g. two logged
+// days, one a holiday, would produce a wildly wrong daily average).
+const MIN_LOGGED_DAYS_FOR_TREND = 5;
+
+const lbsToKg = (lbs: number) => lbs * 0.453592;
+const kgToLbs = (kg: number) => kg / 0.453592;
+
+// Projects future body weight from the gap between what this user actually
+// eats (averaged over real logged days, not calendar days) and their
+// Mifflin-St Jeor-estimated maintenance calories — the same formula
+// updateNutritionProfile uses to set their calorie goal, just evaluated
+// against actual intake instead of the goal. Requires the same profile
+// inputs nutrition goal setup already collects.
+export const getWeightTrend = async (userId: string) => {
+  const { birthdate, ...user } = await prisma.user.findUniqueOrThrow({
+    where: { id: userId },
+    select: {
+      gender: true,
+      weightLbs: true,
+      heightInches: true,
+      birthdate: true,
+      activityLevel: true,
+    },
+  });
+
+  if (
+    !user.gender ||
+    !user.weightLbs ||
+    !user.heightInches ||
+    !birthdate ||
+    !user.activityLevel
+  ) {
+    throw new AppError(
+      400,
+      "Set up your nutrition goals first — this needs your weight, height, age, and activity level.",
+    );
+  }
+
+  const age = calculateAge(birthdate);
+  const weightKg = lbsToKg(user.weightLbs);
+  const heightCm = user.heightInches * 2.54;
+
+  const bmr =
+    user.gender === "male"
+      ? 10 * weightKg + 6.25 * heightCm - 5 * age + 5
+      : 10 * weightKg + 6.25 * heightCm - 5 * age - 161;
+
+  const maintenanceCalories = bmr * ACTIVITY_MULTIPLIERS[user.activityLevel];
+
+  const lookbackStart = new Date();
+  lookbackStart.setDate(lookbackStart.getDate() - (WEIGHT_TREND_LOOKBACK_DAYS - 1));
+  lookbackStart.setHours(0, 0, 0, 0);
+
+  const entries = await prisma.foodLogEntry.findMany({
+    where: { userId, date: { gte: lookbackStart } },
+    select: { date: true, calories: true },
+  });
+
+  const caloriesByDay = new Map<string, number>();
+  for (const entry of entries) {
+    const dayKey = toLocalDateKey(entry.date);
+    caloriesByDay.set(dayKey, (caloriesByDay.get(dayKey) ?? 0) + entry.calories);
+  }
+
+  const loggedDayCount = caloriesByDay.size;
+
+  // BodyScan's own weight snapshots (see bodyScans.service.ts) — sparse
+  // (one per week at most, Pro-gated) real data points to plot alongside
+  // the projection, not required for the math above.
+  const bodyScans = await getBodyScanHistory(userId);
+  const history = bodyScans
+    .map((scan) => ({
+      date: scan.createdAt.toISOString().slice(0, 10),
+      weightLbs: Math.round(kgToLbs(scan.weightKg) * 10) / 10,
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  if (loggedDayCount < MIN_LOGGED_DAYS_FOR_TREND) {
+    return {
+      hasEnoughData: false,
+      loggedDayCount,
+      minLoggedDays: MIN_LOGGED_DAYS_FOR_TREND,
+      currentWeightLbs: user.weightLbs,
+      maintenanceCalories: Math.round(maintenanceCalories),
+      avgDailyCalories: null,
+      dailyBalance: null,
+      projection: [],
+      history,
+    };
+  }
+
+  const totalCalories = Array.from(caloriesByDay.values()).reduce(
+    (sum, calories) => sum + calories,
+    0,
+  );
+  const avgDailyCalories = totalCalories / loggedDayCount;
+  const dailyBalance = avgDailyCalories - maintenanceCalories;
+
+  const projection = Array.from(
+    { length: WEIGHT_TREND_PROJECTION_WEEKS + 1 },
+    (_, week) => {
+      const daysForward = week * 7;
+      const projectedDate = new Date();
+      projectedDate.setDate(projectedDate.getDate() + daysForward);
+      const weightChangeLbs = dailyBalance * daysForward * LBS_PER_CALORIE;
+
+      return {
+        weeksFromNow: week,
+        date: projectedDate.toISOString().slice(0, 10),
+        projectedWeightLbs:
+          Math.round((user.weightLbs! + weightChangeLbs) * 10) / 10,
+      };
+    },
+  );
+
+  return {
+    hasEnoughData: true,
+    loggedDayCount,
+    minLoggedDays: MIN_LOGGED_DAYS_FOR_TREND,
+    currentWeightLbs: user.weightLbs,
+    maintenanceCalories: Math.round(maintenanceCalories),
+    avgDailyCalories: Math.round(avgDailyCalories),
+    dailyBalance: Math.round(dailyBalance),
+    projection,
+    history,
+  };
 };

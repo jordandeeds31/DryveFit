@@ -299,6 +299,17 @@ const NutritionScreen = () => {
               />
               <Text style={styles.recapButtonText}>Macro Trends</Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.recapButton}
+              onPress={() => router.push("/weight-trend")}
+            >
+              <Feather
+                name="activity"
+                size={14}
+                color={colors.primaryBlue}
+              />
+              <Text style={styles.recapButtonText}>Weight Trend</Text>
+            </TouchableOpacity>
             {recap && (
               <TouchableOpacity
                 style={styles.recapButton}
@@ -468,12 +479,14 @@ const NutritionScreen = () => {
         )}
       </ScrollView>
 
-      <Modal visible={!!editingEntry} onClose={() => setEditingEntry(null)}>
+      <Modal
+        visible={!!editingEntry}
+        onClose={() => setEditingEntry(null)}
+        title={editingEntry?.foodName}
+        titleStyle={styles.detailName}
+      >
         {editingEntry && (
           <View>
-            <Text style={styles.detailName} numberOfLines={2}>
-              {editingEntry.foodName}
-            </Text>
             {editingEntry.source === "ai_estimated" && (
               <Text style={styles.aiEstimateBadge}>
                 AI-estimated — adjust these if they're off
@@ -534,11 +547,12 @@ const NutritionScreen = () => {
       </Modal>
 
       {recap && (
-        <Modal visible={isRecapOpen} onClose={() => setIsRecapOpen(false)}>
-          <Text style={styles.recapTitle}>
-            {isSameDay(selectedDate, new Date()) ? "Today's" : "Day's"} Recap
-          </Text>
-
+        <Modal
+          visible={isRecapOpen}
+          onClose={() => setIsRecapOpen(false)}
+          title={`${isSameDay(selectedDate, new Date()) ? "Today's" : "Day's"} Recap`}
+          titleStyle={styles.recapTitle}
+        >
           <View style={styles.recapRow}>
             <Feather name="activity" size={16} color={colors.textSecondary} />
             <Text style={styles.recapRowText}>
@@ -742,6 +756,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.sm,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
   logButtonText: {
     fontSize: fontSizes.xs,

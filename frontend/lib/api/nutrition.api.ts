@@ -13,6 +13,7 @@ import {
   MealType,
   ActivityLevel,
   NutritionGoalType,
+  WeightTrend,
 } from "@/types/nutrition.types";
 
 export const searchFood = async (query: string): Promise<FoodSearchResults> => {
@@ -81,6 +82,30 @@ export const estimateMacros = async (text: string): Promise<MacroEstimate> => {
   return data.result.estimate;
 };
 
+export const estimateMacrosFromPhoto = async (
+  photoUri: string,
+): Promise<MacroEstimate> => {
+  const formData = new FormData();
+  formData.append("photo", {
+    uri: photoUri,
+    name: "meal.jpg",
+    type: "image/jpeg",
+  } as unknown as Blob);
+
+  const { data } = await apiClient.post(
+    "/api/nutrition/estimate-macros-photo",
+    formData,
+    {
+      headers: { "Content-Type": "multipart/form-data" },
+      // Same 20s allowance as the text estimate — this is one OpenAI
+      // vision call, not a slow external service like BodyScan's WorkoutX
+      // round trip, so no need for that flow's longer 60s timeout.
+      timeout: 20000,
+    },
+  );
+  return data.result.estimate;
+};
+
 export const getDiary = async (date: string): Promise<DiaryResponse> => {
   const { data } = await apiClient.get("/api/nutrition/diary", {
     params: { date },
@@ -117,6 +142,11 @@ export const getLoggedDateKeys = async (
 export const getNutritionProfile = async (): Promise<NutritionProfile> => {
   const { data } = await apiClient.get("/api/nutrition/profile");
   return data.result.profile;
+};
+
+export const getWeightTrend = async (): Promise<WeightTrend> => {
+  const { data } = await apiClient.get("/api/nutrition/weight-trend");
+  return data.result.trend;
 };
 
 export const updateNutritionProfile = async (input: {

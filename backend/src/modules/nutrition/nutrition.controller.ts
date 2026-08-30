@@ -9,6 +9,7 @@ import {
   logFood,
   updateFoodLogEntry,
   estimateMacros,
+  estimateMacrosFromPhoto,
   deleteFoodLogEntry,
   getDiaryForDate,
   getLoggedDateKeys,
@@ -17,6 +18,7 @@ import {
   updateNutritionProfile,
   updateNutritionGoalOverride,
   getNutritionProfile,
+  getWeightTrend,
   MEAL_TYPES,
   MealType,
   MACRO_HISTORY_RANGES,
@@ -152,6 +154,21 @@ export const estimateMacrosHandler = catchAsync(
   },
 );
 
+export const estimateMacrosFromPhotoHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const file = req.file;
+    if (!file) {
+      throw new AppError(400, "A photo is required");
+    }
+    if (!file.mimetype.startsWith("image/")) {
+      throw new AppError(400, "File must be an image");
+    }
+
+    const estimate = await estimateMacrosFromPhoto(file.buffer);
+    sendSuccess(res, 200, "MACROS_ESTIMATED", { estimate });
+  },
+);
+
 export const deleteFoodLogEntryHandler = catchAsync(
   async (req: AuthRequest, res: Response) => {
     const { entryId } = req.params;
@@ -275,5 +292,12 @@ export const getNutritionProfileHandler = catchAsync(
   async (req: AuthRequest, res: Response) => {
     const profile = await getNutritionProfile(req.userId!);
     sendSuccess(res, 200, "NUTRITION_PROFILE_FETCHED", { profile });
+  },
+);
+
+export const getWeightTrendHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const trend = await getWeightTrend(req.userId!);
+    sendSuccess(res, 200, "WEIGHT_TREND_FETCHED", { trend });
   },
 );

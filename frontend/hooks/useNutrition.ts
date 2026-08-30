@@ -10,6 +10,7 @@ import {
   logFood,
   updateFoodLogEntry,
   estimateMacros,
+  estimateMacrosFromPhoto,
   deleteFoodLogEntry,
   getDiary,
   getDailyRecap,
@@ -18,6 +19,7 @@ import {
   getNutritionProfile,
   updateNutritionProfile,
   updateNutritionGoal,
+  getWeightTrend,
 } from "@/lib/api/nutrition.api";
 import { MacroHistoryRange, MEAL_TYPE_LABELS } from "@/types/nutrition.types";
 import {
@@ -100,6 +102,7 @@ export const useLogFood = () => {
         queryKey: ["dailyRecap", variables.date],
       });
       queryClient.invalidateQueries({ queryKey: ["macroHistory"] });
+      queryClient.invalidateQueries({ queryKey: ["weightTrend"] });
       invalidateLoggedDateKeys(queryClient);
       invalidatePublicNutritionHistory(queryClient);
 
@@ -134,6 +137,12 @@ export const useEstimateMacros = () => {
   });
 };
 
+export const useEstimateMacrosFromPhoto = () => {
+  return useMutation({
+    mutationFn: estimateMacrosFromPhoto,
+  });
+};
+
 export const useUpdateFoodLogEntry = () => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -154,6 +163,7 @@ export const useUpdateFoodLogEntry = () => {
       queryClient.invalidateQueries({ queryKey: ["diary"] });
       queryClient.invalidateQueries({ queryKey: ["dailyRecap"] });
       queryClient.invalidateQueries({ queryKey: ["macroHistory"] });
+      queryClient.invalidateQueries({ queryKey: ["weightTrend"] });
       invalidatePublicNutritionHistory(queryClient);
     },
   });
@@ -171,6 +181,7 @@ export const useDeleteFoodLogEntry = () => {
       queryClient.invalidateQueries({ queryKey: ["dailyRecap"] });
       invalidatePublicNutritionHistory(queryClient);
       queryClient.invalidateQueries({ queryKey: ["macroHistory"] });
+      queryClient.invalidateQueries({ queryKey: ["weightTrend"] });
       invalidateLoggedDateKeys(queryClient);
     },
   });
@@ -183,6 +194,13 @@ export const useNutritionProfile = () => {
   });
 };
 
+export const useWeightTrend = () => {
+  return useQuery({
+    queryKey: ["weightTrend"],
+    queryFn: getWeightTrend,
+  });
+};
+
 export const useUpdateNutritionProfile = () => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -190,6 +208,7 @@ export const useUpdateNutritionProfile = () => {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["nutritionProfile"] });
       queryClient.invalidateQueries({ queryKey: ["diary"] });
+      queryClient.invalidateQueries({ queryKey: ["weightTrend"] });
 
       const userId = queryClient.getQueryData<{ id: string }>([
         "currentUser",

@@ -8,10 +8,13 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Image,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import Feather from "@expo/vector-icons/Feather";
+import * as ImagePicker from "expo-image-picker";
 import Input from "@/components/shared/TextInput/TextInput";
 import Button from "@/components/shared/Button/Button";
 import Modal from "@/components/shared/Modal/Modal";
@@ -20,6 +23,7 @@ import {
   useFoodDetail,
   useLogFood,
   useEstimateMacros,
+  useEstimateMacrosFromPhoto,
   useNutritionProfile,
 } from "@/hooks/useNutrition";
 import { FoodSearchHit, MealType, MEAL_TYPE_LABELS } from "@/types/nutrition.types";
@@ -89,6 +93,9 @@ const FoodSearchScreen = () => {
     "high" | "medium" | "low" | null
   >(null);
   const { mutate: estimate, isPending: isEstimating } = useEstimateMacros();
+  const [pendingPhotoUri, setPendingPhotoUri] = useState<string | null>(null);
+  const { mutate: estimateFromPhoto, isPending: isEstimatingPhoto } =
+    useEstimateMacrosFromPhoto();
 
   const handleLogAsTyped = () => {
     const text = query.trim();
@@ -116,8 +123,57 @@ const FoodSearchScreen = () => {
     });
   };
 
+  const handlePhotoPicked = (uri: string) => {
+    setPendingText("Meal Photo");
+    setPendingPhotoUri(uri);
+    setEstimateFields(null);
+    setEstimateConfidence(null);
+
+    estimateFromPhoto(uri, {
+      onSuccess: (result) => {
+        setEstimateFields({
+          calories: String(result.calories),
+          proteinG: String(result.proteinG),
+          carbsG: String(result.carbsG),
+          fatG: String(result.fatG),
+        });
+        setEstimateConfidence(result.confidence);
+      },
+      onError: () => {
+        setEstimateFields({ calories: "", proteinG: "", carbsG: "", fatG: "" });
+      },
+    });
+  };
+
+  const requestPhoto = async (fromCamera: boolean) => {
+    const permission = fromCamera
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (!permission.granted) {
+      Alert.alert(
+        "Permission needed",
+        fromCamera
+          ? "Allow camera access to take a photo of your food."
+          : "Allow photo library access to choose a photo of your food.",
+      );
+      return;
+    }
+
+    const result = fromCamera
+      ? await ImagePicker.launchCameraAsync({ quality: 0.8 })
+      : await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ["images"],
+          quality: 0.8,
+        });
+
+    if (result.canceled) return;
+    handlePhotoPicked(result.assets[0].uri);
+  };
+
   const handleClosePending = () => {
     setPendingText(null);
+    setPendingPhotoUri(null);
     setEstimateFields(null);
     setEstimateConfidence(null);
   };
@@ -254,6 +310,23 @@ const FoodSearchScreen = () => {
           />
         </View>
 
+        <View style={styles.photoButtonRow}>
+          <TouchableOpacity
+            style={styles.photoButton}
+            onPress={() => requestPhoto(true)}
+          >
+            <Feather name="camera" size={16} color={colors.primaryBlue} />
+            <Text style={styles.photoButtonText}>Take Photo</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.photoButton}
+            onPress={() => requestPhoto(false)}
+          >
+            <Feather name="image" size={16} color={colors.primaryBlue} />
+            <Text style={styles.photoButtonText}>Choose from Library</Text>
+          </TouchableOpacity>
+        </View>
+
         {isSearching ? (
           <ActivityIndicator style={{ marginTop: spacing.lg }} />
         ) : (
@@ -306,7 +379,12 @@ const FoodSearchScreen = () => {
           </ScrollView>
         )}
 
-        <Modal visible={!!selectedHit} onClose={handleClose}>
+        <Modal
+          visible={!!selectedHit}
+          onClose={handleClose}
+          title={detail?.foodName}
+          titleStyle={styles.detailName}
+        >
           {isLoadingDetail ? (
             <ActivityIndicator style={{ paddingVertical: spacing.xl }} />
           ) : isDetailError ? (
@@ -328,7 +406,6 @@ const FoodSearchScreen = () => {
             <ActivityIndicator style={{ paddingVertical: spacing.xl }} />
           ) : (
             <View>
-              <Text style={styles.detailName}>{detail.foodName}</Text>
               {detail.brandName && (
                 <Text style={styles.detailBrand}>{detail.brandName}</Text>
               )}
@@ -370,15 +447,31 @@ const FoodSearchScreen = () => {
           )}
         </Modal>
 
-        <Modal visible={!!pendingText} onClose={handleClosePending}>
-          {isEstimating || !estimateFields ? (
+        <Modal
+          visible={!!pendingText}
+          onClose={handleClosePending}
+          title={pendingText ?? undefined}
+          titleStyle={styles.detailName}
+        >
+          {isEstimating || isEstimatingPhoto || !estimateFields ? (
             <View style={styles.estimatingState}>
+              {pendingPhotoUri && (
+                <Image
+                  source={{ uri: pendingPhotoUri }}
+                  style={styles.reviewPhotoPreview}
+                />
+              )}
               <ActivityIndicator />
               <Text style={styles.hintText}>Estimating macros...</Text>
             </View>
           ) : (
             <View>
-              <Text style={styles.detailName}>{pendingText}</Text>
+              {pendingPhotoUri && (
+                <Image
+                  source={{ uri: pendingPhotoUri }}
+                  style={styles.reviewPhotoPreview}
+                />
+              )}
               <Text style={styles.aiEstimateBadge}>
                 {estimateConfidence
                   ? estimateConfidence === "low"
@@ -509,6 +602,36 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.semibold,
     color: colors.primaryBlue,
+  },
+  photoButtonRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  photoButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.borderBlueLight,
+    backgroundColor: colors.surfaceBlueLight,
+    borderRadius: 8,
+    paddingVertical: spacing.sm,
+  },
+  photoButtonText: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.bold,
+    color: colors.primaryBlue,
+  },
+  reviewPhotoPreview: {
+    width: "100%",
+    aspectRatio: 4 / 3,
+    borderRadius: 8,
+    backgroundColor: colors.lightGraySoft,
+    marginBottom: spacing.md,
   },
   estimatingState: {
     alignItems: "center",

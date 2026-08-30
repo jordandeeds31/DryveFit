@@ -147,6 +147,32 @@ export const MACRO_HISTORY_RANGE_LABELS: Record<MacroHistoryRange, string> = {
   all: "All",
 };
 
+export interface WeightTrendPoint {
+  weeksFromNow: number;
+  date: string;
+  projectedWeightLbs: number;
+}
+
+export interface WeightHistoryPoint {
+  date: string;
+  weightLbs: number;
+}
+
+export interface WeightTrend {
+  hasEnoughData: boolean;
+  loggedDayCount: number;
+  minLoggedDays: number;
+  currentWeightLbs: number;
+  maintenanceCalories: number;
+  // Both null when hasEnoughData is false.
+  avgDailyCalories: number | null;
+  dailyBalance: number | null;
+  projection: WeightTrendPoint[];
+  // Real BodyScan weight snapshots, if any — sparse, for context alongside
+  // the projection line, not required for it.
+  history: WeightHistoryPoint[];
+}
+
 export interface MacroHistoryBucket {
   bucketStart: string;
   bucketEnd: string;
