@@ -11,6 +11,7 @@ const UNRESTRICTED_EMAILS = [
   "jordandeeds31@gmail.com",
   "pineapplecrafty@gmail.com",
   "andrew@getbettrhealth.com",
+  "cgfitt.nutrition@gmail.com",
 ];
 
 // Shows the RevenueCat paywall only if the user doesn't already have the

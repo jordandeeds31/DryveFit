@@ -47,6 +47,7 @@ const UNRESTRICTED_PRO_EMAILS = [
   UNRESTRICTED_TEST_EMAIL,
   "pineapplecrafty@gmail.com",
   "andrew@getbettrhealth.com",
+  "cgfitt.nutrition@gmail.com",
 ];
 
 const MODEL = "gpt-4o-mini";
