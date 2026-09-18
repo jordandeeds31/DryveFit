@@ -7,6 +7,7 @@ import {
   extractRecipeFromLink,
   saveRecipe,
   getSavedRecipes,
+  getDiscoverRecipes,
   logSavedRecipeToMeal,
   ExtractedRecipe,
   RecipeExtractionIngredient,
@@ -109,6 +110,16 @@ export const getSavedRecipesHandler = catchAsync(
   async (req: AuthRequest, res: Response) => {
     const recipes = await getSavedRecipes(req.userId!);
     sendSuccess(res, 200, "SAVED_RECIPES_FETCHED", { recipes });
+  },
+);
+
+export const getDiscoverRecipesHandler = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const { q } = req.query;
+    const recipes = await getDiscoverRecipes(
+      typeof q === "string" ? q : undefined,
+    );
+    sendSuccess(res, 200, "DISCOVER_RECIPES_FETCHED", { recipes });
   },
 );
 

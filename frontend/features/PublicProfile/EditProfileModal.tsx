@@ -160,10 +160,12 @@ const EditProfileModal = ({ visible, onClose, onSaved }: EditProfileModalProps) 
         </View>
       </View>
 
-      <Text style={styles.sectionSubtext}>
-        Set a username and city to appear on the leaderboard and compare your
-        lifts against other users.
-      </Text>
+      {(!currentUser?.username || !currentUser?.city) && (
+        <Text style={styles.sectionSubtext}>
+          Set a username and city to appear on the leaderboard and compare
+          your lifts against other users.
+        </Text>
+      )}
 
       <Input
         label="Username"

@@ -1,5 +1,8 @@
-import { View, Text } from "react-native";
+import { useState } from "react";
+import { View, Text, Modal, TouchableOpacity, TouchableWithoutFeedback } from "react-native";
 import { Image } from "expo-image";
+import Feather from "@expo/vector-icons/Feather";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DmMessage } from "@/types/directMessages.types";
 import styles from "./MessageBubble.styles";
 
@@ -26,6 +29,8 @@ const MessageBubble = ({ message, isOwnMessage }: MessageBubbleProps) => {
   // looks "sent but faded" reads better mid-scroll than a flickering
   // per-bubble loading indicator.
   const isPending = message.id.startsWith("pending-");
+  const insets = useSafeAreaInsets();
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
 
   return (
     <View
@@ -43,11 +48,16 @@ const MessageBubble = ({ message, isOwnMessage }: MessageBubbleProps) => {
         ]}
       >
         {message.imageUrl && (
-          <Image
-            source={{ uri: message.imageUrl }}
-            style={[styles.image, !!message.content && styles.imageWithCaption]}
-            contentFit="cover"
-          />
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => setIsViewerOpen(true)}
+          >
+            <Image
+              source={{ uri: message.imageUrl }}
+              style={[styles.image, !!message.content && styles.imageWithCaption]}
+              contentFit="cover"
+            />
+          </TouchableOpacity>
         )}
         {message.content && (
           <Text
@@ -63,6 +73,37 @@ const MessageBubble = ({ message, isOwnMessage }: MessageBubbleProps) => {
       <Text style={styles.timestamp}>
         {formatMessageTime(message.createdAt)}
       </Text>
+
+      {message.imageUrl && (
+        <Modal
+          visible={isViewerOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setIsViewerOpen(false)}
+        >
+          {/* Tap anywhere on the backdrop to dismiss — the image itself
+              swallows the tap (see the inner TouchableWithoutFeedback)
+              so tapping the photo doesn't also close the viewer. */}
+          <TouchableWithoutFeedback onPress={() => setIsViewerOpen(false)}>
+            <View style={styles.viewerBackdrop}>
+              <TouchableWithoutFeedback>
+                <Image
+                  source={{ uri: message.imageUrl }}
+                  style={styles.viewerImage}
+                  contentFit="contain"
+                />
+              </TouchableWithoutFeedback>
+              <TouchableOpacity
+                style={[styles.viewerCloseButton, { top: insets.top + 12 }]}
+                onPress={() => setIsViewerOpen(false)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Feather name="x" size={26} color="white" />
+              </TouchableOpacity>
+            </View>
+          </TouchableWithoutFeedback>
+        </Modal>
+      )}
     </View>
   );
 };

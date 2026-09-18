@@ -74,6 +74,21 @@ const styles = StyleSheet.create({
     marginTop: 2,
     marginHorizontal: 4,
   },
+  viewerBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.92)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  viewerImage: {
+    width: "100%",
+    height: "80%",
+  },
+  viewerCloseButton: {
+    position: "absolute",
+    right: 16,
+    padding: spacing.xs,
+  },
 });
 
 export default styles;

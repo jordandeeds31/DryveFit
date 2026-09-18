@@ -27,14 +27,14 @@ const AppHeader = ({
 }: AppHeaderProps) => {
   const insets = useSafeAreaInsets();
   const { data: unreadCount } = useUnreadNotificationCount();
-  const hasUnread = !!unreadCount && unreadCount > 0;
   // Derived from the already-fetched conversation list rather than a
   // dedicated count endpoint — that list is cheap (one row per
   // conversation, not per message) and already needs fetching for the
   // conversation list screen itself.
   const { data: dmConversations } = useDmConversations();
-  const hasUnreadDms = !!dmConversations?.some(
-    (c: { unreadCount: number }) => c.unreadCount > 0,
+  const unreadDmCount = (dmConversations ?? []).reduce(
+    (total: number, c: { unreadCount: number }) => total + c.unreadCount,
+    0,
   );
   const { data: currentUser } = useCurrentUser();
   // Shares the ["programs"] query cache with the Home screen, so this
@@ -95,7 +95,13 @@ const AppHeader = ({
             size={20}
             color={colors.textSecondary}
           />
-          {hasUnreadDms && <View style={styles.unreadBadge} />}
+          {unreadDmCount > 0 && (
+            <View style={styles.countBadge}>
+              <Text style={styles.countBadgeText}>
+                {unreadDmCount > 9 ? "9+" : unreadDmCount}
+              </Text>
+            </View>
+          )}
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.settingsButton}
@@ -103,7 +109,13 @@ const AppHeader = ({
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           <Feather name="bell" size={20} color={colors.textSecondary} />
-          {hasUnread && <View style={styles.unreadBadge} />}
+          {!!unreadCount && unreadCount > 0 && (
+            <View style={styles.countBadge}>
+              <Text style={styles.countBadgeText}>
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </Text>
+            </View>
+          )}
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.settingsButton}

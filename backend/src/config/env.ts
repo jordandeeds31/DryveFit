@@ -45,10 +45,6 @@ const envSchema = z.object({
   GOOGLE_IOS_CLIENT_ID: z.string().min(1).optional(),
   GOOGLE_ANDROID_CLIENT_ID: z.string().min(1).optional(),
   GOOGLE_WEB_CLIENT_ID: z.string().min(1).optional(),
-  // Optional so normal app startup never hard-fails without it — recipe
-  // search/detail/pricing just 500s with a clear message until this is
-  // set. Free tier at spoonacular.com/food-api.
-  SPOONACULAR_API_KEY: z.string().min(1).optional(),
   // Optional so normal app startup never hard-fails without it — YouTube
   // recipe imports just fail with a clear message until this is set. Free
   // (10,000 units/day) via a Google Cloud project with the YouTube Data

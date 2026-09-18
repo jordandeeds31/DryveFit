@@ -5,6 +5,7 @@ import {
   extractRecipeFromLinkHandler,
   saveRecipeHandler,
   getSavedRecipesHandler,
+  getDiscoverRecipesHandler,
   logSavedRecipeToMealHandler,
 } from "./recipeImport.controller";
 
@@ -37,6 +38,7 @@ const importLimiter = rateLimit({
 });
 
 router.get("/", getSavedRecipesHandler);
+router.get("/discover", getDiscoverRecipesHandler);
 router.post("/extract", importLimiter, extractRecipeFromLinkHandler);
 router.post("/", saveRecipeHandler);
 // Also does an LLM call (macro estimation) — same limiter/reasoning as

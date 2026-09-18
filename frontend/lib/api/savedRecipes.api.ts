@@ -11,6 +11,20 @@ export const getSavedRecipes = async (): Promise<SavedRecipe[]> => {
   return data.result.recipes;
 };
 
+// The community feed — every user's saved imports, already deduped
+// server-side to one card per unique source video (see
+// getDiscoverRecipes in recipeImport.service.ts). query matches against
+// both the title and LLM-generated concept tags (cuisine, main
+// ingredients, diet, meal type), so e.g. "italian" finds a recipe whose
+// title never says the word — run server-side so it reaches the whole
+// community catalog, not just whatever page is already loaded.
+export const getDiscoverRecipes = async (query?: string): Promise<SavedRecipe[]> => {
+  const { data } = await apiClient.get("/api/saved-recipes/discover", {
+    params: query ? { q: query } : undefined,
+  });
+  return data.result.recipes;
+};
+
 export const extractRecipeFromLink = async (
   url: string,
 ): Promise<ExtractRecipeOutcome> => {

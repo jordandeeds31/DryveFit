@@ -34,16 +34,26 @@ const styles = StyleSheet.create({
     elevation: 1,
     position: "relative",
   },
-  unreadBadge: {
+  // Same shape as (tabs)/index.tsx's newPostsBadge (that one's a plain
+  // dot vs. this showing a count), kept in sync for a consistent look.
+  countBadge: {
     position: "absolute",
-    top: 4,
-    right: 4,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    top: -4,
+    right: -4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 3,
     backgroundColor: colors.dangerRed,
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
     borderColor: "white",
+  },
+  countBadgeText: {
+    fontSize: 9,
+    fontWeight: fontWeights.bold,
+    color: "white",
   },
   createButton: {
     flexDirection: "row",

@@ -30,6 +30,7 @@ import {
   DmMessage,
   DmMessagesPage,
 } from "@/types/directMessages.types";
+import { useCurrentUser } from "@/hooks/useUsers";
 
 export const useDmConversations = () => {
   return useQuery({
@@ -89,6 +90,10 @@ interface SendDmMessageInput {
 
 export const useSendDmMessage = (conversationId: string) => {
   const queryClient = useQueryClient();
+  // Already fetched/cached elsewhere in the app (AppHeader, Profile,
+  // etc.) — this just reads that cache, no extra request. Needed so the
+  // optimistic message below can carry the sender's REAL id.
+  const { data: currentUser } = useCurrentUser();
 
   return useMutation({
     mutationFn: ({ content, imageUri }: SendDmMessageInput) =>
@@ -106,10 +111,16 @@ export const useSendDmMessage = (conversationId: string) => {
       // a sending/failed state on the bubble. imageUrl is the local
       // (file://) uri while pending — swapped for the real Cloudinary URL
       // once the upload resolves, same bubble in the meantime.
+      //
+      // senderId is the CALLER's own id, not a placeholder — the thread
+      // screen's isOwnMessage check (item.senderId === currentUser?.id)
+      // otherwise reads this optimistic row as someone else's message
+      // (gray, left-aligned) for the moment before the real response
+      // swaps it out, then flips to blue/right once it does.
       const optimisticMessage: DmMessage = {
         id: `pending-${Date.now()}`,
         conversationId,
-        senderId: "__pending__",
+        senderId: currentUser?.id ?? "__pending__",
         content: content || null,
         imageUrl: imageUri ?? null,
         createdAt: new Date().toISOString(),

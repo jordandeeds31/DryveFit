@@ -60,7 +60,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     borderWidth: 1,
-    borderColor: "#1F2937",
+    borderColor: colors.borderGray,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.sm,
     gap: spacing.sm,

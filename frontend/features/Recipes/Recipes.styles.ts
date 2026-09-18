@@ -74,6 +74,9 @@ export default StyleSheet.create({
     paddingTop: spacing.sm,
     paddingBottom: spacing.xl,
   },
+  discoverLoading: {
+    marginTop: spacing.xl,
+  },
   hintText: {
     color: colors.textMuted,
     fontSize: fontSizes.sm,

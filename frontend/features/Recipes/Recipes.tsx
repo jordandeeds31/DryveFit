@@ -15,6 +15,7 @@ import Button from "@/components/shared/Button/Button";
 import Modal from "@/components/shared/Modal/Modal";
 import {
   useSavedRecipes,
+  useDiscoverRecipes,
   useExtractRecipeFromLink,
   useSaveRecipe,
   useLogSavedRecipeToMeal,
@@ -401,10 +402,17 @@ const Recipes = ({ sharedUrl, onConsumedSharedUrl }: RecipesProps) => {
   const [activeTab, setActiveTab] = useState<"saved" | "discover">("saved");
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebouncedValue(query, 300);
+  // Separate from the Saved tab's query above — this one searches the
+  // whole community catalog server-side (see useDiscoverRecipes), not
+  // just titles already loaded into this screen.
+  const [discoverQuery, setDiscoverQuery] = useState("");
+  const debouncedDiscoverQuery = useDebouncedValue(discoverQuery, 300);
 
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [importStatusIsError, setImportStatusIsError] = useState(false);
   const { data: savedRecipes } = useSavedRecipes();
+  const { data: discoverRecipes, isLoading: isDiscoverLoading } =
+    useDiscoverRecipes(debouncedDiscoverQuery);
   const { mutate: extractRecipe, isPending: isExtracting } = useExtractRecipeFromLink();
   const [selectedSavedRecipe, setSelectedSavedRecipe] = useState<SavedRecipe | null>(
     null,
@@ -476,10 +484,10 @@ const Recipes = ({ sharedUrl, onConsumedSharedUrl }: RecipesProps) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sharedUrl]);
 
-  // Client-side only — Spoonacular-backed browse/search (useRecipeSearch)
-  // is disabled for now (its API kept failing), so this screen shows just
-  // the community's imported recipes, filtered by title locally rather
-  // than through a remote search call.
+  // Client-side only — this screen shows just the community's imported
+  // recipes (Saved/Discover), filtered by title locally rather than
+  // through a remote search call. The old Spoonacular-backed browse/search
+  // API has been removed entirely; Discover (below) replaces it.
   const filteredSavedRecipes = (savedRecipes ?? []).filter((recipe) =>
     recipe.title.toLowerCase().includes(debouncedQuery.trim().toLowerCase()),
   );
@@ -597,9 +605,33 @@ const Recipes = ({ sharedUrl, onConsumedSharedUrl }: RecipesProps) => {
           </ScrollView>
         </>
       ) : (
-        <Text style={styles.hintText}>
-          Recipe search isn't set up yet — check back soon.
-        </Text>
+        <>
+          <View style={styles.searchContainer}>
+            <Input
+              placeholder="Search recipes by keyword"
+              value={discoverQuery}
+              onChangeText={setDiscoverQuery}
+              autoCorrect={false}
+            />
+          </View>
+
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.listContent}
+          >
+            {isDiscoverLoading ? (
+              <ActivityIndicator style={styles.discoverLoading} />
+            ) : !discoverRecipes || discoverRecipes.length === 0 ? (
+              <Text style={styles.hintText}>
+                {debouncedDiscoverQuery.trim()
+                  ? `No recipes match "${debouncedDiscoverQuery.trim()}"`
+                  : "No recipes shared by the community yet — be the first to import one."}
+              </Text>
+            ) : (
+              <View style={styles.grid}>{discoverRecipes.map(renderSavedRecipe)}</View>
+            )}
+          </ScrollView>
+        </>
       )}
 
       <SavedRecipeDetailModal

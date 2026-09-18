@@ -2,8 +2,16 @@ import prisma from "../../lib/prisma";
 import { SavedRecipe } from "../../generated/prisma/client";
 import openai from "../../lib/openai";
 import AppError from "../../utils/AppError";
-import { fetchTikTokCaption, TikTokCaptionErrorReason } from "../../lib/tiktok";
-import { fetchYouTubeCaption, YouTubeCaptionErrorReason } from "../../lib/youtube";
+import {
+  fetchTikTokCaption,
+  fetchTikTokTranscript,
+  TikTokCaptionErrorReason,
+} from "../../lib/tiktok";
+import {
+  fetchYouTubeCaption,
+  fetchYouTubeTranscript,
+  YouTubeCaptionErrorReason,
+} from "../../lib/youtube";
 import { estimateRecipeMacros, logFood, MealType } from "../nutrition/nutrition.service";
 
 export type RecipeImportPlatform = "tiktok" | "youtube";
@@ -43,6 +51,17 @@ export const detectPlatform = (rawUrl: string): RecipeImportPlatform | null => {
   return null;
 };
 
+// Recognizing the domain (unlike detectPlatform above) is all this needs —
+// it's only used to pick a more specific error message than "unsupported
+// platform" below, not to attempt a fetch.
+const isInstagramUrl = (rawUrl: string): boolean => {
+  try {
+    return new URL(rawUrl).hostname.endsWith("instagram.com");
+  } catch {
+    return false;
+  }
+};
+
 export type CaptionErrorReason =
   | TikTokCaptionErrorReason
   | YouTubeCaptionErrorReason
@@ -50,6 +69,7 @@ export type CaptionErrorReason =
 
 interface CaptionFetchSuccess {
   ok: true;
+  videoId: string;
   canonicalUrl: string;
   caption: string;
   thumbnailUrl: string | null;
@@ -76,6 +96,7 @@ const fetchCaption = async (
     }
     return {
       ok: true,
+      videoId: result.videoId,
       canonicalUrl: result.canonicalUrl,
       caption: result.caption,
       thumbnailUrl: result.thumbnailUrl,
@@ -88,6 +109,7 @@ const fetchCaption = async (
     }
     return {
       ok: true,
+      videoId: result.videoId,
       canonicalUrl: result.canonicalUrl,
       caption: result.caption,
       thumbnailUrl: result.thumbnailUrl,
@@ -263,7 +285,9 @@ export const extractRecipeFromLink = async (
     return {
       status: "error",
       reason: "unsupported_platform",
-      message: "This platform isn't supported yet — try a TikTok or YouTube link.",
+      message: isInstagramUrl(url)
+        ? "Instagram isn't supported yet — we're working on it. Try a TikTok or YouTube link for now."
+        : "This platform isn't supported yet — try a TikTok or YouTube link.",
     };
   }
 
@@ -291,13 +315,31 @@ export const extractRecipeFromLink = async (
     return { status: "already_saved", recipe: toSavedRecipeDto(existing) };
   }
 
-  const extraction = await extractRecipeFromText(captionResult.caption);
+  let extraction = await extractRecipeFromText(captionResult.caption);
 
-  // This is the fallback trigger point: a real future implementation would
-  // try audio-transcription or website extraction here before giving up,
-  // using the same caption-fetch result (or the original URL) as input.
-  // Nothing past this comment exists yet — it just cleanly reports back so
-  // the caller (and, later, this function) knows to try something else.
+  // The fallback trigger point: the caption/description alone didn't
+  // contain a real recipe (common when a creator narrates or overlays
+  // the ingredients/steps instead of typing them out) — try the video's
+  // own transcript next before giving up. YouTube has a public caption
+  // track to read (see fetchYouTubeTranscript); TikTok has no equivalent
+  // yet (see fetchTikTokTranscript below — not implemented).
+  if (!extraction.hasRecipe) {
+    const transcript =
+      platform === "youtube"
+        ? await fetchYouTubeTranscript(captionResult.videoId)
+        : await fetchTikTokTranscript(captionResult.videoId);
+
+    if (transcript) {
+      // Combined with the caption, not just the transcript alone — the
+      // caption sometimes has the dish's name/context even when it's
+      // missing the actual ingredients/steps, and losing that would make
+      // the retry strictly worse information than the first attempt.
+      extraction = await extractRecipeFromText(
+        `${captionResult.caption}\n\nVideo transcript:\n${transcript}`,
+      );
+    }
+  }
+
   if (!extraction.hasRecipe) {
     return {
       status: "no_recipe_detected",
@@ -359,6 +401,83 @@ const estimateAndCacheMacros = async (
   }
 };
 
+const RECIPE_KEYWORDS_RESPONSE_FORMAT = {
+  type: "json_schema" as const,
+  json_schema: {
+    name: "recipe_keywords",
+    strict: true,
+    schema: {
+      type: "object",
+      properties: {
+        keywords: {
+          type: "array",
+          items: { type: "string" },
+        },
+      },
+      required: ["keywords"],
+      additionalProperties: false,
+    },
+  },
+};
+
+// Concept tags, not a transcription of the title — the whole point is
+// catching a search like "italian" for a recipe titled "Chicken Piccata"
+// that never says the word itself. Cuisine especially has to be inferred
+// from the ingredients (parmesan + basil + pasta implies "italian"), not
+// just lifted from text that's already there.
+const RECIPE_KEYWORDS_SYSTEM_PROMPT = `You generate short search tags for a recipe so it can be found by cuisine, main ingredients, diet, or meal type — not just by matching its exact title.
+
+Rules:
+- Return 4-8 lowercase, single-or-two-word tags (e.g. "italian", "pasta", "chicken", "high protein", "breakfast", "vegetarian", "dessert").
+- Infer cuisine/region even when it's never stated outright — judge it from the ingredients and preparation style (e.g. parmesan + basil + pasta implies "italian"; soy sauce + ginger + rice implies "asian").
+- Only include tags that are genuinely applicable — don't pad the list with generic filler.
+- Tags only, no sentences or explanations.`;
+
+const generateSearchKeywords = async (
+  title: string,
+  ingredients: RecipeExtractionIngredient[],
+  steps: string[],
+): Promise<string[]> => {
+  const ingredientsText = ingredients.map(formatIngredientForEstimate).join(", ");
+  const content = `Title: ${title}\nIngredients: ${ingredientsText}\nSteps: ${steps.join(" ")}`;
+
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      { role: "system", content: RECIPE_KEYWORDS_SYSTEM_PROMPT },
+      { role: "user", content },
+    ],
+    response_format: RECIPE_KEYWORDS_RESPONSE_FORMAT,
+  });
+
+  const raw = completion.choices[0].message.content;
+  if (!raw) return [];
+  const parsed = JSON.parse(raw) as { keywords: string[] };
+  return parsed.keywords.map((keyword) => keyword.toLowerCase().trim()).filter(Boolean);
+};
+
+// Same best-effort/never-throws shape as estimateAndCacheMacros above,
+// and the same reason: a transient LLM failure here should never block
+// saving the recipe itself, or (via backfillMissingKeywords below) block
+// Discover from loading.
+const estimateAndCacheKeywords = async (
+  recipeId: string,
+  title: string,
+  ingredients: RecipeExtractionIngredient[],
+  steps: string[],
+): Promise<string[] | null> => {
+  try {
+    const keywords = await generateSearchKeywords(title, ingredients, steps);
+    await prisma.savedRecipe.update({
+      where: { id: recipeId },
+      data: { searchKeywords: keywords },
+    });
+    return keywords;
+  } catch {
+    return null;
+  }
+};
+
 // The explicit, separate "commit" step — only ever called once a user has
 // reviewed (and possibly edited) the extracted fields and tapped Save.
 // Nothing from extractRecipeFromLink is persisted before this runs.
@@ -379,14 +498,20 @@ export const saveRecipe = async (
     },
   });
 
-  const macros = await estimateAndCacheMacros(saved.id, saved.title, input.ingredients);
+  // Independent LLM calls (macros vs. search tags) — run concurrently
+  // rather than one after another.
+  const [macros] = await Promise.all([
+    estimateAndCacheMacros(saved.id, saved.title, input.ingredients),
+    estimateAndCacheKeywords(saved.id, saved.title, input.ingredients, input.steps),
+  ]);
 
   return toSavedRecipeDto(macros ? { ...saved, ...macros } : saved);
 };
 
-// Private per-user, like a bookmark list — not a shared feed. Two
-// different users importing the same video each get their own row (see
-// the userId-scoped dedup check in extractRecipeFromLink above).
+// This user's own bookmark list. Two different users importing the same
+// video each still get their own row here (see the userId-scoped dedup
+// check in extractRecipeFromLink above) — getDiscoverRecipes below is
+// where cross-user duplicates of the same video get collapsed.
 export const getSavedRecipes = async (userId: string): Promise<SavedRecipeDto[]> => {
   const recipes = await prisma.savedRecipe.findMany({
     where: { userId },
@@ -395,6 +520,91 @@ export const getSavedRecipes = async (userId: string): Promise<SavedRecipeDto[]>
   });
 
   return recipes.map(toSavedRecipeDto);
+};
+
+// Backfills any row fetched with no cached search tags yet (saved before
+// searchKeywords existed, or whose generation failed at save time) — a
+// one-time cost per row, since the next fetch skips whatever already has
+// tags. Done here rather than filtering in SQL against searchKeywords
+// directly: an old row's tags don't exist until AFTER this runs, so a
+// WHERE clause checking them first would never see it.
+const backfillMissingKeywords = async (
+  recipes: SavedRecipe[],
+): Promise<SavedRecipe[]> =>
+  Promise.all(
+    recipes.map(async (recipe) => {
+      if (recipe.searchKeywords.length > 0) return recipe;
+      const keywords = await estimateAndCacheKeywords(
+        recipe.id,
+        recipe.title,
+        recipe.ingredients as unknown as RecipeExtractionIngredient[],
+        recipe.steps as unknown as string[],
+      );
+      return keywords ? { ...recipe, searchKeywords: keywords } : recipe;
+    }),
+  );
+
+// Concept match, not just a literal title match — "italian" should find a
+// recipe titled "Chicken Piccata" via its cuisine tag even though the
+// word "italian" never appears in the title itself. Checked both
+// directions against each tag so either a short query inside a longer
+// tag ("ital" vs. "italian") or a longer query containing a short tag
+// ("authentic italian food" vs. "italian") counts as a match.
+const matchesQuery = (recipe: SavedRecipe, query: string): boolean => {
+  const lowerQuery = query.toLowerCase();
+  if (recipe.title.toLowerCase().includes(lowerQuery)) return true;
+  return recipe.searchKeywords.some(
+    (keyword) => keyword.includes(lowerQuery) || lowerQuery.includes(keyword),
+  );
+};
+
+// The community feed: every user's saved imports, one card per unique
+// source video. Different users importing the same video each get their
+// own SavedRecipe row (see extractRecipeFromLink's per-user dedup check
+// above), so naively listing every row would show the same video's recipe
+// once per person who'd saved it.
+export const getDiscoverRecipes = async (
+  query?: string,
+): Promise<SavedRecipeDto[]> => {
+  const trimmedQuery = query?.trim();
+
+  const rawRecipes = await prisma.savedRecipe.findMany({
+    // Excludes manual entries (source: "manual", not implemented yet)
+    // that might one day have no sourceUrl — grouping those under one
+    // shared `null` key would wrongly collapse unrelated recipes into
+    // one card.
+    where: { sourceUrl: { not: null } },
+    orderBy: { createdAt: "desc" },
+    // Bounds the pre-backfill/pre-dedup fetch the same way every other
+    // list here bounds itself (no real pagination anywhere in this
+    // module yet) — plenty of headroom over the final 100-card page even
+    // with heavy overlap. Unconditional (not narrowed by query) so a
+    // search always has this same fully-tagged candidate set to filter,
+    // rather than a "most recent 500 matching title" query that could
+    // never surface an older tag-only match.
+    take: 500,
+  });
+
+  const recipes = await backfillMissingKeywords(rawRecipes);
+  const matches = trimmedQuery
+    ? recipes.filter((recipe) => matchesQuery(recipe, trimmedQuery))
+    : recipes;
+
+  // `matches` is newest-first; Map#set overwrites a repeated key, so
+  // always overwriting while iterating in that order leaves the OLDEST
+  // save of each video as the survivor — it's the last one written,
+  // since it's encountered last. That keeps the original importer's copy
+  // as the canonical one rather than whichever near-duplicate happens to
+  // be freshest.
+  const bySourceUrl = new Map<string, SavedRecipe>();
+  for (const recipe of matches) {
+    bySourceUrl.set(recipe.sourceUrl!, recipe);
+  }
+
+  return [...bySourceUrl.values()]
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .slice(0, 100)
+    .map(toSavedRecipeDto);
 };
 
 // No nutrition database (USDA, etc.) is consulted here — a recipe's
@@ -412,8 +622,12 @@ export const logSavedRecipeToMeal = async (
   mealType: MealType,
   date: string,
 ) => {
+  // Not scoped to userId — recipeId can come from Discover now, not just
+  // this user's own saved list. That's fine: this only ever reads the
+  // recipe's ingredients/macros, and logFood below writes the resulting
+  // entry to the CALLER's diary regardless of whose row recipeId is.
   const recipe = await prisma.savedRecipe.findFirst({
-    where: { id: recipeId, userId },
+    where: { id: recipeId },
   });
   if (!recipe) {
     throw new AppError(404, "Saved recipe not found");

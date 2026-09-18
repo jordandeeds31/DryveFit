@@ -139,3 +139,18 @@ export const fetchTikTokCaption = async (
     thumbnailUrl: typeof data.thumbnail_url === "string" ? data.thumbnail_url : null,
   };
 };
+
+// NOT YET IMPLEMENTED — unlike fetchYouTubeTranscript, TikTok's oEmbed
+// (the only unauthenticated public endpoint this module uses) has no
+// caption/transcript track to read, and there's no other official way to
+// get a TikTok video's spoken audio as text. This is a deliberate stub:
+// wiring it up needs a specific compliant transcription provider chosen
+// first (one that resolves TikTok audio under its own terms, rather than
+// this app downloading the video itself — see recipeImport.service.ts's
+// no-crawling guardrail comment on Instagram for the same reasoning).
+// Returns null — same "fall through to no_recipe_detected" behavior as a
+// transcript genuinely not being found — so callers don't need special
+// handling for "not implemented" vs. "tried and failed".
+export const fetchTikTokTranscript = async (_videoId: string): Promise<string | null> => {
+  return null;
+};

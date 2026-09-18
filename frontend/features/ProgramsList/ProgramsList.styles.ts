@@ -39,6 +39,7 @@ const styles = StyleSheet.create({
   name: {
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.semibold,
+    fontStyle: "italic",
   },
   activeBadge: {
     fontSize: 10,

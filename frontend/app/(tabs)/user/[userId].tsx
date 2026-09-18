@@ -753,92 +753,6 @@ const UserProfileScreen = () => {
             />
           )}
 
-          {tab === "workouts" && selectedProgramDay && (
-            <View style={styles.selectedDayCard}>
-              <View style={styles.cardHeaderRow}>
-                <Text style={styles.cardTitle}>
-                  {selectedProgramDay.dayName}
-                </Text>
-                <View
-                  style={[
-                    styles.badge,
-                    selectedProgramDay.isRestDay
-                      ? styles.badgeMuted
-                      : styles.badgeActive,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.badgeText,
-                      selectedProgramDay.isRestDay
-                        ? styles.badgeTextMuted
-                        : styles.badgeTextActive,
-                    ]}
-                  >
-                    {selectedProgramDay.isRestDay
-                      ? "Rest"
-                      : selectedProgramDay.focus}
-                  </Text>
-                </View>
-              </View>
-              {!selectedProgramDay.isRestDay &&
-                selectedProgramDay.exercises.map(
-                  (exercise: ProgramExercise) => (
-                    <View key={exercise.id} style={styles.exerciseLine}>
-                      <Text style={styles.exerciseName} numberOfLines={1}>
-                        {exercise.exerciseName}
-                      </Text>
-                      <Text style={styles.setText}>
-                        {exercise.sets}x{exercise.reps}
-                      </Text>
-                    </View>
-                  ),
-                )}
-              {/* Inheriting only makes sense from someone ELSE's program —
-                  copying your own workout into your own schedule is
-                  meaningless (and creates real edge cases: the source and
-                  target day/program can end up being the exact same
-                  one). */}
-              {!isOwnProfile &&
-                !selectedProgramDay.isRestDay &&
-                hasOwnActiveProgram && (
-                  <TouchableOpacity
-                    style={styles.inheritButton}
-                    onPress={() => handleInherit(selectedProgramDay)}
-                    disabled={isInheriting}
-                  >
-                    <Feather
-                      name="download"
-                      size={12}
-                      color={colors.primaryBlue}
-                    />
-                    <Text style={styles.inheritButtonText}>
-                      Copy to my schedule
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              {!isOwnProfile &&
-                !selectedProgramDay.isRestDay &&
-                !hasOwnActiveProgram && (
-                  <TouchableOpacity
-                    style={styles.inheritButton}
-                    onPress={() =>
-                      handleInheritAsNewProgram(selectedProgramDay)
-                    }
-                  >
-                    <Feather
-                      name="download"
-                      size={12}
-                      color={colors.primaryBlue}
-                    />
-                    <Text style={styles.inheritButtonText}>
-                      Inherit Workout
-                    </Text>
-                  </TouchableOpacity>
-                )}
-            </View>
-          )}
-
           {tab === "workouts" &&
             !isHistoryLoading &&
             !activeProgram &&
@@ -928,8 +842,14 @@ const UserProfileScreen = () => {
         )}
       </Modal>
 
+      {/* Gated on selectedWorkoutLog, not selectedWorkoutDate — a tapped
+          date can be "logged" on the calendar because it has a scheduled
+          program day (see workoutLoggedDates above) with no actual
+          standalone WorkoutLog to show here. That case is already fully
+          covered by the selectedDayCard rendered inline above; without
+          this the modal would still pop open, empty, over it. */}
       <Modal
-        visible={!!selectedWorkoutDate}
+        visible={!!selectedWorkoutLog}
         onClose={() => setSelectedWorkoutDate(null)}
         title={
           selectedWorkoutLog
@@ -974,6 +894,79 @@ const UserProfileScreen = () => {
               <TouchableOpacity
                 style={styles.inheritButton}
                 onPress={() => handleInheritLogAsNewProgram(selectedWorkoutLog)}
+              >
+                <Feather name="download" size={12} color={colors.primaryBlue} />
+                <Text style={styles.inheritButtonText}>Inherit Workout</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+      </Modal>
+
+      {/* A scheduled program day, not a completed log — separate from the
+          selectedWorkoutLog modal above. Also excludes selectedWorkoutLog
+          being set: a day that was scheduled AND has since actually been
+          logged should show what was really done, not the plan for it,
+          so the log modal above wins whenever both exist for the same
+          date. */}
+      <Modal
+        visible={!!selectedProgramDay && !selectedWorkoutLog}
+        onClose={() => setSelectedWorkoutDate(null)}
+        title={selectedProgramDay?.dayName}
+        titleStyle={styles.cardTitle}
+      >
+        {selectedProgramDay && (
+          <View>
+            <View
+              style={[
+                styles.badge,
+                styles.selfEnd,
+                { marginBottom: spacing.xs },
+                selectedProgramDay.isRestDay
+                  ? styles.badgeMuted
+                  : styles.badgeActive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.badgeText,
+                  selectedProgramDay.isRestDay
+                    ? styles.badgeTextMuted
+                    : styles.badgeTextActive,
+                ]}
+              >
+                {selectedProgramDay.isRestDay ? "Rest" : selectedProgramDay.focus}
+              </Text>
+            </View>
+            {!selectedProgramDay.isRestDay &&
+              selectedProgramDay.exercises.map((exercise: ProgramExercise) => (
+                <View key={exercise.id} style={styles.exerciseLine}>
+                  <Text style={styles.exerciseName} numberOfLines={1}>
+                    {exercise.exerciseName}
+                  </Text>
+                  <Text style={styles.setText}>
+                    {exercise.sets}x{exercise.reps}
+                  </Text>
+                </View>
+              ))}
+            {/* Inheriting only makes sense from someone ELSE's program —
+                copying your own workout into your own schedule is
+                meaningless (and creates real edge cases: the source and
+                target day/program can end up being the exact same one). */}
+            {!isOwnProfile && !selectedProgramDay.isRestDay && hasOwnActiveProgram && (
+              <TouchableOpacity
+                style={styles.inheritButton}
+                onPress={() => handleInherit(selectedProgramDay)}
+                disabled={isInheriting}
+              >
+                <Feather name="download" size={12} color={colors.primaryBlue} />
+                <Text style={styles.inheritButtonText}>Copy to my schedule</Text>
+              </TouchableOpacity>
+            )}
+            {!isOwnProfile && !selectedProgramDay.isRestDay && !hasOwnActiveProgram && (
+              <TouchableOpacity
+                style={styles.inheritButton}
+                onPress={() => handleInheritAsNewProgram(selectedProgramDay)}
               >
                 <Feather name="download" size={12} color={colors.primaryBlue} />
                 <Text style={styles.inheritButtonText}>Inherit Workout</Text>
@@ -1072,6 +1065,8 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   followButton: {
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.xs,
     borderRadius: 20,
@@ -1112,6 +1107,7 @@ const styles = StyleSheet.create({
   messageButton: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 4,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.xs,
@@ -1299,6 +1295,7 @@ const styles = StyleSheet.create({
   programName: {
     fontSize: fontSizes.lg,
     fontWeight: fontWeights.bold,
+    fontStyle: "italic",
     marginTop: 2,
     marginBottom: spacing.md,
   },

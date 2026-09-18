@@ -648,7 +648,14 @@ model SavedRecipe {
   proteinG  Float?
   carbsG    Float?
   fatG      Float?
-  createdAt DateTime @default(now())
+  // LLM-generated tags (cuisine, main ingredients, diet, meal type — e.g.
+  // "italian", "pasta", "vegetarian") so Discover search can find a recipe
+  // by concept even when the word never appears in its title. Same
+  // lazy-backfill story as calories/proteinG/etc above: empty for rows
+  // saved before this existed, filled in on first Discover fetch that
+  // encounters them (see getDiscoverRecipes in recipeImport.service.ts).
+  searchKeywords String[] @default([])
+  createdAt      DateTime @default(now())
 
   @@index([userId, createdAt])
   @@map("saved_recipes")

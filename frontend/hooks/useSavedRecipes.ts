@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getSavedRecipes,
+  getDiscoverRecipes,
   extractRecipeFromLink,
   saveRecipe,
   logSavedRecipeToMeal,
@@ -10,6 +11,13 @@ export const useSavedRecipes = () => {
   return useQuery({
     queryKey: ["savedRecipes"],
     queryFn: getSavedRecipes,
+  });
+};
+
+export const useDiscoverRecipes = (query: string = "") => {
+  return useQuery({
+    queryKey: ["discoverRecipes", query],
+    queryFn: () => getDiscoverRecipes(query),
   });
 };
 
@@ -25,6 +33,7 @@ export const useSaveRecipe = () => {
     mutationFn: saveRecipe,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["savedRecipes"] });
+      queryClient.invalidateQueries({ queryKey: ["discoverRecipes"] });
     },
   });
 };

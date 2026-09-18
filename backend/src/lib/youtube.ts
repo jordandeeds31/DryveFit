@@ -154,3 +154,118 @@ export const fetchYouTubeCaption = async (
       null,
   };
 };
+
+const decodeXmlEntities = (text: string): string =>
+  text
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ");
+
+interface YouTubeCaptionTrack {
+  baseUrl: string;
+  languageCode: string;
+  kind?: string;
+}
+
+// ytInitialPlayerResponse is a JSON blob YouTube embeds directly in the
+// watch page's HTML for the player to read client-side — reading it back
+// out is just parsing a public page's own markup, not downloading video
+// or audio content the way a video-download tool would. Regex can't find
+// where this multi-hundred-KB nested object actually ends (a non-greedy
+// match stops at the first "}", which is nearly always mid-structure, not
+// the real close) — this scans forward counting brace depth instead,
+// treating quoted strings as opaque so a "}" inside a string value never
+// throws off the count.
+const extractPlayerResponse = (html: string): any | null => {
+  const marker = "ytInitialPlayerResponse = {";
+  const startIdx = html.indexOf(marker);
+  if (startIdx === -1) return null;
+  const objStart = startIdx + marker.length - 1; // include the opening "{"
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = objStart; i < html.length; i++) {
+    const char = html[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (char === '"') {
+      inString = true;
+    } else if (char === "{") {
+      depth++;
+    } else if (char === "}") {
+      depth--;
+      if (depth === 0) {
+        try {
+          return JSON.parse(html.slice(objStart, i + 1));
+        } catch {
+          return null;
+        }
+      }
+    }
+  }
+  return null;
+};
+
+// Fallback for when the description alone doesn't contain a real recipe
+// (see extractRecipeFromLink in recipeImport.service.ts) — the video's
+// own caption/subtitle track, which often has the spoken ingredient list
+// and steps even when the description is just hashtags. Not part of the
+// official YouTube Data API v3 (which has no transcript endpoint for
+// arbitrary third-party videos); this reads the same public caption
+// track the YouTube player itself displays, the same category of access
+// as fetching a page a browser would render, not a scraped video/audio
+// file. Returns null (not an error) on any failure — a missing
+// transcript should fall through to "no recipe detected", not surface
+// as a hard error.
+export const fetchYouTubeTranscript = async (videoId: string): Promise<string | null> => {
+  let html: string;
+  try {
+    const response = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+    });
+    if (!response.ok) return null;
+    html = await response.text();
+  } catch {
+    return null;
+  }
+
+  const playerResponse = extractPlayerResponse(html);
+  const tracks: YouTubeCaptionTrack[] | undefined =
+    playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+  if (!tracks || tracks.length === 0) return null;
+
+  // Prefer a manually-created English track over an auto-generated
+  // ("asr") one when both exist — manual captions are usually more
+  // accurate for exact ingredient names/quantities.
+  const track =
+    tracks.find((t) => t.languageCode.startsWith("en") && t.kind !== "asr") ??
+    tracks.find((t) => t.languageCode.startsWith("en")) ??
+    tracks[0];
+
+  let captionXml: string;
+  try {
+    const response = await fetch(track.baseUrl);
+    if (!response.ok) return null;
+    captionXml = await response.text();
+  } catch {
+    return null;
+  }
+
+  const lines = [...captionXml.matchAll(/<text[^>]*>([\s\S]*?)<\/text>/g)].map((match) =>
+    decodeXmlEntities(match[1]).trim(),
+  );
+  const transcript = lines.filter(Boolean).join(" ");
+  return transcript.length > 0 ? transcript : null;
+};

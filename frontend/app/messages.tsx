@@ -115,7 +115,13 @@ const MessagesScreen = () => {
                       {formatRelativeTime(item.lastMessage.createdAt)}
                     </Text>
                   )}
-                  {hasUnread && <View style={styles.unreadDot} />}
+                  {hasUnread && (
+                    <View style={styles.unreadCountBadge}>
+                      <Text style={styles.unreadCountBadgeText}>
+                        {item.unreadCount > 9 ? "9+" : item.unreadCount}
+                      </Text>
+                    </View>
+                  )}
                 </View>
               </TouchableOpacity>
             );
@@ -209,10 +215,18 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.xs,
     color: colors.textMuted,
   },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  unreadCountBadge: {
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
     backgroundColor: colors.primaryBlue,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  unreadCountBadgeText: {
+    fontSize: 10,
+    fontWeight: fontWeights.bold,
+    color: "white",
   },
 });

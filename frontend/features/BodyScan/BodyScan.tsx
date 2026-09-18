@@ -7,6 +7,7 @@ import {
   Image,
   Alert,
   ActivityIndicator,
+  Linking,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import Feather from "@expo/vector-icons/Feather";
@@ -158,11 +159,22 @@ const BodyScan = () => {
       : await ImagePicker.requestMediaLibraryPermissionsAsync();
 
     if (!permission.granted) {
+      // Camera and photo-library access are separate iOS permissions —
+      // granting one doesn't grant the other, and once either has been
+      // denied once, iOS never shows its own prompt again (canAskAgain
+      // goes false for good), so without this Settings deep link the
+      // alert below would be a dead end repeating the same ask forever.
       Alert.alert(
         "Permission needed",
         fromCamera
           ? "Allow camera access to take a Body Scan photo."
           : "Allow photo library access to choose a Body Scan photo.",
+        permission.canAskAgain
+          ? undefined
+          : [
+              { text: "Cancel", style: "cancel" },
+              { text: "Open Settings", onPress: () => Linking.openSettings() },
+            ],
       );
       return;
     }
